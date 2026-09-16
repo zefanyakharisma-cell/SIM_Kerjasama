@@ -82,3 +82,49 @@ The `simks-partnership` Supabase project already held a superseded English-named
 v2 build with 729 documents. Rather than dropping it, that schema was renamed to
 `v2_archived` — every row intact, reversible, and now the source for the schema
 v3 data migration (Architecture §12.2). `public` is schema v3.
+
+## 4 — RLS, then a hardening pass that caught four real holes
+
+RLS is enabled on all 28 tables and expresses the access model itself rather
+than duplicating it in app code (EC-05). The two axes: a stored `role` on
+`akun`, and a derived approver status — an open `disposisi_target` matching the
+account's `jabatan`. No `approver` role is ever stored (AR-01).
+
+The policy worth reading is on `disposisi_target`: an account may update a
+target only when it is routed to that account's own position **and** the target
+is `pending_action`. That is tier gating enforced at the database, underneath
+every route (BR-01). Append-only logs get select and insert policies and no
+others (DR-02). There is no delete policy anywhere (BR-09).
+
+### The hardening pass
+
+Running Supabase's security advisors after RLS landed surfaced that every
+function in `public` is published as a PostgREST RPC endpoint, reachable with
+just the anon key. Reading them back with that in mind, four checked no
+authority at all:
+
+| Function | Was | Now |
+|---|---|---|
+| `ajukan_proposal` | anyone could submit anyone's draft | IO or the proposal owner |
+| `kirim_disposisi` | anyone could assign approvers | IO only |
+| `catat_revisi` | anyone could overwrite a draft file | IO only |
+| `arsipkan_dokumen` | **anyone could archive any document** | IO only |
+
+`aksi_approval`, `aktivasi_dokumen`, `tambah_target`, `hapus_target` and
+`reaktivasi_pending` already checked, and held.
+
+Beyond the checks: `EXECUTE` is revoked from `PUBLIC` (revoking from `anon`
+alone does nothing — it inherits through `PUBLIC`) and granted back function by
+function to `authenticated`; `recompute_tiers` is granted to nobody, since it is
+internal and called by the action functions as the owner; and `search_path` is
+pinned on every function so a caller cannot shadow a table name.
+
+`anon` can now execute nothing in the schema. The full §9 suite was re-run after
+the hardening and stays green.
+
+One advisor notice is left standing deliberately: `partner_eval_token` has RLS
+enabled with no policy, because no logged-in account should ever read it — the
+partner token resolves through an Edge Function on the service role (AR-07).
+
+**Still owed, outside SQL:** enable Supabase Auth's leaked-password protection
+(HaveIBeenPwned check) in project settings.
