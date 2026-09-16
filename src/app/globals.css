@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens. PCU Brand Guidelines, Formal register (PRD §16) crossed with
+ * the functional-colour rule from Design §2.1: every colour carries exactly one
+ * meaning, and every status also carries a text label -- colour is never the
+ * only signal.
+ *
+ * Hex values are the 2026 draft and are provisional until MRD confirms (O3).
+ */
+:root {
+  --midnight: #19304b;
+  --surface: #ffffff;
+  --surface-sunk: #f1f1f1;
+  --border: #e2e5e9;
+
+  --text-primary: #000000;
+  --text-secondary: #46505c;
+  --text-muted: #7b8794;
+
+  --status-draft: #7b8794;      /* inert */
+  --status-progress: #3880d0;   /* submitted / in disposition */
+  --status-pending: #f37121;    /* frozen -- rare, consequential, loud */
+  --status-approved: #45b8bc;   /* awaiting signing */
+  --status-active: #6aaa43;
+  --status-archived: #7b8794;
+
+  --renewal-request: #be93e4;   /* never confused with approval blue */
+  --sla-yellow: #ffbc00;
+  --sla-red: #e31f26;
+  --action-danger: #e31f26;     /* irreversible only, so red always means stop */
+}
+
+body {
+  background: var(--surface-sunk);
+  color: var(--text-primary);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Document numbers are identifiers: monospace makes a transcription error
+   visible (Design §2.2). */
+.no-dokumen { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }

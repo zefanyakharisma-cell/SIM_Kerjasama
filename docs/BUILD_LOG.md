@@ -128,3 +128,43 @@ partner token resolves through an Edge Function on the service role (AR-07).
 
 **Still owed, outside SQL:** enable Supabase Auth's leaked-password protection
 (HaveIBeenPwned check) in project settings.
+
+## 5 — The Phase 1 application
+
+Next.js App Router on the verified backend. Server Components read, Server
+Actions write, and no action re-implements a rule: each one is a thin call into
+the Postgres function that owns the rule (EC-01, EC-04).
+
+| Route | What it is |
+|---|---|
+| `/login` | Card over Midnight; role emails, not personal accounts |
+| `/dashboard` | The KPI cards, including both team KPIs |
+| `/kerja-sama` | The lifecycle as tabs, archive included as a tab |
+| `/kerja-sama/[id]` | Tier progress, approver actions, live disposition editing, history |
+| `/buat` | The proposal form with the recursive tri-state Lingkup tree |
+| `/antrean` | The personal approval queue, red before yellow before the rest |
+
+Three pieces where the specification is emphatic and the obvious build is wrong:
+
+**The tri-state Lingkup tree.** Checking a faculty checks every descendant at
+any depth, recursively. Unchecking one child leaves the parent *indeterminate*
+— a real `indeterminate` DOM state with `aria-checked="mixed"`, not a binary
+box that snaps the whole faculty off. The partial state is derived at render
+time; only the explicit set of chosen unit ids is ever posted (BR-37, BR-38).
+
+**Pending and Revision look as different as they are.** Pending is visually
+heavier and its confirmation says the thing that is actually surprising: the
+entire approval restarts from Tier 1, including tiers that already approved. A
+user who expected a gentle pause and got a full reset will be angry, so the
+consequence is stated at the moment of choosing, not in a generic
+"Are you sure?" (Design §4.4, §4.8).
+
+**A frozen document shows a paused indicator, not a ticking count.** The clock
+really is stopped, and a number still climbing would read as overdue to whoever
+is scanning the list.
+
+Both `tsc --noEmit` and `next build` pass; all seven routes compile.
+
+Not in this phase, by scope: the world map and chart studio, the scheduled SLA
+and expiry sweeps, the three Excel exports, per-column filters, file upload to
+Storage, and the whole renewal flow with its partner token page.
