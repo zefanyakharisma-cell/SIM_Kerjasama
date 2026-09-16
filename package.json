@@ -10,7 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:reset": "supabase db reset",
-    "db:test": "node scripts/run-db-tests.mjs"
+    "db:test": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f supabase/tests/domain_functions.sql"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
