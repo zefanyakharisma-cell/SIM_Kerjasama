@@ -125,6 +125,99 @@ export default async function CariKerjaSama({
         </span>
       </div>
 
+      {tab === "aktif" ? (
+        <div
+          className="overflow-x-auto rounded-xl border bg-white"
+          style={{ borderColor: "var(--border)" }}
+        >
+          {/* The spec-fixed column set for Kerja Sama Aktif (revision V2 §1) —
+              distinct from the shared filterable table below, which the other
+              tabs still use unchanged. */}
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
+                {[
+                  "No",
+                  "Nama Mitra",
+                  "Jenis Dokumen",
+                  "Agenda Kerja Sama",
+                  "Pengusul",
+                  "Lingkup",
+                  "Tanggal Mulai",
+                  "Tanggal Berakhir",
+                  "No. Dokumen",
+                  "Action",
+                ].map((label) => (
+                  <th key={label} className="px-3 py-2 font-medium">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {baris.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-4 py-10 text-center" style={{ color: "var(--text-muted)" }}>
+                    Belum ada dokumen pada tab ini.
+                  </td>
+                </tr>
+              ) : (
+                baris.map((b: any, i: number) => (
+                  <tr
+                    key={b.id_proposal}
+                    className="border-t"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      {(halaman - 1) * PER_HALAMAN + i + 1}
+                    </td>
+                    <td className="px-3 py-2">{b.nama_mitra ?? "—"}</td>
+                    <td className="px-3 py-2">{b.jenis_kerjasama}</td>
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      {b.agenda ?? "—"}
+                    </td>
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      {b.jabatan_pengusul ?? "—"}
+                    </td>
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      {b.lingkup ?? "—"}
+                    </td>
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      <Tanggal nilai={b.tanggal_mulai} />
+                    </td>
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      <Tanggal nilai={b.tanggal_berakhir} />
+                    </td>
+                    <td className="px-3 py-2 no-dokumen">
+                      {b.no_dokumen ?? `draf-${b.id_proposal}`}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <Link
+                        href={`/kerja-sama/${b.id_proposal}`}
+                        aria-label="Lihat laporan dokumen"
+                        className="inline-flex rounded p-1 hover:bg-black/5"
+                        style={{ color: "var(--midnight)" }}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          className="h-4 w-4"
+                        >
+                          <circle cx="11" cy="11" r="7" />
+                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <form method="get" action="/kerja-sama">
         <input type="hidden" name="tab" value={tab} />
         <div
@@ -301,6 +394,7 @@ export default async function CariKerjaSama({
           </table>
         </div>
       </form>
+      )}
 
       {halamanTerakhir > 1 ? (
         <nav className="mt-3 flex items-center gap-2 text-sm">

@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 const TAB = {
   mitra: "Mitra",
   jabatan: "Jabatan",
+  pegawai: "Pegawai",
   unit: "Unit",
   negara: "Negara",
 } as const;
@@ -53,6 +54,30 @@ export default async function MasterData({
       .eq("id", Number(formData.get("id")));
     revalidatePath("/master-data");
     revalidatePath("/dashboard");
+  }
+
+  async function simpanPegawaiJabatan(formData: FormData) {
+    "use server";
+    const klien = await supabaseServer();
+    const idPegawai = String(formData.get("id_pegawai") ?? "");
+    await klien
+      .from("jabatan")
+      .update({ id_pegawai: idPegawai === "" ? null : Number(idPegawai) })
+      .eq("id", Number(formData.get("id")));
+    revalidatePath("/master-data");
+  }
+
+  async function tambahPegawai(formData: FormData) {
+    "use server";
+    const klien = await supabaseServer();
+    const email = String(formData.get("email") ?? "").trim();
+    const noHp = String(formData.get("no_hp") ?? "").trim();
+    await klien.from("pegawai").insert({
+      nama: String(formData.get("nama") ?? "").trim(),
+      email: email === "" ? null : email,
+      no_hp: noHp === "" ? null : noHp,
+    });
+    revalidatePath("/master-data");
   }
 
   const nav = (
@@ -166,10 +191,10 @@ export default async function MasterData({
   }
 
   if (aktif === "jabatan") {
-    const { data: jabatan } = await supabase
-      .from("jabatan")
-      .select("id, nama, tier_disposisi")
-      .order("nama");
+    const [{ data: jabatan }, { data: pegawai }] = await Promise.all([
+      supabase.from("jabatan").select("id, nama, tier_disposisi, id_pegawai").order("nama"),
+      supabase.from("pegawai").select("id, nama").eq("is_active", true).order("nama"),
+    ]);
     return (
       <div className="max-w-4xl">
         {judul}
@@ -177,17 +202,86 @@ export default async function MasterData({
         <div className="rounded-xl border bg-white p-4" style={gaya}>
           <ul className="divide-y text-sm" style={gaya}>
             {(jabatan ?? []).map((j) => (
-              <li key={j.id} className="flex items-center justify-between gap-2 py-2">
-                <span>{j.nama}</span>
+              <li key={j.id} className="flex flex-wrap items-center gap-2 py-2">
+                <span className="min-w-0 flex-1">{j.nama}</span>
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {j.tier_disposisi ? `Tier ${j.tier_disposisi}` : "Bukan approver"}
                 </span>
+                <form action={simpanPegawaiJabatan} className="flex items-center gap-1">
+                  <input type="hidden" name="id" value={j.id} />
+                  <select
+                    name="id_pegawai"
+                    defaultValue={j.id_pegawai ?? ""}
+                    className="rounded-lg border px-2 py-1 text-xs"
+                    style={gaya}
+                  >
+                    <option value="">Belum ada kontak</option>
+                    {(pegawai ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nama}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit" className="text-xs underline">
+                    Simpan
+                  </button>
+                </form>
               </li>
             ))}
           </ul>
           <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-            Ubah tier approval di Settings.
+            Ubah tier approval di Settings. Pegawai yang dipilih di sini
+            otomatis menjadi Nama Kontak/No.HP jabatan ini di laporan Kerja
+            Sama Aktif.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (aktif === "pegawai") {
+    const { data: pegawai } = await supabase
+      .from("pegawai")
+      .select("id, nama, email, no_hp, is_active")
+      .order("nama");
+    return (
+      <div className="max-w-4xl">
+        {judul}
+        {nav}
+        <div className="mb-4 rounded-xl border bg-white p-4" style={gaya}>
+          <ul className="divide-y text-sm" style={gaya}>
+            {(pegawai ?? []).map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-2 py-2">
+                <span className="min-w-0 flex-1">{p.nama}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {p.email ?? "—"} · {p.no_hp ?? "—"}
+                </span>
+              </li>
+            ))}
+            {!pegawai?.length ? (
+              <li className="py-6 text-center" style={{ color: "var(--text-muted)" }}>
+                Belum ada pegawai tersimpan.
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border bg-white p-4" style={gaya}>
+          <h2 className="mb-3 text-sm font-semibold">Tambah Pegawai</h2>
+          <form action={tambahPegawai} className="grid gap-2 sm:grid-cols-3">
+            <input name="nama" required placeholder="Nama" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
+            <input name="email" type="email" placeholder="Email" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
+            <input name="no_hp" placeholder="No. HP" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
+            <div className="sm:col-span-3">
+              <button
+                type="submit"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                style={{ background: "var(--midnight)" }}
+              >
+                Simpan
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     );
