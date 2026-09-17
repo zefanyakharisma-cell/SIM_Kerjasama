@@ -25,8 +25,15 @@ export type UnitNode = {
  *     never stored. What gets posted is only the explicit set of chosen unit
  *     ids (BR-38, DR-09).
  */
-export function PohonLingkup({ units }: { units: UnitNode[] }) {
-  const [terpilih, setTerpilih] = useState<Set<number>>(new Set());
+export function PohonLingkup({
+  units,
+  awal,
+}: {
+  units: UnitNode[];
+  /** Pre-checked units, for editing a draft whose scope was already chosen. */
+  awal?: number[];
+}) {
+  const [terpilih, setTerpilih] = useState<Set<number>>(() => new Set(awal ?? []));
 
   const anakDari = useMemo(() => {
     const peta = new Map<number | null, UnitNode[]>();

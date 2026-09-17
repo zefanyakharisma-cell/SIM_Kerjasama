@@ -41,13 +41,16 @@ export async function kirimDisposisi(
   idProposal: number,
   idJabatan: number[],
   pesan: string,
+  lampiran?: string | null,
 ): Promise<Hasil> {
   const hasil = await panggil("kirim_disposisi", {
     p_id_proposal: idProposal,
     p_id_jabatan: idJabatan,
     p_pesan: pesan || null,
+    p_lampiran: lampiran || null,
   });
   revalidatePath(`/kerja-sama/${idProposal}`);
+  revalidatePath(`/kerja-sama/${idProposal}/laporan`);
   return hasil;
 }
 

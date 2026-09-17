@@ -125,7 +125,115 @@ export default async function CariKerjaSama({
         </span>
       </div>
 
-      {tab === "aktif" ? (
+      {tab === "proposal" ? (
+        <div
+          className="overflow-x-auto rounded-xl border bg-white"
+          style={{ borderColor: "var(--border)" }}
+        >
+          {/* The spec-fixed column set for Proposal Kerja Sama (revision V3
+              §2): its own table, distinct from the generic filterable one
+              below, because its columns and its two actions (view report,
+              edit while still a draft) are fixed by spec rather than
+              user-chosen. */}
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
+                {[
+                  "No",
+                  "Nama Mitra",
+                  "Jenis",
+                  "Agenda Kerja Sama",
+                  "Pengusul",
+                  "Tanggal Diajukan",
+                  "Status Dokumen",
+                  "Action",
+                ].map((label) => (
+                  <th key={label} className="px-3 py-2 font-medium">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {baris.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center" style={{ color: "var(--text-muted)" }}>
+                    Belum ada dokumen pada tab ini.
+                  </td>
+                </tr>
+              ) : (
+                baris.map((b: any, i: number) => (
+                  <tr
+                    key={b.id_proposal}
+                    className="border-t"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      {(halaman - 1) * PER_HALAMAN + i + 1}
+                    </td>
+                    <td className="px-3 py-2">{b.nama_mitra ?? "—"}</td>
+                    <td className="px-3 py-2">{b.jenis_kerjasama}</td>
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      {b.agenda ?? "—"}
+                    </td>
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      {b.jabatan_pengusul ?? "—"}
+                    </td>
+                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                      <Tanggal nilai={b.waktu_proposal_dokumen} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <StatusPill status={b.status_tampil} alasanArsip={b.alasan_arsip} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="flex items-center justify-center gap-1">
+                        <Link
+                          href={`/kerja-sama/${b.id_proposal}/laporan` as any}
+                          aria-label="Lihat laporan dokumen"
+                          className="inline-flex rounded p-1 hover:bg-black/5"
+                          style={{ color: "var(--midnight)" }}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            className="h-4 w-4"
+                          >
+                            <circle cx="11" cy="11" r="7" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          </svg>
+                        </Link>
+                        {b.status_proposal === "Draft" ? (
+                          <Link
+                            href={`/buat?id=${b.id_proposal}` as any}
+                            aria-label="Edit draf"
+                            className="inline-flex rounded p-1 hover:bg-black/5"
+                            style={{ color: "var(--midnight)" }}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              className="h-4 w-4"
+                            >
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                          </Link>
+                        ) : null}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : tab === "aktif" ? (
         <div
           className="overflow-x-auto rounded-xl border bg-white"
           style={{ borderColor: "var(--border)" }}

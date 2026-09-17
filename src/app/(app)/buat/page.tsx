@@ -45,8 +45,46 @@ function Bagian({
 const inputKelas = "w-full rounded-lg border px-3 py-2 text-sm";
 const inputGaya = { borderColor: "var(--border)" };
 
-export default async function BuatKerjaSama() {
+export default async function BuatKerjaSama({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>;
+}) {
+  const { id: idMentah } = await searchParams;
+  const idEdit = idMentah ? Number(idMentah) : null;
   const supabase = await supabaseServer();
+
+  // Editing a draft loads its current values to prefill the form (revision
+  // V3 §2). Only a Draft can be edited this way — RLS already restricts the
+  // row to its own creator or IO, and the status check keeps a submitted
+  // document out of this path even for IO.
+  const { data: draf } = idEdit
+    ? await supabase
+        .from("proposal_dokumen")
+        .select(
+          `id, jenis_kerjasama, periode_kerjasama, sifat_periode_kerjasama,
+           tujuan_kerjasama, manfaat_bagi_petra, manfaat_bagi_mitra, informasi_tambahan,
+           partner_pengusul ( id_partner, is_lead ),
+           pengusul ( id_jabatan ),
+           proposal_dokumen_bidang ( id_bidang_kerjasama ),
+           proposal_dokumen_agenda ( id_agenda ),
+           proposal_dokumen_unit ( id_unit ),
+           proposal_dokumen_mou ( ringkasan_kegiatan ),
+           proposal_dokumen_moa ( hak_petra, hak_calon_mitra, kewajiban_petra, kewajiban_calon_mitra )`,
+        )
+        .eq("id", idEdit)
+        .eq("status_proposal", "Draft")
+        .maybeSingle()
+    : { data: null };
+
+  const partnerTerpilih = new Set((draf as any)?.partner_pengusul?.map((p: any) => p.id_partner) ?? []);
+  const partnerLead = (draf as any)?.partner_pengusul?.find((p: any) => p.is_lead)?.id_partner ?? null;
+  const bidangTerpilih = new Set((draf as any)?.proposal_dokumen_bidang?.map((b: any) => b.id_bidang_kerjasama) ?? []);
+  const agendaTerpilih = new Set((draf as any)?.proposal_dokumen_agenda?.map((a: any) => a.id_agenda) ?? []);
+  const unitTerpilih: number[] = (draf as any)?.proposal_dokumen_unit?.map((u: any) => u.id_unit) ?? [];
+  const mouDraf = (draf as any)?.proposal_dokumen_mou?.[0] ?? (draf as any)?.proposal_dokumen_mou;
+  const moaDraf = (draf as any)?.proposal_dokumen_moa?.[0] ?? (draf as any)?.proposal_dokumen_moa;
+  const jabatanPengusulDraf = (draf as any)?.pengusul?.[0]?.id_jabatan ?? null;
 
   const [
     { data: partner },
@@ -83,15 +121,17 @@ export default async function BuatKerjaSama() {
     <div className="max-w-3xl">
       <header className="mb-5">
         <h1 className="text-xl font-semibold" style={{ color: "var(--midnight)" }}>
-          Buat Kerja Sama
+          {idEdit ? "Edit Draf Kerja Sama" : "Buat Kerja Sama"}
         </h1>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Simpan sebagai draf dahulu bila datanya belum lengkap. Draf hanya
-          terlihat oleh Anda dan KUI.
+          {idEdit
+            ? "Perubahan menimpa draf ini di tempat. Simpan sebagai draf lagi, atau ajukan langsung dari sini."
+            : "Simpan sebagai draf dahulu bila datanya belum lengkap. Draf hanya terlihat oleh Anda dan KUI."}
         </p>
       </header>
 
       <form action={simpanProposal}>
+        {idEdit ? <input type="hidden" name="id" value={idEdit} /> : null}
         <Bagian
           judul="I. Data Calon Mitra"
           keterangan="Pilih mitra dari master data. Negara mitra menentukan status dalam negeri atau luar negeri."
@@ -106,6 +146,7 @@ export default async function BuatKerjaSama() {
               multiple
               required
               size={6}
+              defaultValue={[...partnerTerpilih].map(String)}
               className={inputKelas}
               style={inputGaya}
             >
@@ -122,7 +163,12 @@ export default async function BuatKerjaSama() {
 
           <label className="mt-4 block">
             <span className="mb-1 block text-sm font-medium">Mitra Utama</span>
-            <select name="id_partner_lead" className={inputKelas} style={inputGaya}>
+            <select
+              name="id_partner_lead"
+              defaultValue={partnerLead ?? ""}
+              className={inputKelas}
+              style={inputGaya}
+            >
               <option value="">Mitra pertama yang dipilih</option>
               {(partner ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
@@ -147,6 +193,7 @@ export default async function BuatKerjaSama() {
             <select
               name="id_jabatan_pengusul"
               required
+              defaultValue={jabatanPengusulDraf ?? ""}
               className={inputKelas}
               style={inputGaya}
             >
@@ -163,7 +210,13 @@ export default async function BuatKerjaSama() {
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Jenis (*)</span>
-              <select name="jenis_kerjasama" required className={inputKelas} style={inputGaya}>
+              <select
+                name="jenis_kerjasama"
+                required
+                defaultValue={(draf as any)?.jenis_kerjasama ?? "MoU"}
+                className={inputKelas}
+                style={inputGaya}
+              >
                 <option value="MoU">MoU</option>
                 <option value="MoA">MoA</option>
               </select>
@@ -173,6 +226,7 @@ export default async function BuatKerjaSama() {
               <span className="mb-1 block text-sm font-medium">Periode</span>
               <input
                 name="periode_kerjasama"
+                defaultValue={(draf as any)?.periode_kerjasama ?? ""}
                 placeholder="5 Tahun"
                 className={inputKelas}
                 style={inputGaya}
@@ -181,7 +235,12 @@ export default async function BuatKerjaSama() {
 
             <label className="block sm:col-span-2">
               <span className="mb-1 block text-sm font-medium">Sifat Periode</span>
-              <select name="sifat_periode_kerjasama" className={inputKelas} style={inputGaya}>
+              <select
+                name="sifat_periode_kerjasama"
+                defaultValue={(draf as any)?.sifat_periode_kerjasama ?? "Kedua Belah Pihak"}
+                className={inputKelas}
+                style={inputGaya}
+              >
                 <option value="Kedua Belah Pihak">Kedua Belah Pihak</option>
                 <option value="Auto Renewed">Auto Renewed</option>
               </select>
@@ -199,7 +258,12 @@ export default async function BuatKerjaSama() {
             <div className="flex flex-wrap gap-3">
               {(bidang ?? []).map((b) => (
                 <label key={b.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="bidang" value={b.id} />
+                  <input
+                    type="checkbox"
+                    name="bidang"
+                    value={b.id}
+                    defaultChecked={bidangTerpilih.has(b.id)}
+                  />
                   {b.nama}
                 </label>
               ))}
@@ -211,7 +275,12 @@ export default async function BuatKerjaSama() {
             <div className="grid gap-2 sm:grid-cols-2">
               {(agenda ?? []).map((a) => (
                 <label key={a.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="agenda" value={a.id} />
+                  <input
+                    type="checkbox"
+                    name="agenda"
+                    value={a.id}
+                    defaultChecked={agendaTerpilih.has(a.id)}
+                  />
                   {a.nama}
                   {/* Flagged by a boolean, so the addendum path is never
                       detected by matching the Indonesian string (BR-16). */}
@@ -230,6 +299,7 @@ export default async function BuatKerjaSama() {
             <input
               name="tujuan_kerjasama"
               list="opsi-tujuan"
+              defaultValue={(draf as any)?.tujuan_kerjasama ?? ""}
               className={inputKelas}
               style={inputGaya}
             />
@@ -247,6 +317,7 @@ export default async function BuatKerjaSama() {
             <textarea
               name="manfaat_bagi_petra"
               rows={2}
+              defaultValue={(draf as any)?.manfaat_bagi_petra ?? ""}
               className={inputKelas}
               style={inputGaya}
             />
@@ -257,6 +328,7 @@ export default async function BuatKerjaSama() {
             <textarea
               name="manfaat_bagi_mitra"
               rows={2}
+              defaultValue={(draf as any)?.manfaat_bagi_mitra ?? ""}
               className={inputKelas}
               style={inputGaya}
             />
@@ -271,6 +343,7 @@ export default async function BuatKerjaSama() {
             <textarea
               name="ringkasan_kegiatan"
               rows={2}
+              defaultValue={mouDraf?.ringkasan_kegiatan ?? ""}
               className={inputKelas}
               style={inputGaya}
             />
@@ -279,21 +352,40 @@ export default async function BuatKerjaSama() {
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Hak UKP (MoA)</span>
-              <textarea name="hak_petra" rows={2} className={inputKelas} style={inputGaya} />
+              <textarea
+                name="hak_petra"
+                rows={2}
+                defaultValue={moaDraf?.hak_petra ?? ""}
+                className={inputKelas}
+                style={inputGaya}
+              />
             </label>
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Hak Mitra (MoA)</span>
-              <textarea name="hak_calon_mitra" rows={2} className={inputKelas} style={inputGaya} />
+              <textarea
+                name="hak_calon_mitra"
+                rows={2}
+                defaultValue={moaDraf?.hak_calon_mitra ?? ""}
+                className={inputKelas}
+                style={inputGaya}
+              />
             </label>
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Kewajiban UKP (MoA)</span>
-              <textarea name="kewajiban_petra" rows={2} className={inputKelas} style={inputGaya} />
+              <textarea
+                name="kewajiban_petra"
+                rows={2}
+                defaultValue={moaDraf?.kewajiban_petra ?? ""}
+                className={inputKelas}
+                style={inputGaya}
+              />
             </label>
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Kewajiban Mitra (MoA)</span>
               <textarea
                 name="kewajiban_calon_mitra"
                 rows={2}
+                defaultValue={moaDraf?.kewajiban_calon_mitra ?? ""}
                 className={inputKelas}
                 style={inputGaya}
               />
@@ -305,6 +397,7 @@ export default async function BuatKerjaSama() {
             <textarea
               name="informasi_tambahan"
               rows={2}
+              defaultValue={(draf as any)?.informasi_tambahan ?? ""}
               className={inputKelas}
               style={inputGaya}
             />
@@ -315,7 +408,7 @@ export default async function BuatKerjaSama() {
           judul="IV. Lingkup Kerja Sama"
           keterangan="Mencentang fakultas otomatis mencentang seluruh prodi dan program di bawahnya. Mencabut satu anak membuat induknya berstatus sebagian."
         >
-          <PohonLingkup units={unit ?? []} />
+          <PohonLingkup units={unit ?? []} awal={unitTerpilih} />
         </Bagian>
 
         <div className="flex flex-wrap gap-2">

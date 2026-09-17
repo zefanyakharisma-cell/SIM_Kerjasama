@@ -15,29 +15,65 @@ export async function simpanProposal(formData: FormData) {
 
   const supabase = await supabaseServer();
   const ajukan = formData.get("aksi") === "ajukan";
+  const idEdit = Number(formData.get("id") ?? 0) || null;
 
-  const { data: proposal, error } = await supabase
-    .from("proposal_dokumen")
-    .insert({
-      jenis_kerjasama: formData.get("jenis_kerjasama"),
-      periode_kerjasama: formData.get("periode_kerjasama") || null,
-      sifat_periode_kerjasama: formData.get("sifat_periode_kerjasama") || null,
-      tujuan_kerjasama: formData.get("tujuan_kerjasama") || null,
-      manfaat_bagi_petra: formData.get("manfaat_bagi_petra") || null,
-      // One shared statement, even on a multi-partner document (Q1).
-      manfaat_bagi_mitra: formData.get("manfaat_bagi_mitra") || null,
-      informasi_tambahan: formData.get("informasi_tambahan") || null,
-      id_akun_pembuat: akun.id,
-      status_proposal: "Draft",
-    })
-    .select("id")
-    .single();
+  const kolom = {
+    jenis_kerjasama: formData.get("jenis_kerjasama"),
+    periode_kerjasama: formData.get("periode_kerjasama") || null,
+    sifat_periode_kerjasama: formData.get("sifat_periode_kerjasama") || null,
+    tujuan_kerjasama: formData.get("tujuan_kerjasama") || null,
+    manfaat_bagi_petra: formData.get("manfaat_bagi_petra") || null,
+    // One shared statement, even on a multi-partner document (Q1).
+    manfaat_bagi_mitra: formData.get("manfaat_bagi_mitra") || null,
+    informasi_tambahan: formData.get("informasi_tambahan") || null,
+  };
 
-  if (error || !proposal) {
-    throw new Error(`Proposal gagal disimpan: ${error?.message}`);
+  let id: number;
+
+  if (idEdit) {
+    // Editing a draft (revision V3 §2): the same fields, written in place.
+    // RLS restricts the update to the draft's own creator or IO, and to rows
+    // still in Draft — a submitted document is never edited this way.
+    const { data: proposal, error } = await supabase
+      .from("proposal_dokumen")
+      .update(kolom)
+      .eq("id", idEdit)
+      .eq("status_proposal", "Draft")
+      .select("id")
+      .single();
+    if (error || !proposal) {
+      throw new Error(`Draf gagal disimpan: ${error?.message}`);
+    }
+    id = proposal.id as number;
+
+    // The child rows are the explicit set for this proposal, not an append
+    // log — clearing and reinserting keeps that true on every save, exactly
+    // like the Lingkup Kerja Sama tree already does at read time (BR-38).
+    await Promise.all([
+      supabase.from("partner_pengusul").delete().eq("id_proposal_dokumen", id),
+      supabase.from("pengusul").delete().eq("id_proposal_dokumen", id),
+      supabase.from("proposal_dokumen_bidang").delete().eq("id_proposal_dokumen", id),
+      supabase.from("proposal_dokumen_agenda").delete().eq("id_proposal_dokumen", id),
+      supabase.from("proposal_dokumen_unit").delete().eq("id_proposal_dokumen", id),
+      supabase.from("proposal_dokumen_mou").delete().eq("id_proposal_dokumen", id),
+      supabase.from("proposal_dokumen_moa").delete().eq("id_proposal_dokumen", id),
+    ]);
+  } else {
+    const { data: proposal, error } = await supabase
+      .from("proposal_dokumen")
+      .insert({
+        ...kolom,
+        id_akun_pembuat: akun.id,
+        status_proposal: "Draft",
+      })
+      .select("id")
+      .single();
+
+    if (error || !proposal) {
+      throw new Error(`Proposal gagal disimpan: ${error?.message}`);
+    }
+    id = proposal.id as number;
   }
-
-  const id = proposal.id as number;
 
   // A partner is always recorded through the join table, even when there is
   // exactly one. There is no shortcut partner column on the proposal (DR-01).
@@ -116,7 +152,7 @@ export async function simpanProposal(formData: FormData) {
   await supabase.from("riwayat_approval").insert({
     id_proposal_dokumen: id,
     id_akun: akun.id,
-    aksi: "created",
+    aksi: idEdit ? "revision_requested" : "created",
   });
 
   if (ajukan) {
@@ -127,5 +163,6 @@ export async function simpanProposal(formData: FormData) {
   }
 
   revalidatePath("/kerja-sama");
-  redirect(`/kerja-sama/${id}`);
+  if (idEdit) revalidatePath(`/kerja-sama/${id}/laporan`);
+  redirect(idEdit ? `/kerja-sama/${id}/laporan` : `/kerja-sama/${id}`);
 }
