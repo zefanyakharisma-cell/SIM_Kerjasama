@@ -48,8 +48,14 @@ const inputGaya = { borderColor: "var(--border)" };
 export default async function BuatKerjaSama() {
   const supabase = await supabaseServer();
 
-  const [{ data: partner }, { data: bidang }, { data: agenda }, { data: unit }, { data: opsi }] =
-    await Promise.all([
+  const [
+    { data: partner },
+    { data: bidang },
+    { data: agenda },
+    { data: unit },
+    { data: opsi },
+    { data: jabatan },
+  ] = await Promise.all([
       supabase
         .from("partner")
         .select("id, nama, is_international")
@@ -67,6 +73,7 @@ export default async function BuatKerjaSama() {
         .from("managed_options")
         .select("id, option_group, value")
         .eq("is_active", true),
+      supabase.from("jabatan").select("id, nama").order("nama"),
     ]);
 
   const opsiGrup = (grup: string) =>
@@ -91,18 +98,68 @@ export default async function BuatKerjaSama() {
         >
           <label className="block">
             <span className="mb-1 block text-sm font-medium">Calon Mitra (*)</span>
-            <select name="id_partner" required className={inputKelas} style={inputGaya}>
-              <option value="">Pilih mitra…</option>
+            {/* Multi-partner is rare, so it is the same control rather than a
+                separate flow: pick one, or hold Ctrl to pick several
+                (PRD §7.8). */}
+            <select
+              name="id_partner"
+              multiple
+              required
+              size={6}
+              className={inputKelas}
+              style={inputGaya}
+            >
               {(partner ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nama} {p.is_international ? "· Luar Negeri" : "· Dalam Negeri"}
                 </option>
               ))}
             </select>
+            <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
+              Untuk lebih dari satu mitra, tahan Ctrl (atau Cmd) saat memilih.
+            </span>
+          </label>
+
+          <label className="mt-4 block">
+            <span className="mb-1 block text-sm font-medium">Mitra Utama</span>
+            <select name="id_partner_lead" className={inputKelas} style={inputGaya}>
+              <option value="">Mitra pertama yang dipilih</option>
+              {(partner ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nama}
+                </option>
+              ))}
+            </select>
+            {/* On a multi-partner renewal there is ONE partner evaluation, and
+                it goes to this partner (BR-29, Q7). */}
+            <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
+              Saat pembaruan, evaluasi mitra hanya dikirim ke mitra utama.
+            </span>
           </label>
         </Bagian>
 
-        <Bagian judul="II. Kerja Sama yang Diusulkan">
+        <Bagian
+          judul="II. Unit Pengusul"
+          keterangan="Jabatan pengusul menentukan unit pemilik hubungan ini. Permintaan pembaruan kelak dikirim ke jabatan tersebut."
+        >
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Jabatan Pengusul (*)</span>
+            <select
+              name="id_jabatan_pengusul"
+              required
+              className={inputKelas}
+              style={inputGaya}
+            >
+              {(jabatan ?? []).map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.nama}
+                </option>
+              ))}
+            </select>
+          </label>
+        </Bagian>
+
+        <Bagian judul="III. Kerja Sama yang Diusulkan">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Jenis (*)</span>
@@ -255,7 +312,7 @@ export default async function BuatKerjaSama() {
         </Bagian>
 
         <Bagian
-          judul="III. Lingkup Kerja Sama"
+          judul="IV. Lingkup Kerja Sama"
           keterangan="Mencentang fakultas otomatis mencentang seluruh prodi dan program di bawahnya. Mencabut satu anak membuat induknya berstatus sebagian."
         >
           <PohonLingkup units={unit ?? []} />

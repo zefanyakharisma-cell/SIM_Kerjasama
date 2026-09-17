@@ -41,12 +41,36 @@ export async function simpanProposal(formData: FormData) {
 
   // A partner is always recorded through the join table, even when there is
   // exactly one. There is no shortcut partner column on the proposal (DR-01).
-  const idPartner = formData.get("id_partner");
-  if (idPartner) {
-    await supabase.from("partner_pengusul").insert({
+  //
+  // Multi-partner is rare but real: Section I repeats while Section III stays
+  // shared, and exactly one partner is the lead — the one whose evaluation is
+  // collected at renewal (BR-29). The lead defaults to the first selected, so a
+  // single-partner document needs no extra decision.
+  const semuaPartner = formData.getAll("id_partner").map(Number).filter(Boolean);
+  const unik = [...new Set(semuaPartner)];
+  const pilihanLead = Number(formData.get("id_partner_lead") ?? 0);
+  const lead = unik.includes(pilihanLead) ? pilihanLead : unik[0];
+
+  if (unik.length) {
+    await supabase.from("partner_pengusul").insert(
+      unik.map((p) => ({
+        id_proposal_dokumen: id,
+        id_partner: p,
+        is_lead: p === lead,
+      })),
+    );
+  }
+
+  // Section II — the proposing position. Without it a renewal request has
+  // nowhere to be routed later, so it is recorded at creation rather than
+  // reconstructed (BR-25).
+  const idJabatanPengusul = Number(
+    formData.get("id_jabatan_pengusul") ?? akun.id_jabatan,
+  );
+  if (idJabatanPengusul) {
+    await supabase.from("pengusul").insert({
       id_proposal_dokumen: id,
-      id_partner: Number(idPartner),
-      is_lead: true,
+      id_jabatan: idJabatanPengusul,
     });
   }
 

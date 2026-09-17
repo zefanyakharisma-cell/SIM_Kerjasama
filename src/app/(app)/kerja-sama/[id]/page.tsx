@@ -1,5 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
+import { aktivasiDokumen, kirimDisposisi } from "@/lib/actions/workflow";
+import { arsipkanDokumen } from "@/lib/actions/pembaruan";
 import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
 import {
@@ -50,7 +54,7 @@ export default async function DetailDokumen({
       `id, jenis_kerjasama, status_proposal, periode_kerjasama,
        sifat_periode_kerjasama, tujuan_kerjasama, manfaat_bagi_petra,
        manfaat_bagi_mitra, informasi_tambahan, waktu_proposal_dokumen,
-       waktu_disetujui, waktu_aktif,
+       waktu_disetujui, waktu_aktif, id_dokumen_sebelumnya, file_draft,
        partner_pengusul ( is_lead, partner ( nama, kota, is_international ) ),
        proposal_dokumen_unit ( unit ( id, nama ) ),
        dokumen_kerja_sama ( no, no_dokumen, status, alasan_arsip,
@@ -125,6 +129,73 @@ export default async function DetailDokumen({
     .order("tier_disposisi");
 
   const sudahJadiTarget = new Set((target ?? []).map((t: any) => t.jabatan?.id));
+
+  // On a Perpanjangan the approver list starts prefilled from the positions
+  // that approved the predecessor — editable, and empty for a legacy document
+  // with no approval history to prefill from (PRD §9.6).
+  const { data: prefill } = await supabase.rpc("jabatan_prefill_perpanjangan", {
+    p_id_proposal: idProposal,
+  });
+  const prefillSet = new Set(
+    ((prefill ?? []) as { jabatan_prefill_perpanjangan: number }[] | number[]).map((x: any) =>
+      typeof x === "number" ? x : x.jabatan_prefill_perpanjangan,
+    ),
+  );
+
+  // Renewal chain, linked both ways so a document's history is reachable from
+  // either end (Design §5.8).
+  const { data: pendahulu } = proposal.id_dokumen_sebelumnya
+    ? await supabase
+        .from("v_daftar_dokumen")
+        .select("id_proposal, no_dokumen")
+        .eq("id_proposal", proposal.id_dokumen_sebelumnya)
+        .maybeSingle()
+    : { data: null };
+
+  const { data: penerus } = await supabase
+    .from("v_daftar_dokumen")
+    .select("id_proposal, no_dokumen")
+    .eq("id_dokumen_sebelumnya", idProposal)
+    .maybeSingle();
+
+  const belumDidisposisi =
+    io && ["Diajukan", "Diproses"].includes(proposal.status_proposal as string);
+
+  async function kirimDisposisiAwal(formData: FormData) {
+    "use server";
+    const dipilih = formData.getAll("jabatan").map(Number);
+    if (dipilih.length === 0) return;
+    await kirimDisposisi(
+      idProposal,
+      dipilih,
+      String(formData.get("pesan") ?? ""),
+    );
+  }
+
+  async function aktifkan(formData: FormData) {
+    "use server";
+    const akhir = String(formData.get("tanggal_berakhir") ?? "");
+    await aktivasiDokumen(idProposal, {
+      // Typed by IO, never generated and never format-checked (BR-22).
+      noDokumen: String(formData.get("no_dokumen") ?? ""),
+      tanggalTandaTangan: String(formData.get("tanggal_tanda_tangan") ?? ""),
+      tanggalMulai: String(formData.get("tanggal_mulai") ?? ""),
+      // Auto Renewed carries no end date at all (BR-11).
+      tanggalBerakhir: akhir === "" ? null : akhir,
+      folderKui: String(formData.get("folder_kui") ?? "") || null,
+      noBerkasDikti: String(formData.get("no_berkas_dikti") ?? "") || null,
+    });
+    revalidatePath(`/kerja-sama/${idProposal}`);
+  }
+
+  async function akhiriLebihAwal(formData: FormData) {
+    "use server";
+    await arsipkanDokumen(
+      Number(formData.get("no")),
+      "terminated_early",
+      idProposal,
+    );
+  }
 
   // Empty tiers are omitted, never rendered blank (Design §4.3).
   const tierTampil = [1, 2, 3].filter((t) =>
@@ -304,6 +375,165 @@ export default async function DetailDokumen({
         </section>
       ) : null}
 
+      {/* Sending the first disposition. IO handpicks the positions; routing is
+          never automatic (PRD §7.4). */}
+      {belumDidisposisi ? (
+        <section
+          className="mb-6 rounded-xl border bg-white p-4"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <h2 className="mb-1 text-sm font-semibold">Kirim Disposisi Approval</h2>
+          <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+            Pilih jabatan yang harus menyetujui. Tier dibaca dari master jabatan;
+            tier yang kosong akan dilewati, bukan menghambat.
+            {prefillSet.size > 0
+              ? " Daftar ini sudah tercentang dari approval dokumen sebelumnya — masih dapat diubah."
+              : ""}
+          </p>
+
+          <form action={kirimDisposisiAwal}>
+            <div className="mb-3 space-y-3">
+              {[1, 2, 3].map((tier) => {
+                const daftar = (jabatanApprover ?? []).filter(
+                  (j) => j.tier_disposisi === tier,
+                );
+                if (daftar.length === 0) return null;
+                return (
+                  <fieldset key={tier}>
+                    <legend
+                      className="mb-1 text-xs font-semibold"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      TIER {tier}
+                    </legend>
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      {daftar.map((j) => (
+                        <label key={j.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            name="jabatan"
+                            value={j.id}
+                            defaultChecked={prefillSet.has(j.id)}
+                          />
+                          {j.nama}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                );
+              })}
+            </div>
+
+            <label className="mb-3 block text-sm">
+              <span className="mb-1 block font-medium">Pesan disposisi</span>
+              <input
+                name="pesan"
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+              style={{ background: "var(--midnight)" }}
+            >
+              Kirim Disposisi
+            </button>
+          </form>
+        </section>
+      ) : null}
+
+      {/* Activation. Signing happened offline; IO records the outcome. */}
+      {io && proposal.status_proposal === "Disetujui" && !dok ? (
+        <section
+          className="mb-6 rounded-xl border-2 bg-white p-4"
+          style={{ borderColor: "var(--status-approved)" }}
+        >
+          <h2 className="mb-1 text-sm font-semibold">Aktivasi Dokumen</h2>
+          <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+            Nomor dokumen diketik oleh KUI, tidak pernah dibuat otomatis.
+            {proposal.sifat_periode_kerjasama === "Auto Renewed"
+              ? " Dokumen Auto Renewed tidak memiliki tanggal berakhir — biarkan kosong."
+              : ""}
+          </p>
+          <form action={aktifkan} className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">No. Dokumen (*)</span>
+              <input
+                name="no_dokumen"
+                required
+                className="no-dokumen w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Tanggal Tanda Tangan (*)</span>
+              <input
+                type="date"
+                name="tanggal_tanda_tangan"
+                required
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Tanggal Mulai (*)</span>
+              <input
+                type="date"
+                name="tanggal_mulai"
+                required
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </label>
+            {proposal.sifat_periode_kerjasama !== "Auto Renewed" ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium">Tanggal Berakhir</span>
+                <input
+                  type="date"
+                  name="tanggal_berakhir"
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--border)" }}
+                />
+              </label>
+            ) : null}
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Folder KUI</span>
+              <input
+                name="folder_kui"
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">No. Berkas Dikti</span>
+              <input
+                name="no_berkas_dikti"
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </label>
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                style={{ background: "var(--status-active)" }}
+              >
+                Aktifkan Dokumen
+              </button>
+              {proposal.id_dokumen_sebelumnya ? (
+                <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                  Dokumen ini adalah perpanjangan. Saat diaktifkan, dokumen
+                  pendahulunya otomatis diarsipkan sebagai digantikan oleh
+                  pembaruan — dalam satu transaksi yang sama.
+                </p>
+              ) : null}
+            </div>
+          </form>
+        </section>
+      ) : null}
+
       {io && dalamDisposisi ? (
         <section className="mb-6">
           <EditorDisposisi
@@ -315,6 +545,60 @@ export default async function DetailDokumen({
               .filter((t: any) => t.status === "waiting" || t.status === "pending_action")
               .map((t: any) => ({ no: t.no, nama: t.jabatan?.nama ?? `Target ${t.no}` }))}
           />
+        </section>
+      ) : null}
+
+      {/* The renewal chain, navigable from either end. */}
+      {pendahulu || penerus ? (
+        <section
+          className="mb-6 rounded-xl border bg-white p-4"
+          style={{ borderColor: "var(--renewal-request)" }}
+        >
+          <h2 className="mb-2 text-sm font-semibold">Rantai Pembaruan</h2>
+          <ul className="space-y-1 text-sm">
+            {pendahulu ? (
+              <li>
+                Menggantikan{" "}
+                <Link href={`/kerja-sama/${pendahulu.id_proposal}`} className="underline">
+                  <span className="no-dokumen">{pendahulu.no_dokumen ?? "dokumen sebelumnya"}</span>
+                </Link>
+              </li>
+            ) : null}
+            {penerus ? (
+              <li>
+                Digantikan oleh{" "}
+                <Link href={`/kerja-sama/${penerus.id_proposal}`} className="underline">
+                  <span className="no-dokumen">{penerus.no_dokumen ?? "proposal perpanjangan"}</span>
+                </Link>
+              </li>
+            ) : null}
+          </ul>
+        </section>
+      ) : null}
+
+      {/* Early termination. Irreversible, so it is confirmed in words that say
+          what happens, never a generic "are you sure" (Design §4.8). */}
+      {io && dok?.status && ["Aktif", "Akan Berakhir"].includes(dok.status) ? (
+        <section
+          className="mb-6 rounded-xl border bg-white p-4"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <h2 className="mb-1 text-sm font-semibold">Akhiri Lebih Awal</h2>
+          <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+            Dokumen menjadi tidak aktif sebelum tanggal berakhirnya, dengan
+            alasan tercatat. Dokumen tidak pernah dihapus dan tetap dapat dibaca
+            selamanya.
+          </p>
+          <form action={akhiriLebihAwal}>
+            <input type="hidden" name="no" value={dok.no} />
+            <button
+              type="submit"
+              className="rounded-lg border px-4 py-2 text-sm font-medium"
+              style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
+            >
+              Akhiri kerja sama ini
+            </button>
+          </form>
         </section>
       ) : null}
 

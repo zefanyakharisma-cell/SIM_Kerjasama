@@ -243,3 +243,102 @@ no route can reach it and BR-09 is untouched.
 
 **Still owed outside SQL:** deploy `kirim-email` and set `RESEND_API_KEY`,
 `EMAIL_FROM` and `APP_URL`; schedule it every five minutes.
+
+## 7 — Phase 3: renewal, evaluation, the partner page, admin and analytics
+
+The half of the system that makes renewal proactive instead of remembered.
+
+**A renewal request shares tables with an approval and shares no logic.** It
+carries no tier, never enters `recompute_tiers`, gates nothing, and completes
+when the unit uploads the draft — not by an approve or a reject, which it never
+had. Its SLA runs on the 30/60/90 calendar-day scale, never the 2/4
+business-day approval scale. Every function branches on `jenis_disposisi`
+before anything else (BR-24, BR-25, BR-32).
+
+**The gate is the piece most likely to be built wrong.** It has four outcomes,
+and the failure mode is letting a NULL fall through as agreement: an evaluation
+that was never submitted is not a recommendation, and a NULL recommendation is
+not a "continue". `status_gerbang_pembaruan` checks *submitted AND continue*
+explicitly on both sides, and `buat_proposal_perpanjangan` refuses in the
+database — so no route, no script and no future API can get past it (BR-26).
+
+A split never resolves itself. It waits for an override that names a decision
+*and* a reason, and the function refuses a blank one.
+
+**Reopening supersedes; it never edits.** The prior answer stays exactly as the
+partner submitted it, a fresh pending row takes its place with `id_supersedes`,
+and a new token is issued. The gate reads the latest non-superseded answer, so a
+partner who changes their mind changes the outcome without erasing the record
+(BR-30, DR-08).
+
+### One deliberate deviation from the architecture
+
+The architecture specifies an Edge Function on the service role for the partner
+token. This build resolves it in a Postgres function granted to `anon` instead.
+The security property is identical — server-side resolution, scoped to exactly
+one evaluation, exposing the prefilled header and nothing else — and it removes
+a deployment surface and one more copy of the service-role key. `anon` can
+execute exactly two functions in the schema and nothing else, both of which
+require a 256-bit token.
+
+The unknown-token, spent-token and revoked-token cases return the same message
+on purpose. Distinguishing them would tell someone guessing tokens which guesses
+were close.
+
+### The partner page
+
+Trust is a functional requirement on this one screen: a partner gets a bare
+link by email and decides in about two seconds whether it is really from Petra.
+So the header carries the full university wordmark on brand Midnight, and the
+first thing under it is the partner's own institution named back to them — which
+is what a phisher would not know.
+
+The Likert grids are one component shared with the faculty form, because the
+two answers are compared against each other and would otherwise drift apart.
+They are radio groups with real row headers rather than a clickable matrix of
+divs: the obvious build is mouse-only and unusable with a screen reader.
+
+### Elsewhere
+
+- **Activation and first disposition** existed as functions but had no UI at
+  all — a real Phase 1 gap, now closed. Activation also closes the renewal
+  chain: link the successor, archive the predecessor as superseded, in one
+  transaction (BR-12).
+- **Partner merge** re-points every reference and marks the loser merged; it
+  never deletes. Documents the survivor is already on drop their duplicate join
+  row rather than colliding on the primary key.
+- **The chart studio** aggregates in SQL but never by concatenating a saved
+  config into a query string. Grouping, metric and filter are matched against
+  fixed sets and anything unrecognised is refused — an admin-saved config is
+  data, and data must not become SQL.
+- **Evaluation analytics** keep `id_dokumen_kerjasama` on every row of
+  `v_evaluasi_gap`. That column is the drill-down: an aggregate that drops it
+  cannot be repaired downstream (Q8).
+- **Peta Mitra Global** omits partners with no coordinates rather than pinning
+  them at 0°,0°, which looks like data instead of like missing data (O4).
+- **Discussion and Activity Log** are read-only views over the append-only
+  approval log. Discussion is a revision-requests list, not a chat.
+
+### Verification
+
+The remaining mandatory tests are written and pass against Postgres 17; all
+thirteen now exist:
+
+| rules §9 | Check | Result |
+|---|---|---|
+| 9.9 | Evaluation gate — refuses with none, with one, and on a split | pass |
+| 9.10 | Reopen supersedes without editing; the gate reads the latest | pass |
+| 9.11 | Token scope — unknown resolves to nothing, submitted goes inert | pass |
+| 9.13 | RLS boundary — another unit's in-progress document is unreachable | pass |
+
+§9.13 is exercised through `boleh_baca_proposal`, the predicate every read
+policy delegates to, so it tests the rule rather than one policy's copy of it.
+
+An end-to-end scenario was also run against the real database and rolled back:
+one document through approval, activation, renewal request and both
+evaluations populates every new view correctly — gate `terbuka`, ten gap rows
+(two evaluations × five dimensions), one map pin. `next build` compiles all
+fourteen routes.
+
+**Still owed outside SQL:** geocode partner coordinates; confirm brand assets
+with MRD (O3).

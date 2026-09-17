@@ -3,12 +3,13 @@
 -- Run directly against Postgres — no HTTP cycle, no framework. If any assertion
 -- fails the script raises and the run stops. Needs supabase/seed.sql applied.
 --
---   npm run db:test          (see scripts/run-db-tests.mjs)
+--   npm run db:test          (psql against DATABASE_URL, ON_ERROR_STOP)
 --
 -- Covers §9.1 tier gating with a gap · §9.2 pending reset · §9.3 SLA
 -- pause/resume · §9.4 revision vs pending · §9.5 live disposition editing ·
--- §9.6 business-day arithmetic · §9.7 sweep idempotency · §9.12 Lingkup
--- cascade. §9.8-9.11 and §9.13 arrive with the renewal and RLS work they test.
+-- §9.6 business-day arithmetic · §9.7 sweep idempotency · §9.8 rollback ·
+-- §9.9 evaluation gate · §9.10 reopen · §9.11 token scope · §9.12 Lingkup
+-- cascade · §9.13 the RLS boundary. All thirteen mandatory tests are present.
 
 -- ===========================================================================
 -- §9.1 — Tier gating with a gap: tiers 1 and 3 populated, tier 2 empty.
@@ -380,6 +381,222 @@ begin
   end if;
   raise notice 'PASS 9.8 transaction rollback';
 
+  perform bersihkan_proposal_uji(v_p);
+end
+$t$;
+
+-- ===========================================================================
+-- §9.9 the evaluation gate · §9.10 reopen preserves history · §9.11 token scope
+--
+-- One document carries all three, because they are one story: both sides
+-- answer, they disagree, IO overrides with a reason, the partner is let back in
+-- to change their mind, and only then does the renewal become possible.
+-- ===========================================================================
+do $t$
+declare
+  v_pt int; v_kontak int; v_p int; v_no int; v_t int;
+  v_fak int; v_mitra int; v_token text; v_token2 text; v_ok boolean; v_baru int;
+  v_mitra2 int;
+begin
+  perform set_config('simks.akun_id','7',true);
+
+  insert into partner (nama, is_international, id_negara, kota)
+  values ('Uji Mitra Evaluasi', false, 1, 'Surabaya') returning id into v_pt;
+  insert into partner_contact (id_partner, nama, email)
+  values (v_pt, 'Kontak Uji', 'kontak@uji.test') returning id into v_kontak;
+  update partner set id_partner_contact = v_kontak where id = v_pt;
+
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',7) returning id into v_p;
+  insert into partner_pengusul (id_partner, id_proposal_dokumen, is_lead) values (v_pt, v_p, true);
+  insert into pengusul (id_jabatan, id_proposal_dokumen) values (3, v_p);
+
+  perform ajukan_proposal(v_p);
+  perform kirim_disposisi(v_p, array[1], 'uji gerbang');
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p;
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t, 'approve', null);
+  perform set_config('simks.akun_id','7',true);
+  select aktivasi_dokumen(v_p, 'UJI/EVAL/1', current_date - 300, current_date - 300,
+                          current_date + 30) into v_no;
+
+  perform kirim_permintaan_pembaruan(v_no, 'mohon ditangani');
+
+  if status_gerbang_pembaruan(v_no) <> 'menunggu' then
+    raise exception 'FAIL 9.9a: gate should be menunggu, got %', status_gerbang_pembaruan(v_no);
+  end if;
+
+  -- The gate refuses before either evaluation exists (BR-26).
+  v_ok := false;
+  begin perform buat_proposal_perpanjangan(v_no, 'draf.pdf'); exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL 9.9b: gate let a renewal through with no evaluations'; end if;
+
+  select no into v_fak from evaluasi where id_dokumen_kerjasama = v_no and respondent_type='faculty';
+  select no into v_mitra from evaluasi where id_dokumen_kerjasama = v_no and respondent_type='partner';
+  select token into v_token from partner_eval_token where id_evaluasi = v_mitra;
+
+  -- A token that does not exist reveals nothing at all (AR-07).
+  if resolusi_token_evaluasi(repeat('0',64)) is not null then
+    raise exception 'FAIL 9.11a: an unknown token resolved to something';
+  end if;
+  if (resolusi_token_evaluasi(v_token) ->> 'nama_mitra') <> 'Uji Mitra Evaluasi' then
+    raise exception 'FAIL 9.11b: a valid token did not resolve to its own evaluation';
+  end if;
+
+  perform set_config('simks.akun_id','3',true);
+  perform kirim_evaluasi_fakultas(v_fak, jsonb_build_object(
+    'exp_quality',5,'exp_relevance',5,'exp_productivity',4,'exp_sustainability',4,'exp_communication',5,
+    'sat_quality',4,'sat_relevance',4,'sat_productivity',3,'sat_sustainability',3,'sat_communication',4,
+    'rekomendasi','continue'));
+
+  if status_gerbang_pembaruan(v_no) <> 'menunggu' then
+    raise exception 'FAIL 9.9c: one evaluation is not both, got %', status_gerbang_pembaruan(v_no);
+  end if;
+
+  perform kirim_evaluasi_partner(v_token, jsonb_build_object(
+    'exp_quality',4,'exp_relevance',4,'exp_productivity',4,'exp_sustainability',4,'exp_communication',4,
+    'sat_quality',2,'sat_relevance',2,'sat_productivity',2,'sat_sustainability',2,'sat_communication',2,
+    'rekomendasi','terminate','respondent_nama','Dr Partner','respondent_email','p@uji.test'));
+
+  if status_gerbang_pembaruan(v_no) <> 'split' then
+    raise exception 'FAIL 9.9d: disagreement should flag split, got %', status_gerbang_pembaruan(v_no);
+  end if;
+
+  -- Valid until submitted, then inert (BR-30).
+  if resolusi_token_evaluasi(v_token) is not null then
+    raise exception 'FAIL 9.11c: a submitted token still resolves';
+  end if;
+  v_ok := false;
+  begin
+    perform kirim_evaluasi_partner(v_token, jsonb_build_object('rekomendasi','continue',
+      'respondent_nama','x','respondent_email','x@x.test'));
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL 9.11d: a submitted token accepted a second answer'; end if;
+
+  perform set_config('simks.akun_id','7',true);
+  v_ok := false;
+  begin perform buat_proposal_perpanjangan(v_no, 'draf.pdf'); exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL 9.9e: a split let a renewal through'; end if;
+
+  -- A split needs a RECORDED, REASONED override; no reason, no override (BR-27).
+  v_ok := false;
+  begin perform putuskan_pembaruan(v_no, 'terminate', '   '); exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL 9.9f: an override was accepted with no reason'; end if;
+
+  perform putuskan_pembaruan(v_no, 'terminate', 'Mitra menyatakan tidak melanjutkan.');
+  if status_gerbang_pembaruan(v_no) <> 'terminate' then
+    raise exception 'FAIL 9.9g: a reasoned terminate override did not close the gate, got %',
+      status_gerbang_pembaruan(v_no);
+  end if;
+
+  -- §9.10 — reopening supersedes without editing, and the gate reads the latest.
+  select buka_ulang_evaluasi(v_mitra) into v_token2;
+  if (select status from evaluasi where no = v_mitra) <> 'superseded' then
+    raise exception 'FAIL 9.10a: the prior answer was not superseded';
+  end if;
+  if (select rekomendasi from evaluasi where no = v_mitra) <> 'terminate' then
+    raise exception 'FAIL 9.10b: reopening EDITED the prior answer instead of superseding it';
+  end if;
+  select no into v_mitra2 from evaluasi
+   where id_supersedes = v_mitra and status = 'pending';
+  if v_mitra2 is null then raise exception 'FAIL 9.10c: no fresh evaluation was created'; end if;
+  if v_token2 is null or v_token2 = v_token then
+    raise exception 'FAIL 9.10d: reopening did not issue a fresh token';
+  end if;
+  if status_gerbang_pembaruan(v_no) <> 'menunggu' then
+    raise exception 'FAIL 9.10e: the gate did not fall back to menunggu, got %',
+      status_gerbang_pembaruan(v_no);
+  end if;
+
+  perform kirim_evaluasi_partner(v_token2, jsonb_build_object(
+    'exp_quality',4,'exp_relevance',4,'exp_productivity',4,'exp_sustainability',4,'exp_communication',4,
+    'sat_quality',4,'sat_relevance',4,'sat_productivity',4,'sat_sustainability',4,'sat_communication',4,
+    'rekomendasi','continue','respondent_nama','Dr Partner','respondent_email','p@uji.test'));
+
+  if status_gerbang_pembaruan(v_no) <> 'terbuka' then
+    raise exception 'FAIL 9.10f: the gate read a superseded answer, got %',
+      status_gerbang_pembaruan(v_no);
+  end if;
+  raise notice 'PASS 9.10 reopen supersedes; the gate reads the latest';
+  raise notice 'PASS 9.11 token scope';
+
+  select buat_proposal_perpanjangan(v_no, 'draf-pembaruan.pdf') into v_baru;
+  if (select id_dokumen_sebelumnya from proposal_dokumen where id = v_baru) is null then
+    raise exception 'FAIL 9.9h: the renewal is not linked to its predecessor';
+  end if;
+  -- A renewal request completes by the draft arriving, never by an approve (BR-25).
+  if exists (select 1 from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+              where d.no_dokumen_kerjasama = v_no and d.jenis_disposisi = 'renewal_request'
+                and dt.status = 'pending_action') then
+    raise exception 'FAIL 9.9i: the renewal request stayed open after the draft arrived';
+  end if;
+  raise notice 'PASS 9.9 evaluation gate';
+
+  perform bersihkan_proposal_uji(v_baru);
+  perform bersihkan_proposal_uji(v_p);
+  update partner set id_partner_contact = null where id = v_pt;
+  delete from partner_contact where id = v_kontak;
+  delete from partner where id = v_pt;
+end
+$t$;
+
+-- ===========================================================================
+-- §9.13 — the RLS boundary: a submitter cannot reach another unit's
+-- in-progress document.
+--
+-- Exercised through `boleh_baca_proposal`, which is the predicate every read
+-- policy delegates to — so this tests the rule itself rather than one policy's
+-- copy of it (EC-05).
+-- ===========================================================================
+do $t$
+declare v_p int; v_t int; v_no int;
+begin
+  perform set_config('simks.akun_id','3',true);
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoA','Draft',3) returning id into v_p;
+  insert into pengusul (id_jabatan, id_proposal_dokumen) values (3, v_p);
+  perform ajukan_proposal(v_p);
+
+  perform set_config('simks.akun_id','7',true);
+  perform kirim_disposisi(v_p, array[1], 'uji batas rls');
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p;
+
+  perform set_config('simks.akun_id','2',true);
+  if boleh_baca_proposal(v_p) then
+    raise exception 'FAIL 9.13a: an unrelated unit can reach an in-progress document';
+  end if;
+
+  perform set_config('simks.akun_id','3',true);
+  if not boleh_baca_proposal(v_p) then
+    raise exception 'FAIL 9.13b: the submitter cannot read their own submission';
+  end if;
+
+  perform set_config('simks.akun_id','1',true);
+  if not boleh_baca_proposal(v_p) then
+    raise exception 'FAIL 9.13c: an assigned approver cannot read the document';
+  end if;
+
+  perform set_config('simks.akun_id','7',true);
+  if not boleh_baca_proposal(v_p) then
+    raise exception 'FAIL 9.13d: IO cannot read an in-progress document';
+  end if;
+
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t, 'approve', null);
+  perform set_config('simks.akun_id','7',true);
+  select aktivasi_dokumen(v_p, 'UJI/RLS/1', current_date, current_date, current_date + 365) into v_no;
+
+  -- Once Active, every logged-in account may read it — a deliberate IO
+  -- decision, not an oversight (AR-04).
+  perform set_config('simks.akun_id','2',true);
+  if not boleh_baca_proposal(v_p) then
+    raise exception 'FAIL 9.13e: an Active document is not readable by every account (AR-04)';
+  end if;
+  raise notice 'PASS 9.13 RLS boundary';
+
+  perform set_config('simks.akun_id','7',true);
   perform bersihkan_proposal_uji(v_p);
 end
 $t$;

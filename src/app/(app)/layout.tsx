@@ -12,7 +12,12 @@ const MENU = [
   { href: "/kerja-sama", label: "Cari Kerja Sama" },
   { href: "/buat", label: "Buat Kerja Sama" },
   { href: "/antrean", label: "Antrean Saya" },
+  { href: "/pembaruan", label: "Pembaruan" },
   { href: "/notifikasi", label: "Notifikasi" },
+  // Master data and system settings. Shown to everyone, refused by RLS to
+  // everyone else — but hiding it keeps the menu honest about what a role can
+  // actually do, so it is filtered below.
+  { href: "/admin", label: "Settings", adminSaja: true },
 ] as const;
 
 export default async function AppLayout({
@@ -75,7 +80,9 @@ export default async function AppLayout({
         </div>
 
         <nav className="flex flex-col gap-1">
-          {MENU.map((m) => (
+          {MENU.filter(
+            (m) => !("adminSaja" in m) || akun.role === "io_admin",
+          ).map((m) => (
             <Link
               key={m.href}
               href={m.href}
