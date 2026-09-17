@@ -1,6 +1,9 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { simpanProposal } from "@/lib/actions/proposal";
 import { PohonLingkup } from "@/components/lingkup-tree";
+import { MitraPicker } from "@/components/mitra-picker";
+import { SearchSelect } from "@/components/search-select";
+import { KerjaSamaFields } from "@/components/kerja-sama-fields";
 
 /**
  * Buat Kerja Sama — the Proposal Form (PRD §7.2, Design §5.5).
@@ -93,6 +96,7 @@ export default async function BuatKerjaSama({
     { data: unit },
     { data: opsi },
     { data: jabatan },
+    { data: negara },
   ] = await Promise.all([
       supabase
         .from("partner")
@@ -112,6 +116,7 @@ export default async function BuatKerjaSama({
         .select("id, option_group, value")
         .eq("is_active", true),
       supabase.from("jabatan").select("id, nama").order("nama"),
+      supabase.from("negara").select("id, nama").order("nama"),
     ]);
 
   const opsiGrup = (grup: string) =>
@@ -130,58 +135,18 @@ export default async function BuatKerjaSama({
         </p>
       </header>
 
-      <form action={simpanProposal}>
+      <form action={simpanProposal} encType="multipart/form-data">
         {idEdit ? <input type="hidden" name="id" value={idEdit} /> : null}
         <Bagian
           judul="I. Data Calon Mitra"
-          keterangan="Pilih mitra dari master data. Negara mitra menentukan status dalam negeri atau luar negeri."
+          keterangan="Pilih mitra dari master data, atau tambahkan mitra baru. Negara mitra menentukan status dalam negeri atau luar negeri."
         >
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Calon Mitra (*)</span>
-            {/* Multi-partner is rare, so it is the same control rather than a
-                separate flow: pick one, or hold Ctrl to pick several
-                (PRD §7.8). */}
-            <select
-              name="id_partner"
-              multiple
-              required
-              size={6}
-              defaultValue={[...partnerTerpilih].map(String)}
-              className={inputKelas}
-              style={inputGaya}
-            >
-              {(partner ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nama} {p.is_international ? "· Luar Negeri" : "· Dalam Negeri"}
-                </option>
-              ))}
-            </select>
-            <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
-              Untuk lebih dari satu mitra, tahan Ctrl (atau Cmd) saat memilih.
-            </span>
-          </label>
-
-          <label className="mt-4 block">
-            <span className="mb-1 block text-sm font-medium">Mitra Utama</span>
-            <select
-              name="id_partner_lead"
-              defaultValue={partnerLead ?? ""}
-              className={inputKelas}
-              style={inputGaya}
-            >
-              <option value="">Mitra pertama yang dipilih</option>
-              {(partner ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nama}
-                </option>
-              ))}
-            </select>
-            {/* On a multi-partner renewal there is ONE partner evaluation, and
-                it goes to this partner (BR-29, Q7). */}
-            <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
-              Saat pembaruan, evaluasi mitra hanya dikirim ke mitra utama.
-            </span>
-          </label>
+          <MitraPicker
+            partners={partner ?? []}
+            negara={negara ?? []}
+            awal={[...partnerTerpilih] as number[]}
+            leadAwal={partnerLead}
+          />
         </Bagian>
 
         <Bagian
@@ -190,38 +155,17 @@ export default async function BuatKerjaSama({
         >
           <label className="block">
             <span className="mb-1 block text-sm font-medium">Jabatan Pengusul (*)</span>
-            <select
+            <SearchSelect
               name="id_jabatan_pengusul"
-              required
-              defaultValue={jabatanPengusulDraf ?? ""}
-              className={inputKelas}
-              style={inputGaya}
-            >
-              {(jabatan ?? []).map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.nama}
-                </option>
-              ))}
-            </select>
+              options={(jabatan ?? []).map((j) => ({ id: j.id, label: j.nama }))}
+              defaultValue={jabatanPengusulDraf}
+              placeholder="Cari jabatan..."
+            />
           </label>
         </Bagian>
 
         <Bagian judul="III. Kerja Sama yang Diusulkan">
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Jenis (*)</span>
-              <select
-                name="jenis_kerjasama"
-                required
-                defaultValue={(draf as any)?.jenis_kerjasama ?? "MoU"}
-                className={inputKelas}
-                style={inputGaya}
-              >
-                <option value="MoU">MoU</option>
-                <option value="MoA">MoA</option>
-              </select>
-            </label>
-
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Periode</span>
               <input
@@ -251,6 +195,23 @@ export default async function BuatKerjaSama({
                 pembaruan.
               </span>
             </label>
+          </div>
+
+          <div className="mt-4">
+            <KerjaSamaFields
+              jenisAwal={(draf as any)?.jenis_kerjasama ?? "MoU"}
+              tujuanOpsi={opsiGrup("tujuan").map((o) => o.value)}
+              manfaatPetraOpsi={opsiGrup("manfaat_petra").map((o) => o.value)}
+              manfaatMitraOpsi={opsiGrup("manfaat_mitra").map((o) => o.value)}
+              tujuanAwal={(draf as any)?.tujuan_kerjasama ?? ""}
+              manfaatPetraAwal={(draf as any)?.manfaat_bagi_petra ?? ""}
+              manfaatMitraAwal={(draf as any)?.manfaat_bagi_mitra ?? ""}
+              ringkasanKegiatanAwal={mouDraf?.ringkasan_kegiatan ?? ""}
+              hakPetraAwal={moaDraf?.hak_petra ?? ""}
+              hakMitraAwal={moaDraf?.hak_calon_mitra ?? ""}
+              kewajibanPetraAwal={moaDraf?.kewajiban_petra ?? ""}
+              kewajibanMitraAwal={moaDraf?.kewajiban_calon_mitra ?? ""}
+            />
           </div>
 
           <fieldset className="mt-4">
@@ -295,104 +256,6 @@ export default async function BuatKerjaSama({
           </fieldset>
 
           <label className="mt-4 block">
-            <span className="mb-1 block text-sm font-medium">Tujuan Kerja Sama</span>
-            <input
-              name="tujuan_kerjasama"
-              list="opsi-tujuan"
-              defaultValue={(draf as any)?.tujuan_kerjasama ?? ""}
-              className={inputKelas}
-              style={inputGaya}
-            />
-            {/* Grow-then-reuse: a new value publishes immediately, with no
-                moderation step (PRD §11). */}
-            <datalist id="opsi-tujuan">
-              {opsiGrup("tujuan").map((o) => (
-                <option key={o.id} value={o.value} />
-              ))}
-            </datalist>
-          </label>
-
-          <label className="mt-4 block">
-            <span className="mb-1 block text-sm font-medium">Manfaat bagi UKP</span>
-            <textarea
-              name="manfaat_bagi_petra"
-              rows={2}
-              defaultValue={(draf as any)?.manfaat_bagi_petra ?? ""}
-              className={inputKelas}
-              style={inputGaya}
-            />
-          </label>
-
-          <label className="mt-4 block">
-            <span className="mb-1 block text-sm font-medium">Manfaat bagi Mitra</span>
-            <textarea
-              name="manfaat_bagi_mitra"
-              rows={2}
-              defaultValue={(draf as any)?.manfaat_bagi_mitra ?? ""}
-              className={inputKelas}
-              style={inputGaya}
-            />
-            {/* One shared statement, not one per partner (Q1). */}
-            <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
-              Satu pernyataan bersama, berlaku untuk seluruh mitra pada dokumen ini.
-            </span>
-          </label>
-
-          <label className="mt-4 block">
-            <span className="mb-1 block text-sm font-medium">Ringkasan Kegiatan (MoU)</span>
-            <textarea
-              name="ringkasan_kegiatan"
-              rows={2}
-              defaultValue={mouDraf?.ringkasan_kegiatan ?? ""}
-              className={inputKelas}
-              style={inputGaya}
-            />
-          </label>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Hak UKP (MoA)</span>
-              <textarea
-                name="hak_petra"
-                rows={2}
-                defaultValue={moaDraf?.hak_petra ?? ""}
-                className={inputKelas}
-                style={inputGaya}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Hak Mitra (MoA)</span>
-              <textarea
-                name="hak_calon_mitra"
-                rows={2}
-                defaultValue={moaDraf?.hak_calon_mitra ?? ""}
-                className={inputKelas}
-                style={inputGaya}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Kewajiban UKP (MoA)</span>
-              <textarea
-                name="kewajiban_petra"
-                rows={2}
-                defaultValue={moaDraf?.kewajiban_petra ?? ""}
-                className={inputKelas}
-                style={inputGaya}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Kewajiban Mitra (MoA)</span>
-              <textarea
-                name="kewajiban_calon_mitra"
-                rows={2}
-                defaultValue={moaDraf?.kewajiban_calon_mitra ?? ""}
-                className={inputKelas}
-                style={inputGaya}
-              />
-            </label>
-          </div>
-
-          <label className="mt-4 block">
             <span className="mb-1 block text-sm font-medium">Informasi Tambahan</span>
             <textarea
               name="informasi_tambahan"
@@ -402,6 +265,10 @@ export default async function BuatKerjaSama({
               style={inputGaya}
             />
           </label>
+        </Bagian>
+
+        <Bagian judul="Upload Dokumen" keterangan="Opsional. Unggah draf dokumen kerja sama dalam format PDF.">
+          <input type="file" name="upload_dokumen" accept="application/pdf" className="text-sm" />
         </Bagian>
 
         <Bagian

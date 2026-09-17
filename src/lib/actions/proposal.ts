@@ -82,9 +82,49 @@ export async function simpanProposal(formData: FormData) {
   // shared, and exactly one partner is the lead — the one whose evaluation is
   // collected at renewal (BR-29). The lead defaults to the first selected, so a
   // single-partner document needs no extra decision.
-  const semuaPartner = formData.getAll("id_partner").map(Number).filter(Boolean);
-  const unik = [...new Set(semuaPartner)];
-  const pilihanLead = Number(formData.get("id_partner_lead") ?? 0);
+  //
+  // Each Calon Mitra row is either an existing partner (id resolved client-side
+  // by search) or a brand-new partner whose fields are inserted here (Revisi V4
+  // §1.a). Rows are processed in order, so lead_index still lines up with the
+  // resulting partner id list as long as every row resolves to an id.
+  const jumlahMitra = Number(formData.get("mitra_count") ?? 0);
+  const partnerIds: number[] = [];
+  for (let i = 0; i < jumlahMitra; i++) {
+    const mode = formData.get(`mitra_mode_${i}`);
+    if (mode === "baru") {
+      const namaBaru = String(formData.get(`mitra_baru_nama_${i}`) ?? "").trim();
+      const idNegaraBaru = Number(formData.get(`mitra_baru_negara_${i}`) ?? 0);
+      if (!namaBaru || !idNegaraBaru) continue;
+      const { data: negaraBaru } = await supabase
+        .from("negara")
+        .select("is_domestic")
+        .eq("id", idNegaraBaru)
+        .maybeSingle();
+      const { data: partnerBaru, error: errPartnerBaru } = await supabase
+        .from("partner")
+        .insert({
+          nama: namaBaru,
+          id_negara: idNegaraBaru,
+          is_international: !(negaraBaru?.is_domestic ?? true),
+          kota: String(formData.get(`mitra_baru_kota_${i}`) ?? "") || null,
+          alamat: String(formData.get(`mitra_baru_alamat_${i}`) ?? "") || null,
+          no_telp: String(formData.get(`mitra_baru_telp_${i}`) ?? "") || null,
+          homepage: String(formData.get(`mitra_baru_homepage_${i}`) ?? "") || null,
+        })
+        .select("id")
+        .single();
+      if (errPartnerBaru || !partnerBaru) {
+        throw new Error(`Mitra baru gagal disimpan: ${errPartnerBaru?.message}`);
+      }
+      partnerIds.push(partnerBaru.id as number);
+    } else {
+      const idPartner = Number(formData.get(`id_partner_${i}`) ?? 0);
+      if (idPartner) partnerIds.push(idPartner);
+    }
+  }
+
+  const unik = [...new Set(partnerIds)];
+  const pilihanLead = partnerIds[Number(formData.get("lead_index") ?? 0)];
   const lead = unik.includes(pilihanLead) ? pilihanLead : unik[0];
 
   if (unik.length) {
@@ -147,6 +187,19 @@ export async function simpanProposal(formData: FormData) {
       kewajiban_petra: String(formData.get("kewajiban_petra") ?? ""),
       kewajiban_calon_mitra: String(formData.get("kewajiban_calon_mitra") ?? ""),
     });
+  }
+
+  // Upload Dokumen (Revisi V4 §4) — optional, stored in the same bucket the
+  // laporan flow already uses for disposition attachments.
+  const berkas = formData.get("upload_dokumen") as File | null;
+  if (berkas && berkas.size > 0) {
+    const path = `draft/${id}/${Date.now()}-${berkas.name}`;
+    const { error: errUpload } = await supabase.storage
+      .from("dokumen-kerjasama")
+      .upload(path, berkas, { upsert: true });
+    if (!errUpload) {
+      await supabase.from("proposal_dokumen").update({ file_draft: path }).eq("id", id);
+    }
   }
 
   await supabase.from("riwayat_approval").insert({
