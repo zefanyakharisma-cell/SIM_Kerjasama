@@ -389,3 +389,61 @@ assertions kept as a regression test: activation archives the predecessor
 (BR-12), a reference to the old document resolves forward to the Active one in
 one step, and a reference that is already current resolves to itself in zero.
 `next build` compiles all seventeen routes.
+
+## 9 — A second hardening pass, and the trap that caused it
+
+Running the security advisors after Phases 2–4 found sixteen functions
+reachable with nothing but the anon key. The cause is worth recording, because
+it will happen again to whoever writes the next migration.
+
+Phase 1 ended with:
+
+```sql
+alter default privileges in schema public revoke execute on functions from public;
+```
+
+That governs objects created **by the role that set it**, from that point on.
+It is not a property of the schema. Every function written in a later migration
+got Postgres's normal default back — `EXECUTE` to `PUBLIC`, which `anon`
+inherits through it.
+
+Most of those functions check authority themselves and failed closed:
+`current_akun()` is NULL for an unauthenticated caller, so every
+`current_akun_is_io()` gate refuses. A few checked nothing, because they were
+never meant to be reachable:
+
+| Function | Exposure |
+|---|---|
+| `agregasi_grafik` | SECURITY DEFINER over the document view, so it bypasses RLS **by design** — aggregate counts across every document, to anyone with the anon key |
+| `status_gerbang_pembaruan` | the renewal state of any document, by number |
+| `jabatan_pemilik_dokumen` / `_proposal` / `jabatan_prefill_perpanjangan` | enumerate which positions are attached to which document |
+
+None of them writes anything. All of them leak, and the first one leaks the
+whole dataset in aggregate.
+
+`anon` now executes exactly two functions in the schema — `resolusi_token_evaluasi`
+and `kirim_evaluasi_partner` — both of which require a 256-bit token and are
+scoped to one evaluation. That is the entire public surface (AR-07). The
+trigger functions are revoked from everyone, since Postgres invokes them as the
+table owner and nothing should reach them through PostgREST.
+
+Verified after applying: `anon` holds EXECUTE on those two functions and
+nothing else, and every function the app calls is still reachable by
+`authenticated`.
+
+The whole §9 suite was re-run against Postgres 17 afterwards and stays green.
+
+**The standing lesson for the next migration:** a new SECURITY DEFINER function
+is public until you say otherwise. Revoke explicitly in the same migration that
+creates it; do not rely on the default-privileges line from an earlier one.
+
+### Advisor notices left standing, deliberately
+
+- `partner_eval_token` has RLS enabled with no policy. No logged-in account
+  should ever read it; the token resolves through a SECURITY DEFINER function.
+- The remaining `security_definer_function_executable` notices are for
+  `authenticated`, which is the intended caller — each of those functions
+  checks its own authority.
+
+**Still owed outside SQL:** enable Supabase Auth's leaked-password protection
+(HaveIBeenPwned) in project settings — carried over from Phase 1 and still off.
