@@ -342,3 +342,50 @@ fourteen routes.
 
 **Still owed outside SQL:** geocode partner coordinates; confirm brand assets
 with MRD (O3).
+
+## 8 — Phase 4: the read API for the Realization System
+
+Three read endpoints, and one question that needed a database function.
+
+| Endpoint | Answers |
+|---|---|
+| `GET /api/v1/kerja-sama` | Which Active agreements can an arrangement be filed against? |
+| `GET /api/v1/kerja-sama/{no}` | What is this agreement? |
+| `GET /api/v1/kerja-sama/{no}/penerus` | My reference points at this — where should it point now? |
+
+The third is the one that matters. An Implementation Arrangement must always
+point at an **Active** document (BR-13), but the Realization System holds
+references that renewal moves out from under it. `resolusi_penerus` walks the
+chain forward — `id_dokumen_sebelumnya` points backwards, so following it in
+reverse is what "who replaced me" means — and returns the document at the end,
+with the number of renewals in between. `perlu_dipindahkan` is the answer in
+one field, so the caller does not re-derive it by comparing ids and get it
+subtly wrong. The walk is depth-limited: a data error that made the chain
+circular should return an answer, not hang the caller.
+
+The list returns Active documents only, and that is the contract rather than a
+default — archived documents never appearing there is the cheapest way to keep
+BR-13 true. Detail, by contrast, *does* serve archived documents, which is
+exactly why archival is a status and not a deletion: a stale reference has to
+resolve to something before it can be followed forward.
+
+**The service-role client lives in one file with a warning on it.** It bypasses
+RLS, which every other path in the system relies on, so it is confined to
+`src/lib/supabase/service.ts`, imported only by `/api/v1`, and each handler
+scopes its own rows. The API key is one shared secret compared in constant
+time; a per-client table with revocation is the right shape once there is a
+second consumer, and today there is exactly one.
+
+The middleware now excludes `api/v1` — redirecting a machine client to `/login`
+would turn a 401 into a 307 and an HTML page. `/api/ekspor` stays inside the
+matcher deliberately: the exports run on the caller's own session so that RLS
+decides their rows.
+
+### Verification
+
+A two-document renewal chain was built end to end against Postgres 17 and the
+assertions kept as a regression test: activation archives the predecessor
+`superseded_by_renewal` in the same transaction that creates the successor
+(BR-12), a reference to the old document resolves forward to the Active one in
+one step, and a reference that is already current resolves to itself in zero.
+`next build` compiles all seventeen routes.

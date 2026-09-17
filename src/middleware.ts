@@ -43,6 +43,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except static assets and the public partner evaluation page.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|evaluasi/.*|.*\.png$).*)"],
+  // Everything except static assets, the public partner evaluation page, and
+  // the Realization read API.
+  //
+  // `api/v1` is excluded because it authenticates with an API key rather than a
+  // session — redirecting a machine client to /login would turn a 401 into a
+  // 307 and an HTML page. `/api/ekspor` is deliberately NOT excluded: the
+  // exports run on the caller's own session so that RLS decides their rows.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|evaluasi/.*|api/v1/.*|.*\.png$).*)",
+  ],
 };

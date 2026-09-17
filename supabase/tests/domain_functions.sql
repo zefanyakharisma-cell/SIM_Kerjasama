@@ -600,3 +600,91 @@ begin
   perform bersihkan_proposal_uji(v_p);
 end
 $t$;
+
+-- ===========================================================================
+-- Renewal linkage and successor resolution (BR-12, BR-13).
+--
+-- Not one of the numbered §9 tests, but the downstream contract rests on it:
+-- an Implementation Arrangement must always point at an ACTIVE document, which
+-- is only true if activation archives the predecessor in the same transaction
+-- that creates the successor, and the chain can be walked forward afterwards.
+-- ===========================================================================
+do $t$
+declare
+  v_pt int; v_kontak int; v_p1 int; v_p2 int; v_no1 int; v_no2 int; v_t int;
+  v_fak int; v_mitra int; v_tok text;
+  v_jwb jsonb := jsonb_build_object(
+    'exp_quality',4,'exp_relevance',4,'exp_productivity',4,'exp_sustainability',4,'exp_communication',4,
+    'sat_quality',4,'sat_relevance',4,'sat_productivity',4,'sat_sustainability',4,'sat_communication',4,
+    'rekomendasi','continue','respondent_nama','P','respondent_email','p@uji.test');
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into partner (nama, is_international, id_negara) values ('Uji Rantai', false, 1)
+    returning id into v_pt;
+  insert into partner_contact (id_partner, nama, email) values (v_pt,'K','k@uji.test')
+    returning id into v_kontak;
+  update partner set id_partner_contact = v_kontak where id = v_pt;
+
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',7) returning id into v_p1;
+  insert into partner_pengusul (id_partner, id_proposal_dokumen, is_lead) values (v_pt, v_p1, true);
+  insert into pengusul (id_jabatan, id_proposal_dokumen) values (3, v_p1);
+  perform ajukan_proposal(v_p1);
+  perform kirim_disposisi(v_p1, array[1], 'rantai');
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p1;
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t,'approve',null);
+  perform set_config('simks.akun_id','7',true);
+  select aktivasi_dokumen(v_p1,'UJI/RANTAI/1', current_date-300, current_date-300,
+                          current_date+20) into v_no1;
+
+  -- Renew it once, all the way through to an Active successor.
+  perform kirim_permintaan_pembaruan(v_no1, 'perbarui');
+  select no into v_fak from evaluasi where id_dokumen_kerjasama=v_no1 and respondent_type='faculty';
+  select no into v_mitra from evaluasi where id_dokumen_kerjasama=v_no1 and respondent_type='partner';
+  select token into v_tok from partner_eval_token where id_evaluasi=v_mitra;
+  perform set_config('simks.akun_id','3',true);
+  perform kirim_evaluasi_fakultas(v_fak, v_jwb);
+  perform kirim_evaluasi_partner(v_tok, v_jwb);
+  perform set_config('simks.akun_id','7',true);
+  select buat_proposal_perpanjangan(v_no1, 'draf-pembaruan.pdf') into v_p2;
+
+  perform kirim_disposisi(v_p2, array[1], 'perpanjangan');
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p2 and dt.status='pending_action';
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t,'approve',null);
+  perform set_config('simks.akun_id','7',true);
+  select aktivasi_dokumen(v_p2,'UJI/RANTAI/2', current_date, current_date,
+                          current_date+700) into v_no2;
+
+  -- Activation archived the predecessor with its reason, in the same
+  -- transaction that created the successor (BR-12, BR-10).
+  if (select status || '/' || coalesce(alasan_arsip,'-') from dokumen_kerja_sama where no = v_no1)
+     <> 'Diarsipkan/superseded_by_renewal' then
+    raise exception 'FAIL rantai-a: predecessor not archived as superseded, got %',
+      (select status || '/' || coalesce(alasan_arsip,'-') from dokumen_kerja_sama where no = v_no1);
+  end if;
+
+  -- A reference to the old document resolves forward to the Active one (BR-13).
+  if (select no_dokumen_kerjasama from resolusi_penerus(v_no1)) <> v_no2
+     or (select langkah from resolusi_penerus(v_no1)) <> 1
+     or (select status from resolusi_penerus(v_no1)) <> 'Aktif' then
+    raise exception 'FAIL rantai-b: the successor did not resolve to the Active document';
+  end if;
+
+  -- A reference that is already current resolves to itself, zero steps.
+  if (select no_dokumen_kerjasama from resolusi_penerus(v_no2)) <> v_no2
+     or (select langkah from resolusi_penerus(v_no2)) <> 0 then
+    raise exception 'FAIL rantai-c: a current reference was moved anyway';
+  end if;
+  raise notice 'PASS renewal linkage and successor resolution';
+
+  perform bersihkan_proposal_uji(v_p2);
+  perform bersihkan_proposal_uji(v_p1);
+  update partner set id_partner_contact = null where id = v_pt;
+  delete from partner_contact where id = v_kontak;
+  delete from partner where id = v_pt;
+end
+$t$;
