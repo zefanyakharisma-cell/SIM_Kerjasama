@@ -167,18 +167,26 @@ Tiers: 1 = Head of IO + Kepala Bagian Sekretariat Rektorat · 2 = Dekan / Ka. Pr
 | `id` | INT PK | |
 | `nama` | VARCHAR(50) NN | Pembelajaran / Penelitian / Abdimas / Kemahasiswaan / Kelembagaan |
 
-### 2.10 `managed_options` [NEW]
-Backs the grow-then-reuse dropdowns in the proposal form (Tujuan Kerjasama, Manfaat bagi PETRA/Mitra, ad-hoc Jabatan). New values publish immediately; the admin area provides cleanup.
+### 2.10 `tujuan_kerjasama` / `manfaat_petra` / `manfaat_mitra` [NEW]
+Dedicated dropdown tables backing the proposal form's Tujuan Kerjasama and Manfaat bagi PETRA/Mitra fields — a plain `select` per field, seeded from the historical import (TUJUAN_KERJASAMA.csv, MANFAAT_BAGI_PETRA.csv, MANFAAT_BAGI_MITRA.csv). Each has the same shape:
 | Column | Type | Notes |
 |---|---|---|
 | `id` | INT PK | |
-| `option_group` | VARCHAR(30) NN | `tujuan` / `manfaat_petra` / `manfaat_mitra` / `jabatan_freetext` |
+| `nilai` | VARCHAR(1000) NN UNIQUE | the option text |
+| `is_active` | TINYINT NN DEFAULT 1 | deactivated in the admin area, never deleted while a document still references it |
+
+> The chosen value is still stored denormalized on `proposal_dokumen` (as the `.mwb` does with `manfaat_*`); these tables only source the dropdown.
+
+### 2.10a `managed_options` [NEW]
+Now scoped to `jabatan_freetext` only (the other three groups moved to their own tables above).
+| Column | Type | Notes |
+|---|---|---|
+| `id` | INT PK | |
+| `option_group` | VARCHAR(30) NN | `jabatan_freetext` |
 | `value` | VARCHAR(1000) NN | |
 | `usage_count` | INT NN DEFAULT 0 | |
 | `id_merged_into` | INT NULL FK → managed_options.id | dedup |
 | `is_active` | TINYINT NN DEFAULT 1 | |
-
-> The chosen value is still stored denormalized on `proposal_dokumen` (as the `.mwb` does with `manfaat_*`); this table only sources the dropdown.
 
 ### 2.11 `settings` [NEW]
 Drives configurable thresholds the UI/SLA depend on.
@@ -222,9 +230,9 @@ One row per proposal; on activation it links to a `dokumen_kerja_sama`.
 | `periode_kerjasama` | VARCHAR(50) | e.g. "5 Tahun" |
 | `sifat_periode_kerjasama` | VARCHAR(45) | "Kedua Belah Pihak" / "Auto Renewed" |
 | `status_proposal` | VARCHAR(30) NN | see §3.2 |
-| `tujuan_kerjasama` | TEXT | **[added]** from `managed_options` (`tujuan`) — the UI shows this dropdown |
-| `manfaat_bagi_petra` | TEXT | from `managed_options` |
-| `manfaat_bagi_mitra` | TEXT | **single shared value even on multi-partner** |
+| `tujuan_kerjasama` | TEXT | **[added]** from `tujuan_kerjasama` (§2.10) — the UI shows this dropdown |
+| `manfaat_bagi_petra` | TEXT | from `manfaat_petra` (§2.10) |
+| `manfaat_bagi_mitra` | TEXT | from `manfaat_mitra` (§2.10); **single shared value even on multi-partner** |
 | `informasi_tambahan` | TEXT | **[added]** the UI's "Informasi Tambahan" |
 | `id_dokumen_sebelumnya` | INT NULL FK → proposal_dokumen.id | predecessor on a renewal (Perpanjangan) |
 | `waktu_proposal_dokumen` | DATETIME NN | submission time — start of turnaround KPI |

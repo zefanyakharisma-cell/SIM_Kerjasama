@@ -60,7 +60,9 @@ export default async function Admin() {
     { data: duplikat },
     { data: pengaturan },
     { data: grafik },
-    { data: opsi },
+    { data: tujuanOpsi },
+    { data: manfaatPetraOpsi },
+    { data: manfaatMitraOpsi },
   ] = await Promise.all([
     supabase.from("jabatan").select("id, nama, tier_disposisi, id_unit").order("nama"),
     supabase
@@ -80,12 +82,16 @@ export default async function Admin() {
       .from("dashboard_chart")
       .select("id, judul, jenis_grafik, config, urutan")
       .order("urutan"),
-    supabase
-      .from("managed_options")
-      .select("id, option_group, value, usage_count, is_active")
-      .order("option_group")
-      .limit(200),
+    supabase.from("tujuan_kerjasama").select("id, nilai, is_active").order("nilai"),
+    supabase.from("manfaat_petra").select("id, nilai, is_active").order("nilai"),
+    supabase.from("manfaat_mitra").select("id, nilai, is_active").order("nilai"),
   ]);
+
+  const opsi = [
+    ...(tujuanOpsi ?? []).map((o) => ({ ...o, tabel: "tujuan_kerjasama" as const, label: "tujuan" })),
+    ...(manfaatPetraOpsi ?? []).map((o) => ({ ...o, tabel: "manfaat_petra" as const, label: "manfaat_petra" })),
+    ...(manfaatMitraOpsi ?? []).map((o) => ({ ...o, tabel: "manfaat_mitra" as const, label: "manfaat_mitra" })),
+  ];
 
   // Depth for the tree display, computed from the parent links themselves so it
   // works at any depth (BR-37).
@@ -183,12 +189,16 @@ export default async function Admin() {
     revalidatePath("/dashboard");
   }
 
+  const TABEL_OPSI = ["tujuan_kerjasama", "manfaat_petra", "manfaat_mitra"] as const;
+
   async function nonaktifkanOpsi(formData: FormData) {
     "use server";
+    const tabel = formData.get("tabel");
+    if (!TABEL_OPSI.includes(tabel as any)) return;
     const klien = await supabaseServer();
     // Deactivated, never deleted while something still references it (BR-23).
     await klien
-      .from("managed_options")
+      .from(tabel as string)
       .update({ is_active: false })
       .eq("id", Number(formData.get("id")));
     revalidatePath("/admin");
@@ -525,17 +535,15 @@ export default async function Admin() {
         keterangan="Nilai baru dari formulir proposal terbit langsung tanpa moderasi. Pembersihan dilakukan di sini: dinonaktifkan atau digabungkan, tidak pernah dihapus selama masih dirujuk."
       >
         <ul className="divide-y text-sm" style={{ borderColor: "var(--border)" }}>
-          {(opsi ?? []).map((o) => (
-            <li key={o.id} className="flex flex-wrap items-center gap-2 py-1.5">
+          {opsi.map((o) => (
+            <li key={`${o.tabel}-${o.id}`} className="flex flex-wrap items-center gap-2 py-1.5">
               <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {o.option_group}
+                {o.label}
               </span>
-              <span className="min-w-0 flex-1">{o.value}</span>
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                dipakai {o.usage_count}×
-              </span>
+              <span className="min-w-0 flex-1">{o.nilai}</span>
               {o.is_active ? (
                 <form action={nonaktifkanOpsi}>
+                  <input type="hidden" name="tabel" value={o.tabel} />
                   <input type="hidden" name="id" value={o.id} />
                   <button type="submit" className="text-xs underline">
                     Nonaktifkan
@@ -548,7 +556,7 @@ export default async function Admin() {
               )}
             </li>
           ))}
-          {!opsi?.length ? (
+          {!opsi.length ? (
             <li style={{ color: "var(--text-muted)" }}>Belum ada nilai tersimpan.</li>
           ) : null}
         </ul>

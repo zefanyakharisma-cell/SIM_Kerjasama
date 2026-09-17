@@ -10,8 +10,8 @@ const inputGaya = { borderColor: "var(--border)" };
  *
  * Jenis toggles which of the MoU / MoA blocks is shown — MoU shows a summary
  * of activity, MoA shows Hak/Kewajiban, never both (§3.a.1). Tujuan and the
- * two Manfaat fields are now click-and-choose dropdowns backed by
- * managed_options, not free text (§3.a.2).
+ * two Manfaat fields are click-and-choose dropdowns backed by the
+ * tujuan_kerjasama/manfaat_petra/manfaat_mitra tables, not free text (§3.a.2).
  */
 export function KerjaSamaFields({
   jenisAwal,

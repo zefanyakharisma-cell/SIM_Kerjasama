@@ -94,7 +94,9 @@ export default async function BuatKerjaSama({
     { data: bidang },
     { data: agenda },
     { data: unit },
-    { data: opsi },
+    { data: tujuanOpsi },
+    { data: manfaatPetraOpsi },
+    { data: manfaatMitraOpsi },
     { data: jabatan },
     { data: negara },
     { data: jenisMitra },
@@ -113,18 +115,14 @@ export default async function BuatKerjaSama({
         .select("id, nama, id_parent_unit, id_jenis_unit")
         .eq("is_active", true)
         .order("nama"),
-      supabase
-        .from("managed_options")
-        .select("id, option_group, value")
-        .eq("is_active", true),
+      supabase.from("tujuan_kerjasama").select("nilai").eq("is_active", true).order("nilai"),
+      supabase.from("manfaat_petra").select("nilai").eq("is_active", true).order("nilai"),
+      supabase.from("manfaat_mitra").select("nilai").eq("is_active", true).order("nilai"),
       supabase.from("jabatan").select("id, nama").order("nama"),
       supabase.from("negara").select("id, nama").order("nama"),
       supabase.from("jenis_mitra").select("id, nama").order("nama"),
       supabase.from("partner_contact").select("id, id_partner, nama").order("nama").limit(2000),
     ]);
-
-  const opsiGrup = (grup: string) =>
-    (opsi ?? []).filter((o) => o.option_group === grup);
 
   return (
     <div className="max-w-3xl">
@@ -206,9 +204,9 @@ export default async function BuatKerjaSama({
           <div className="mt-4">
             <KerjaSamaFields
               jenisAwal={(draf as any)?.jenis_kerjasama ?? "MoU"}
-              tujuanOpsi={opsiGrup("tujuan").map((o) => o.value)}
-              manfaatPetraOpsi={opsiGrup("manfaat_petra").map((o) => o.value)}
-              manfaatMitraOpsi={opsiGrup("manfaat_mitra").map((o) => o.value)}
+              tujuanOpsi={(tujuanOpsi ?? []).map((o) => o.nilai)}
+              manfaatPetraOpsi={(manfaatPetraOpsi ?? []).map((o) => o.nilai)}
+              manfaatMitraOpsi={(manfaatMitraOpsi ?? []).map((o) => o.nilai)}
               tujuanAwal={(draf as any)?.tujuan_kerjasama ?? ""}
               manfaatPetraAwal={(draf as any)?.manfaat_bagi_petra ?? ""}
               manfaatMitraAwal={(draf as any)?.manfaat_bagi_mitra ?? ""}
