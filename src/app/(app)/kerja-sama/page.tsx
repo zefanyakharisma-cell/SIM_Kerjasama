@@ -193,7 +193,7 @@ export default async function CariKerjaSama({
                     </td>
                     <td className="px-3 py-2 text-center">
                       <Link
-                        href={`/kerja-sama/${b.id_proposal}`}
+                        href={`/kerja-sama/${b.id_proposal}/laporan` as any}
                         aria-label="Lihat laporan dokumen"
                         className="inline-flex rounded p-1 hover:bg-black/5"
                         style={{ color: "var(--midnight)" }}
