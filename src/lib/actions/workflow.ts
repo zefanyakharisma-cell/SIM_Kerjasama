@@ -107,24 +107,35 @@ export async function aktivasiDokumen(
   idProposal: number,
   data: {
     noDokumen: string;
-    tanggalTandaTangan: string;
+    // Falls back to tanggalMulai when omitted — the Disetujui tab's
+    // activation form (revision V3) no longer asks for it separately.
+    tanggalTandaTangan?: string;
     tanggalMulai: string;
     tanggalBerakhir: string | null;
-    folderKui: string | null;
+    folderKui?: string | null;
     noBerkasDikti: string | null;
+    penandatanganPetra?: string | null;
+    jabatanPetra?: string | null;
+    penandatanganMitra?: string | null;
+    jabatanMitra?: string | null;
   },
 ): Promise<Hasil> {
   const hasil = await panggil("aktivasi_dokumen", {
     p_id_proposal: idProposal,
     // Typed by IO, never generated and never format-checked (BR-22).
     p_no_dokumen: data.noDokumen,
-    p_tanggal_tanda_tangan: data.tanggalTandaTangan,
+    p_tanggal_tanda_tangan: data.tanggalTandaTangan || data.tanggalMulai,
     p_tanggal_mulai: data.tanggalMulai,
     p_tanggal_berakhir: data.tanggalBerakhir,
-    p_folder_kui: data.folderKui,
+    p_folder_kui: data.folderKui || null,
     p_no_berkas_dikti: data.noBerkasDikti,
+    p_penandatangan_petra: data.penandatanganPetra || null,
+    p_jabatan_petra: data.jabatanPetra || null,
+    p_penandatangan_mitra: data.penandatanganMitra || null,
+    p_jabatan_mitra: data.jabatanMitra || null,
   });
   revalidatePath(`/kerja-sama/${idProposal}`);
+  revalidatePath(`/kerja-sama/${idProposal}/laporan`);
   revalidatePath("/kerja-sama");
   return hasil;
 }
