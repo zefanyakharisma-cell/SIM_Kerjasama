@@ -58,10 +58,11 @@ insert into jabatan (nama, id_unit, tier_disposisi) values
   ('Kepala Kantor Kerja Sama dan Urusan Internasional', 2, 1),   -- 1
   ('Kepala Bagian Sekretariat Rektorat', 3, 1),                  -- 2
   ('Dekan School of Business and Management', 4, 2),             -- 3
-  ('Kepala Program Studi Manajemen', 5, 2),                      -- 4
+  ('Kepala Program Studi Manajemen', 5, null),                   -- 4 (submit-only, not an approver)
   ('Wakil Rektor Bidang Akademik', 1, 3),                        -- 5
   ('Rektor', 1, 3),                                              -- 6
-  ('Staf Kantor Kerja Sama', 2, null);                           -- 7
+  ('Staf Kantor Kerja Sama', 2, null),                           -- 7
+  ('Pimpinan Yayasan (Viewer)', 1, null);                        -- 8
 
 -- Accounts -------------------------------------------------------------------
 -- The account IS the position, so an office-holder change needs no data change
@@ -73,7 +74,8 @@ insert into akun (id_jabatan, email, role) values
   (4, 'kaprodi-manajemen@petra.ac.id',     'submitter'),
   (5, 'warek-akademik@petra.ac.id',        'submitter'),
   (6, 'rektor@petra.ac.id',                'submitter'),
-  (7, 'staf-kui@petra.ac.id',              'io_staff');
+  (7, 'staf-kui@petra.ac.id',              'io_staff'),
+  (8, 'viewer@petra.ac.id',                'viewer');
 
 -- Thresholds -----------------------------------------------------------------
 -- Every threshold in the system reads from here; no magic numbers in code (DR-04).

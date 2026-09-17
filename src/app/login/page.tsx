@@ -7,13 +7,14 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 // Demo only: shown when NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true. Remove the flag before real launch.
 const DEMO_PASSWORD = "Demo123!";
 const DEMO_ACCOUNTS = [
-  { email: "kepala-kui@petra.ac.id", label: "Kepala KUI (io_admin)" },
-  { email: "staf-kui@petra.ac.id", label: "Staf KUI (io_staff)" },
-  { email: "sekretariat-rektorat@petra.ac.id", label: "Sekretariat Rektorat" },
-  { email: "dekan-sbm@petra.ac.id", label: "Dekan SBM" },
-  { email: "kaprodi-manajemen@petra.ac.id", label: "Kaprodi Manajemen" },
-  { email: "warek-akademik@petra.ac.id", label: "Warek Akademik" },
-  { email: "rektor@petra.ac.id", label: "Rektor" },
+  { email: "kepala-kui@petra.ac.id", label: "Kepala KUI — io_admin · Tier 1" },
+  { email: "staf-kui@petra.ac.id", label: "Staf KUI — io_staff" },
+  { email: "sekretariat-rektorat@petra.ac.id", label: "Sekretariat Rektorat — submitter · Tier 1" },
+  { email: "dekan-sbm@petra.ac.id", label: "Dekan SBM — submitter · Tier 2" },
+  { email: "kaprodi-manajemen@petra.ac.id", label: "Kaprodi Manajemen — submitter" },
+  { email: "warek-akademik@petra.ac.id", label: "Warek Akademik — submitter · Tier 3" },
+  { email: "rektor@petra.ac.id", label: "Rektor — submitter · Tier 3" },
+  { email: "viewer@petra.ac.id", label: "Pimpinan Yayasan — viewer" },
 ];
 
 /**
