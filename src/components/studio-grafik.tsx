@@ -22,6 +22,8 @@ export type Grafik = {
   deret: { label: string; nilai: number }[];
 };
 
+type AksiGrafik = (formData: FormData) => void | Promise<void>;
+
 // The Formal register: Midnight first, secondary brand colours only where a
 // series genuinely needs separating (PRD §16.1).
 const PALET = ["#19304b", "#3880d0", "#45b8bc", "#6aaa43", "#be93e4", "#f37121", "#ffbc00"];
@@ -138,7 +140,22 @@ function Kanvas({ g }: { g: Grafik }) {
   return <div ref={el} className="h-64 w-full" />;
 }
 
-export function StudioGrafik({ grafik }: { grafik: Grafik[] }) {
+export function StudioGrafik({
+  grafik,
+  tersembunyi,
+  onSembunyikan,
+  onTampilkan,
+  onPindah,
+}: {
+  grafik: Grafik[];
+  // Per-account preference edits (revision request: everyone can edit and
+  // save their own Studio Grafik view). Optional so the component still works
+  // wherever charts are shown read-only.
+  tersembunyi?: { id: number; judul: string }[];
+  onSembunyikan?: AksiGrafik;
+  onTampilkan?: AksiGrafik;
+  onPindah?: AksiGrafik;
+}) {
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -162,18 +179,77 @@ export function StudioGrafik({ grafik }: { grafik: Grafik[] }) {
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
-          {grafik.map((g) => (
+          {grafik.map((g, i) => (
             <div
               key={g.id}
               className="rounded-xl border bg-white p-4"
               style={{ borderColor: "var(--border)" }}
             >
-              <h3 className="mb-2 text-sm font-medium">{g.judul}</h3>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-medium">{g.judul}</h3>
+                {onSembunyikan || onPindah ? (
+                  <div className="flex items-center gap-1 text-xs">
+                    {onPindah ? (
+                      <>
+                        <form action={onPindah}>
+                          <input type="hidden" name="id_chart" value={g.id} />
+                          <input type="hidden" name="arah" value="naik" />
+                          <button
+                            type="submit"
+                            disabled={i === 0}
+                            className="rounded px-1.5 py-0.5 hover:bg-black/5 disabled:opacity-30"
+                            aria-label="Naikkan"
+                          >
+                            ↑
+                          </button>
+                        </form>
+                        <form action={onPindah}>
+                          <input type="hidden" name="id_chart" value={g.id} />
+                          <input type="hidden" name="arah" value="turun" />
+                          <button
+                            type="submit"
+                            disabled={i === grafik.length - 1}
+                            className="rounded px-1.5 py-0.5 hover:bg-black/5 disabled:opacity-30"
+                            aria-label="Turunkan"
+                          >
+                            ↓
+                          </button>
+                        </form>
+                      </>
+                    ) : null}
+                    {onSembunyikan ? (
+                      <form action={onSembunyikan}>
+                        <input type="hidden" name="id_chart" value={g.id} />
+                        <button
+                          type="submit"
+                          className="rounded px-1.5 py-0.5 underline hover:bg-black/5"
+                        >
+                          Sembunyikan
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               <Kanvas g={g} />
             </div>
           ))}
         </div>
       )}
+
+      {onTampilkan && tersembunyi?.length ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+          <span>Disembunyikan:</span>
+          {tersembunyi.map((g) => (
+            <form key={g.id} action={onTampilkan}>
+              <input type="hidden" name="id_chart" value={g.id} />
+              <button type="submit" className="underline">
+                {g.judul}
+              </button>
+            </form>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

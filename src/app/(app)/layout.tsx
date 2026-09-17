@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
+import { SidebarNav } from "@/components/sidebar-nav";
 
 /**
  * The app shell (Design §3): one flat sidebar shared by every role. Role
@@ -14,6 +14,7 @@ const MENU = [
   { href: "/antrean", label: "Antrean Saya" },
   { href: "/pembaruan", label: "Pembaruan" },
   { href: "/notifikasi", label: "Notifikasi" },
+  { href: "/master-data", label: "Master Data", adminSaja: true },
   // Master data and system settings. Shown to everyone, refused by RLS to
   // everyone else — but hiding it keeps the menu honest about what a role can
   // actually do, so it is filtered below.
@@ -63,54 +64,13 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen">
-      <aside
-        className="hidden w-64 shrink-0 flex-col p-5 text-white md:flex"
-        style={{ background: "var(--midnight)" }}
-      >
-        <div className="mb-8">
-          <div className="text-sm font-semibold tracking-wide">SIM KERJA SAMA</div>
-          <div className="text-xs opacity-70">Universitas Kristen Petra</div>
-        </div>
-
-        <div className="mb-6 rounded-lg bg-white/10 p-3">
-          {/* The audit identifies positions, not individuals, so the shell
-              names the position first (§12.3). */}
-          <div className="text-xs font-medium">{jabatan?.nama ?? "Jabatan"}</div>
-          <div className="text-[11px] opacity-70">{akun.email}</div>
-        </div>
-
-        <nav className="flex flex-col gap-1">
-          {MENU.filter(
-            (m) => !("adminSaja" in m) || akun.role === "io_admin",
-          ).map((m) => (
-            <Link
-              key={m.href}
-              href={m.href}
-              className="flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-white/10"
-            >
-              <span>{m.label}</span>
-              {m.href === "/notifikasi" && belumDibaca ? (
-                <span
-                  className="rounded-full px-1.5 text-[11px] font-medium"
-                  style={{ background: "var(--status-progress)" }}
-                >
-                  {belumDibaca}
-                </span>
-              ) : null}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="mt-auto pt-6 text-[11px] opacity-60">
-          {akun.role === "io_admin"
-            ? "IO Admin"
-            : akun.role === "io_staff"
-              ? "Staf KUI"
-              : akun.role === "viewer"
-                ? "Peninjau"
-                : "Pengusul"}
-        </div>
-      </aside>
+      <SidebarNav
+        menu={MENU.filter((m) => !("adminSaja" in m) || akun.role === "io_admin")}
+        belumDibaca={belumDibaca ?? 0}
+        jabatan={jabatan?.nama ?? "Jabatan"}
+        email={akun.email}
+        role={akun.role}
+      />
 
       <main className="min-w-0 flex-1 p-6 md:p-8">{children}</main>
     </div>

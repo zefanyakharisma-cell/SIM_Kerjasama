@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { supabaseServer } from "@/lib/supabase/server";
+import type { Route } from "next";
+import { revalidatePath } from "next/cache";
+import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { PetaMitra, type Pin } from "@/components/peta-mitra";
 import { StudioGrafik, type Grafik } from "@/components/studio-grafik";
 
@@ -39,14 +41,16 @@ function Kartu({
   nilai,
   catatan,
   warna,
+  href,
 }: {
   label: string;
   nilai: string | number;
   catatan?: string;
   warna?: string;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-xl border bg-white p-4" style={{ borderColor: "var(--border)" }}>
+  const isi = (
+    <>
       <div className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
         {label}
       </div>
@@ -61,6 +65,24 @@ function Kartu({
           {catatan}
         </div>
       ) : null}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href as Route}
+        className="block rounded-xl border bg-white p-4 transition-shadow hover:shadow-sm"
+        style={{ borderColor: "var(--border)" }}
+      >
+        {isi}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border bg-white p-4" style={{ borderColor: "var(--border)" }}>
+      {isi}
     </div>
   );
 }
@@ -309,6 +331,8 @@ export default async function Dashboard({
 
   const { data: pin } = await supabase.from("v_peta_mitra").select("*").limit(2000);
 
+  const akun = await akunSaatIni();
+
   // Saved charts, each aggregated by the database function that owns the
   // whitelist of groupings (see the charts migration).
   const { data: tersimpan } = await supabase
@@ -318,15 +342,116 @@ export default async function Dashboard({
     .order("urutan")
     .limit(5);
 
-  const grafik: Grafik[] = [];
+  // This account's own hide/reorder overrides on top of the shared set —
+  // absent means "use the chart's own default position" (revision request:
+  // per-account Studio Grafik preferences).
+  const { data: preferensi } = akun
+    ? await supabase
+        .from("dashboard_chart_preference")
+        .select("id_chart, is_hidden, urutan")
+        .eq("id_akun", akun.id)
+    : { data: [] };
+  const prefByChart = new Map((preferensi ?? []).map((p) => [p.id_chart, p]));
+
+  const grafikTampil: Grafik[] = [];
+  const grafikTersembunyi: { id: number; judul: string }[] = [];
+  const urutanBaris: { id: number; judul: string; jenis_grafik: string; urutan: number }[] = [];
   for (const g of tersimpan ?? []) {
-    const { data: deret } = await supabase.rpc("agregasi_grafik", { p_config: g.config });
-    grafik.push({
+    const p = prefByChart.get(g.id);
+    if (p?.is_hidden) {
+      grafikTersembunyi.push({ id: g.id, judul: g.judul });
+      continue;
+    }
+    urutanBaris.push({
+      id: g.id,
+      judul: g.judul,
+      jenis_grafik: g.jenis_grafik,
+      urutan: p?.urutan ?? g.urutan,
+    });
+  }
+  urutanBaris.sort((a, b) => a.urutan - b.urutan);
+
+  const configById = new Map((tersimpan ?? []).map((g) => [g.id, g.config]));
+  for (const g of urutanBaris) {
+    const { data: deret } = await supabase.rpc("agregasi_grafik", {
+      p_config: configById.get(g.id),
+    });
+    grafikTampil.push({
       id: g.id,
       judul: g.judul,
       jenis_grafik: g.jenis_grafik,
       deret: (deret ?? []) as { label: string; nilai: number }[],
     });
+  }
+  const grafik = grafikTampil;
+
+  async function sembunyikanGrafik(formData: FormData) {
+    "use server";
+    const akunKini = await akunSaatIni();
+    if (!akunKini) return;
+    const klien = await supabaseServer();
+    await klien.from("dashboard_chart_preference").upsert(
+      { id_akun: akunKini.id, id_chart: Number(formData.get("id_chart")), is_hidden: true },
+      { onConflict: "id_akun,id_chart" },
+    );
+    revalidatePath("/dashboard");
+  }
+
+  async function tampilkanGrafik(formData: FormData) {
+    "use server";
+    const akunKini = await akunSaatIni();
+    if (!akunKini) return;
+    const klien = await supabaseServer();
+    await klien.from("dashboard_chart_preference").upsert(
+      { id_akun: akunKini.id, id_chart: Number(formData.get("id_chart")), is_hidden: false },
+      { onConflict: "id_akun,id_chart" },
+    );
+    revalidatePath("/dashboard");
+  }
+
+  // ponytail: naive adjacent-swap reorder (fine for a max-5-chart list); a full
+  // drag-and-drop reorder would need its own array-of-ids preference shape.
+  async function pindahGrafik(formData: FormData) {
+    "use server";
+    const akunKini = await akunSaatIni();
+    if (!akunKini) return;
+    const klien = await supabaseServer();
+
+    const idChart = Number(formData.get("id_chart"));
+    const arah = String(formData.get("arah"));
+
+    const { data: charts } = await klien
+      .from("dashboard_chart")
+      .select("id, urutan")
+      .eq("is_visible", true)
+      .order("urutan")
+      .limit(5);
+    const { data: pref } = await klien
+      .from("dashboard_chart_preference")
+      .select("id_chart, urutan, is_hidden")
+      .eq("id_akun", akunKini.id);
+    const prefMap = new Map((pref ?? []).map((p) => [p.id_chart, p]));
+
+    const urutanEfektif = (id: number, bawaan: number) => prefMap.get(id)?.urutan ?? bawaan;
+    const terlihat = (charts ?? [])
+      .filter((c) => !prefMap.get(c.id)?.is_hidden)
+      .map((c) => ({ id: c.id, urutan: urutanEfektif(c.id, c.urutan) }))
+      .sort((a, b) => a.urutan - b.urutan);
+
+    const idx = terlihat.findIndex((c) => c.id === idChart);
+    const tetangga = arah === "naik" ? idx - 1 : idx + 1;
+    if (idx < 0 || tetangga < 0 || tetangga >= terlihat.length) return;
+
+    const a = terlihat[idx];
+    const b = terlihat[tetangga];
+    await klien.from("dashboard_chart_preference").upsert(
+      [
+        { id_akun: akunKini.id, id_chart: a.id, urutan: b.urutan, is_hidden: false },
+        { id_akun: akunKini.id, id_chart: b.id, urutan: a.urutan, is_hidden: false },
+      ],
+      { onConflict: "id_akun,id_chart" },
+    );
+    revalidatePath("/dashboard");
   }
 
   // Evaluation analytics. Aggregated here but never detached from the document:
@@ -362,16 +487,30 @@ export default async function Dashboard({
           label="Jumlah Kerja Sama Aktif"
           nilai={aktifDok}
           warna="var(--status-active)"
+          href="/kerja-sama?tab=aktif"
         />
-        <Kartu label="Jumlah Mitra Internasional" nilai={mitraIntl} />
-        <Kartu label="Jumlah Mitra Domestik" nilai={mitraDomestik} />
+        <Kartu
+          label="Jumlah Mitra Internasional"
+          nilai={mitraIntl}
+          href="/master-data?tab=mitra&jenis=internasional"
+        />
+        <Kartu
+          label="Jumlah Mitra Domestik"
+          nilai={mitraDomestik}
+          href="/master-data?tab=mitra&jenis=domestik"
+        />
         <Kartu
           label="Dokumen Akan Kadaluarsa"
           nilai={akanBerakhir ?? 0}
           catatan={`Dalam ${bulan} bulan ke depan`}
           warna="var(--sla-yellow)"
+          href="/kerja-sama?tab=berakhir"
         />
-        <Kartu label="Jumlah Dokumen Dalam Proses" nilai={dalamProses} />
+        <Kartu
+          label="Jumlah Dokumen Dalam Proses"
+          nilai={dalamProses}
+          href="/kerja-sama?tab=proposal"
+        />
         <Kartu
           label="Melewati SLA"
           nilai={lewatSla ?? 0}
@@ -394,7 +533,13 @@ export default async function Dashboard({
       </section>
 
       <div className="mb-6">
-        <StudioGrafik grafik={grafik} />
+        <StudioGrafik
+          grafik={grafik}
+          tersembunyi={grafikTersembunyi}
+          onSembunyikan={sembunyikanGrafik}
+          onTampilkan={tampilkanGrafik}
+          onPindah={pindahGrafik}
+        />
       </div>
 
       {ringkasGap.length > 0 ? (
@@ -402,7 +547,7 @@ export default async function Dashboard({
           className="rounded-xl border bg-white p-4"
           style={{ borderColor: "var(--border)" }}
         >
-          <h2 className="mb-1 text-sm font-semibold">Harapan vs Kepuasan</h2>
+          <h2 className="mb-1 text-sm font-semibold">Rekap Evaluasi Kerja Sama</h2>
           <p className="mb-3 text-xs" style={{ color: "var(--text-secondary)" }}>
             Rata-rata dari evaluasi pembaruan. Selisih negatif berarti kepuasan di
             bawah harapan.
