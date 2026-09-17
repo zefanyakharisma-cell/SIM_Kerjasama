@@ -100,12 +100,14 @@ export async function simpanProposal(formData: FormData) {
         .select("is_domestic")
         .eq("id", idNegaraBaru)
         .maybeSingle();
+      const idJenisBaru = Number(formData.get(`mitra_baru_jenis_${i}`) ?? 0) || null;
       const { data: partnerBaru, error: errPartnerBaru } = await supabase
         .from("partner")
         .insert({
           nama: namaBaru,
           id_negara: idNegaraBaru,
           is_international: !(negaraBaru?.is_domestic ?? true),
+          id_jenis_mitra: idJenisBaru,
           kota: String(formData.get(`mitra_baru_kota_${i}`) ?? "") || null,
           alamat: String(formData.get(`mitra_baru_alamat_${i}`) ?? "") || null,
           no_telp: String(formData.get(`mitra_baru_telp_${i}`) ?? "") || null,
@@ -116,10 +118,23 @@ export async function simpanProposal(formData: FormData) {
       if (errPartnerBaru || !partnerBaru) {
         throw new Error(`Mitra baru gagal disimpan: ${errPartnerBaru?.message}`);
       }
-      partnerIds.push(partnerBaru.id as number);
+      const idPartnerBaru = partnerBaru.id as number;
+      await simpanKontakBaru(supabase, idPartnerBaru, i, formData);
+      partnerIds.push(idPartnerBaru);
     } else {
       const idPartner = Number(formData.get(`id_partner_${i}`) ?? 0);
-      if (idPartner) partnerIds.push(idPartner);
+      if (!idPartner) continue;
+      // Existing partner: the user either points at an existing
+      // PARTNER_CONTACT (set as primary) or fills in a new one inline.
+      if (formData.get(`kontak_mode_${i}`) === "existing") {
+        const idKontak = Number(formData.get(`id_kontak_${i}`) ?? 0);
+        if (idKontak) {
+          await supabase.from("partner").update({ id_partner_contact: idKontak }).eq("id", idPartner);
+        }
+      } else {
+        await simpanKontakBaru(supabase, idPartner, i, formData);
+      }
+      partnerIds.push(idPartner);
     }
   }
 
@@ -218,4 +233,32 @@ export async function simpanProposal(formData: FormData) {
   revalidatePath("/kerja-sama");
   if (idEdit) revalidatePath(`/kerja-sama/${id}/laporan`);
   redirect(idEdit ? `/kerja-sama/${id}/laporan` : `/kerja-sama/${id}`);
+}
+
+/**
+ * Inserts the full PARTNER_CONTACT entity for Calon Mitra row `i` (name
+ * required, the rest optional free text) and sets it as the partner's
+ * primary contact.
+ */
+async function simpanKontakBaru(
+  supabase: Awaited<ReturnType<typeof supabaseServer>>,
+  idPartner: number,
+  i: number,
+  formData: FormData,
+) {
+  const namaKontak = String(formData.get(`kontak_nama_${i}`) ?? "").trim();
+  if (!namaKontak) return;
+  const { data: kontakBaru, error } = await supabase
+    .from("partner_contact")
+    .insert({
+      id_partner: idPartner,
+      nama: namaKontak,
+      jabatan: String(formData.get(`kontak_jabatan_${i}`) ?? "") || null,
+      email: String(formData.get(`kontak_email_${i}`) ?? "") || null,
+      no_telp: String(formData.get(`kontak_telp_${i}`) ?? "") || null,
+    })
+    .select("id")
+    .single();
+  if (error || !kontakBaru) return;
+  await supabase.from("partner").update({ id_partner_contact: kontakBaru.id }).eq("id", idPartner);
 }

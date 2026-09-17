@@ -18,12 +18,14 @@ export function SearchSelect({
   defaultValue,
   placeholder,
   className,
+  onValueChange,
 }: {
   name: string;
   options: { id: number; label: string }[];
   defaultValue?: number | null;
   placeholder?: string;
   className?: string;
+  onValueChange?: (id: number | null) => void;
 }) {
   const awal = options.find((o) => o.id === defaultValue) ?? null;
   const [teks, setTeks] = useState(awal?.label ?? "");
@@ -36,6 +38,7 @@ export function SearchSelect({
       (o) => o.label.trim().toLowerCase() === nilai.trim().toLowerCase(),
     );
     setId(cocok?.id ?? "");
+    onValueChange?.(cocok?.id ?? null);
   }
 
   return (

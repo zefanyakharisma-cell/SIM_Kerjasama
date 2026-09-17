@@ -97,6 +97,8 @@ export default async function BuatKerjaSama({
     { data: opsi },
     { data: jabatan },
     { data: negara },
+    { data: jenisMitra },
+    { data: kontak },
   ] = await Promise.all([
       supabase
         .from("partner")
@@ -117,6 +119,8 @@ export default async function BuatKerjaSama({
         .eq("is_active", true),
       supabase.from("jabatan").select("id, nama").order("nama"),
       supabase.from("negara").select("id, nama").order("nama"),
+      supabase.from("jenis_mitra").select("id, nama").order("nama"),
+      supabase.from("partner_contact").select("id, id_partner, nama").order("nama").limit(2000),
     ]);
 
   const opsiGrup = (grup: string) =>
@@ -144,6 +148,8 @@ export default async function BuatKerjaSama({
           <MitraPicker
             partners={partner ?? []}
             negara={negara ?? []}
+            jenisMitra={jenisMitra ?? []}
+            contacts={kontak ?? []}
             awal={[...partnerTerpilih] as number[]}
             leadAwal={partnerLead}
           />
