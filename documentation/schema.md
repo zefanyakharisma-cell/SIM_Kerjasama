@@ -35,6 +35,7 @@ erDiagram
     unit ||--o{ jabatan : has
     jabatan ||--o{ akun : "logged in as (role-based)"
     negara ||--o{ partner : "located in"
+    jenis_mitra ||--o{ partner : categorizes
     partner ||--o{ partner_contact : has
     partner ||--o| partner : "primary contact"
     proposal_dokumen ||--o{ partner_pengusul : "partners"
@@ -117,6 +118,12 @@ Tiers: 1 = Head of IO + Kepala Bagian Sekretariat Rektorat · 2 = Dekan / Ka. Pr
 
 > "Approver" is never stored here — it is derived per document from an open `disposisi_target` matching the account's `id_jabatan`.
 
+### 2.5a `jenis_mitra` (partner category) [NEW]
+| Column | Type | Notes |
+|---|---|---|
+| `id` | INT PK | |
+| `nama` | VARCHAR(150) NN UNIQUE | Pendidikan / Industri / Organisasi-Yayasan-Asosiasi / Lembaga Pemerintahan / Perorangan-Kedutaan-Gereja |
+
 ### 2.6 `partner` (mitra) [.mwb — a few added columns]
 | Column | Type | Notes |
 |---|---|---|
@@ -124,6 +131,7 @@ Tiers: 1 = Head of IO + Kepala Bagian Sekretariat Rektorat · 2 = Dekan / Ka. Pr
 | `nama` | VARCHAR(200) NN | |
 | `is_international` | TINYINT NN | authoritative flag the KPI reads; set from `negara.is_domestic` |
 | `id_negara` | INT NN FK → negara.id | |
+| `id_jenis_mitra` | INT NULL FK → jenis_mitra.id | **[NEW]** partner's own category; distinct from `is_international`, which the UI separately labels "Jenis Mitra" for domestic/international |
 | `kota` | VARCHAR(100) | |
 | `alamat` | VARCHAR(255) | |
 | `homepage` | VARCHAR(255) | also used for duplicate detection |
