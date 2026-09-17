@@ -41,9 +41,14 @@ export type Akun = {
 /** The signed-in account, or null. The account IS a position (DR-06). */
 export async function akunSaatIni(): Promise<Akun | null> {
   const supabase = await supabaseServer();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return null;
+  // RLS lets any linked account read every akun row, so filter to our own.
   const { data } = await supabase
     .from("akun")
     .select("id, id_jabatan, email, role")
+    .eq("auth_user_id", auth.user.id)
+    .eq("is_active", true)
     .maybeSingle();
   return (data as Akun) ?? null;
 }
