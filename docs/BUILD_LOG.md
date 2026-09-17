@@ -168,3 +168,78 @@ Both `tsc --noEmit` and `next build` pass; all seven routes compile.
 Not in this phase, by scope: the world map and chart studio, the scheduled SLA
 and expiry sweeps, the three Excel exports, per-column filters, file upload to
 Storage, and the whole renewal flow with its partner token page.
+
+## 6 — Phase 2: SLA sweeps, notifications, filters and exports
+
+The scheduler the PRD names as a hard prerequisite is now real: `pg_cron` runs
+the SLA sweep at 22:00 UTC and the expiry sweep fifteen minutes later — 05:00
+and 05:15 WIB, before the office opens.
+
+**Idempotency is structural, not conventional.** A sweep that is idempotent
+only because someone remembered to check stops being idempotent the first time
+it is edited. So `notifikasi` gained `id_disposisi_target` and a unique index
+over `(target, severity, recipient)`: the second run of the day cannot insert a
+duplicate reminder because the index refuses it. The expiry cadence uses the
+same trick in time — a reminder is skipped while a recent one exists, monthly
+from six months out and weekly once two months remain.
+
+The two SLA scales stay separate in the sweep itself. An approval target is
+counted in business days net of weekends, holidays and frozen spans; a renewal
+request runs on the 30/60/90 calendar-day scale (BR-32). Resolved targets are
+never touched — their duration was frozen when they resolved, so editing the
+holiday calendar cannot rewrite history (DR-03).
+
+**Notifications come from one trigger, not nine call sites.** Every workflow
+event already writes exactly one `riwayat_approval` row, and that log is
+append-only, so a single trigger over it catches every event on every path,
+including paths written later. A second trigger fires when a `disposisi_target`
+actually *opens* rather than when it is created: telling a tier-3 approver to
+act while tier 1 is still running would be telling them to do something the
+database will refuse.
+
+Email leaves the transaction entirely. The Edge Function drains pending
+notifications on a schedule, so a mail provider being down can never roll back
+an approval (BR-21). A row with no address and no configured provider stays
+`pending` rather than being marked sent — nothing is silently dropped.
+
+**The lists, the filters and the exports read one query.** The export button
+promises to export "what I am looking at", and the only way to keep that
+promise is for the screen and the download to build the identical query. Both
+now call `terapkanFilter` over `v_daftar_dokumen`; the export differs only in
+taking every page instead of one.
+
+Two details in those views are load-bearing:
+
+- `security_invoker = true`. Without it a view runs as its owner and silently
+  bypasses every RLS policy underneath. With it, the view is only a shape and
+  RLS still decides the rows.
+- The filter row is a plain GET form, which puts filter state in the URL. That
+  is what makes a filtered view reloadable, shareable, and exportable by
+  handing the same query string to the download endpoint.
+
+Exports are CSV with a BOM rather than a binary workbook: Excel opens it
+natively and the alternative was a zip-and-XML dependency for the same columns.
+The BOM is what stops Excel mangling "Universität" on a Windows machine.
+
+An empty filtered list says something different from an empty list — users
+mistake the first for a broken system (Design §6).
+
+### Verification
+
+Two more of the mandatory tests now exist and pass against Postgres 17:
+
+| rules §9 | Check | Result |
+|---|---|---|
+| 9.7 | Sweep idempotency — SLA and expiry twice in a day | pass |
+| 9.8 | Transaction rollback — a failed reactivation leaves nothing | pass |
+
+§9.8 uses a plpgsql exception block, which *is* a subtransaction, so it
+exercises the real rollback path rather than simulating one. The earlier suite
+still passes, and `next build` compiles all nine routes.
+
+The test blocks share one `bersihkan_proposal_uji` cleanup function — the only
+place in the schema that deletes a proposal. EXECUTE is granted to nobody, so
+no route can reach it and BR-09 is untouched.
+
+**Still owed outside SQL:** deploy `kirim-email` and set `RESEND_API_KEY`,
+`EMAIL_FROM` and `APP_URL`; schedule it every five minutes.

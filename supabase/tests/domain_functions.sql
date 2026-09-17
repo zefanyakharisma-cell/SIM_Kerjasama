@@ -7,8 +7,8 @@
 --
 -- Covers §9.1 tier gating with a gap · §9.2 pending reset · §9.3 SLA
 -- pause/resume · §9.4 revision vs pending · §9.5 live disposition editing ·
--- §9.6 business-day arithmetic · §9.12 Lingkup cascade. §9.7-9.11 and §9.13
--- arrive with the sweeps, renewal and RLS work they test.
+-- §9.6 business-day arithmetic · §9.7 sweep idempotency · §9.12 Lingkup
+-- cascade. §9.8-9.11 and §9.13 arrive with the renewal and RLS work they test.
 
 -- ===========================================================================
 -- §9.1 — Tier gating with a gap: tiers 1 and 3 populated, tier 2 empty.
@@ -256,5 +256,130 @@ begin
   delete from disposisi_target where no_disposisi in (select no from disposisi where id_proposal_dokumen = v_p);
   delete from disposisi where id_proposal_dokumen = v_p;
   delete from proposal_dokumen where id = v_p;
+end
+$t$;
+
+-- ===========================================================================
+-- §9.7 — Sweep idempotency. Running a sweep twice in a day must not send a
+-- reminder twice or archive a document twice (BR-20).
+-- ===========================================================================
+do $t$
+declare
+  v_p int; v_t int; v_no int;
+  v_n1 int; v_n2 int;
+  v_arsip1 text; v_arsip2 text;
+  v_hitung1 int; v_hitung2 int;
+begin
+  perform set_config('simks.akun_id','7',true);
+
+  -- An approval that has been sitting open long enough to go red.
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',7) returning id into v_p;
+  perform ajukan_proposal(v_p);
+  perform kirim_disposisi(v_p, array[3], 'uji idempotensi sapuan');
+
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p;
+  update disposisi_target set waktu_unlock = now() - interval '20 days' where no = v_t;
+
+  perform sapu_sla();
+  select count(*) into v_n1 from notifikasi where id_disposisi_target = v_t;
+  perform sapu_sla();
+  select count(*) into v_n2 from notifikasi where id_disposisi_target = v_t;
+
+  if v_n1 = 0 then
+    raise exception 'FAIL 9.7a: an overdue approver was never reminded';
+  end if;
+  if v_n1 <> v_n2 then
+    raise exception 'FAIL 9.7b: the second sweep sent % extra reminders', v_n2 - v_n1;
+  end if;
+  if (select status_sla from disposisi_target where no = v_t) <> 'red' then
+    raise exception 'FAIL 9.7c: 20 days open did not flag red';
+  end if;
+
+  -- An expired document. The first sweep archives it with its reason; the
+  -- second must find nothing left to do (BR-09, BR-10).
+  insert into dokumen_kerja_sama (id_proposal_dokumen, no_dokumen, tanggal_mulai,
+                                  tanggal_berakhir, status)
+  values (v_p, 'UJI/SAPU/1', current_date - 400, current_date - 1, 'Aktif')
+  returning no into v_no;
+
+  perform sapu_kedaluarsa();
+  select status || '/' || coalesce(alasan_arsip,'-') into v_arsip1
+    from dokumen_kerja_sama where no = v_no;
+  select count(*) into v_hitung1 from notifikasi where no_dokumen_kerjasama = v_no;
+
+  perform sapu_kedaluarsa();
+  select status || '/' || coalesce(alasan_arsip,'-') into v_arsip2
+    from dokumen_kerja_sama where no = v_no;
+  select count(*) into v_hitung2 from notifikasi where no_dokumen_kerjasama = v_no;
+
+  if v_arsip1 <> 'Diarsipkan/expired_without_renewal' then
+    raise exception 'FAIL 9.7d: expected archival with a reason, got %', v_arsip1;
+  end if;
+  if v_arsip1 <> v_arsip2 or v_hitung1 <> v_hitung2 then
+    raise exception 'FAIL 9.7e: the second expiry sweep changed something';
+  end if;
+  raise notice 'PASS 9.7 sweep idempotency';
+
+  perform bersihkan_proposal_uji(v_p);
+end
+$t$;
+
+-- ===========================================================================
+-- §9.8 — Transaction rollback. A multi-step operation that fails part way
+-- through must leave nothing behind (EC-03).
+--
+-- The plpgsql exception block below IS a subtransaction, so this exercises the
+-- real rollback path rather than simulating one.
+-- ===========================================================================
+do $t$
+declare
+  v_p int; v_t int; v_ronde_sebelum int; v_ronde_sesudah int;
+  v_beku_sebelum int; v_beku_sesudah int;
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoA','Draft',7) returning id into v_p;
+  perform ajukan_proposal(v_p);
+  perform kirim_disposisi(v_p, array[1,3], 'uji rollback');
+
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p and dt.tier = 1;
+
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t, 'pending', 'bekukan dulu');
+
+  select max(round_ke) into v_ronde_sebelum from disposisi where id_proposal_dokumen = v_p;
+  select count(*) into v_beku_sebelum from pending_periods
+   where id_proposal_dokumen = v_p and selesai is null;
+
+  -- Reactivation closes the frozen span, opens a new round and re-gates: three
+  -- writes that must stand or fall together.
+  perform set_config('simks.akun_id','7',true);
+  begin
+    perform reaktivasi_pending(v_p);
+    raise exception 'gagal di tengah operasi';
+  exception when others then
+    null;
+  end;
+
+  select max(round_ke) into v_ronde_sesudah from disposisi where id_proposal_dokumen = v_p;
+  select count(*) into v_beku_sesudah from pending_periods
+   where id_proposal_dokumen = v_p and selesai is null;
+
+  if v_ronde_sesudah <> v_ronde_sebelum then
+    raise exception 'FAIL 9.8a: a new round survived a failed reactivation (% -> %)',
+      v_ronde_sebelum, v_ronde_sesudah;
+  end if;
+  if v_beku_sesudah <> v_beku_sebelum then
+    raise exception 'FAIL 9.8b: the frozen span was closed by a failed reactivation';
+  end if;
+  if (select status_proposal from proposal_dokumen where id = v_p) <> 'Pending' then
+    raise exception 'FAIL 9.8c: the document left Pending on a failed reactivation';
+  end if;
+  raise notice 'PASS 9.8 transaction rollback';
+
+  perform bersihkan_proposal_uji(v_p);
 end
 $t$;

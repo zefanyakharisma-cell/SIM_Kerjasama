@@ -12,6 +12,7 @@ const MENU = [
   { href: "/kerja-sama", label: "Cari Kerja Sama" },
   { href: "/buat", label: "Buat Kerja Sama" },
   { href: "/antrean", label: "Antrean Saya" },
+  { href: "/notifikasi", label: "Notifikasi" },
 ] as const;
 
 export default async function AppLayout({
@@ -39,11 +40,21 @@ export default async function AppLayout({
     );
   }
 
-  const { data: jabatan } = await (await supabaseServer())
+  const supabase = await supabaseServer();
+
+  const { data: jabatan } = await supabase
     .from("jabatan")
     .select("nama")
     .eq("id", akun.id_jabatan)
     .maybeSingle();
+
+  // Unread count on the nav item itself. RLS scopes notifikasi to this
+  // account's position already, so there is nothing to filter here.
+  const { count: belumDibaca } = await supabase
+    .from("notifikasi")
+    .select("*", { count: "exact", head: true })
+    .eq("id_jabatan_penerima", akun.id_jabatan)
+    .is("waktu_dibaca", null);
 
   return (
     <div className="flex min-h-screen">
@@ -68,9 +79,17 @@ export default async function AppLayout({
             <Link
               key={m.href}
               href={m.href}
-              className="rounded-lg px-3 py-2 text-sm hover:bg-white/10"
+              className="flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-white/10"
             >
-              {m.label}
+              <span>{m.label}</span>
+              {m.href === "/notifikasi" && belumDibaca ? (
+                <span
+                  className="rounded-full px-1.5 text-[11px] font-medium"
+                  style={{ background: "var(--status-progress)" }}
+                >
+                  {belumDibaca}
+                </span>
+              ) : null}
             </Link>
           ))}
         </nav>
