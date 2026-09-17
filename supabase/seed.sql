@@ -517,3 +517,152 @@ insert into holidays (tanggal, keterangan) values
   ('2026-08-17','Hari Kemerdekaan RI'),
   ('2026-08-25','Maulid Nabi Muhammad SAW'),
   ('2026-12-25','Hari Raya Natal');
+
+-- Historical proposals from the TUJUAN_KERJASAMA.csv import --------------
+-- One proposal_dokumen per source row, so every tujuan/manfaat value in the
+-- pools above is actually referenced by a document rather than sitting
+-- unused (managed_options exists to be picked, not to be an orphan list).
+-- manfaat_bagi_petra/manfaat_bagi_mitra have no shared key with the tujuan
+-- rows (81 and 96 distinct values against 99 tujuan rows), so they are
+-- cycled on rather than a real historical pairing -- this is a seeding
+-- device, not a claim that document #N actually cited that manfaat pair.
+-- Draft status and no partner/unit/agenda links: none of the four source
+-- CSVs name a partner, date, or unit, so none is invented here.
+with tujuan_docs(seq, jenis, tujuan) as (values
+  (1,'MoU','Mendukung visi/misi Para Pihak'),
+  (2,'MoA','Mampu menawarkan sertifikasi PMP dan menyiapkan dosen-dosen menjadi trainer kelas persiapannya'),
+  (3,'MoA','untuk melaksanakan suatu kegiatan yang bersifat saling membantu dan meningkatkan potensi PARA PIHAK dengan prinsip saling memberi dan mendapatkan manfaat.'),
+  (4,'MoA','Untuk mendukung peningkatan pengembangan mahasiswa dari berbagai aspek, khususnya di bidang wawasan global dan apresiasi budaya'),
+  (5,'MoU','Untuk mengembangkan kerjasama akademik dan Pendidikan dan untuk mempromosikan saling pengertian antara kedua universitas.'),
+  (6,'MoU','Meningkatkan dan mengembangkan kualitas pendidikan profesi Keinsinyuran, serta Penelitian Bersama'),
+  (7,'MoA','meningkatkan mutu penyelenggaraan, serta mutu dan jumlah lulusan Program Studi Program Profesi Insinyur di Indonesia'),
+  (8,'MoA','Untuk saling menguntungkan dan saling mendukung antara PARA PIHAK'),
+  (9,'MoA','Pelaksanaan program Pemantapan Guru Muda (PGM) untuk Mahasiswa FKIP'),
+  (10,'MoA','Membangun Test Center di UK Petra untuk pelaksanaan Ujian Profesi Akuntan Publik CPA bagi Mahasiswa UK Petra.'),
+  (11,'MoU','untuk saling menunjang dan saling memberi manfaat bagi kedua belah pihak.'),
+  (12,'MoA','Memajukan dan mengembangkan kerjasama di bidang akademik, penelitian, dan administrasi dalam rangka penyelenggaraan rangkap sarjana.'),
+  (13,'MoU','Bekerjasama dalam hal untuk menyediakan dan menjelaskan data yang dibutuhkan oleh UK Petra'),
+  (14,'MoU','Sebagai landasan dan pedoman dalam melakukan eksplorasi kolaborasi digital atas pengembangan Smart Urban Farming.'),
+  (15,'MoA','Menempatkan dan memberikan beasiswa kepada beberapa orang calon mahasiswa yang akan studi di PGPAUD atau PGSD FKIP.'),
+  (16,'MoA','Untuk meningkatkan performa dan kualitas petraverse dari segi teknis dan sistem serta pengembangan modul dan upgrade sistem database dari Petraverse'),
+  (17,'MoU','Menyinergikan dan mengoptimalkan potensi & sumber daya PARA PIHAK dalam rangka pengembangan kelembagaan dan pengembangan sumber daya manusia.'),
+  (18,'MoA','Menyinergikan dan mengoptimalkan potensi dan sumber daya PARA PIHAK dalam rangka pengembangan kelembagaan, dan pengembangan sumber daya manusia di tingkat Fakultas dan Program Studi.'),
+  (19,'MoA','Meningkatkan tampilan dan fungsi website yang lebih menarik dan mudah digunakan'),
+  (20,'MoA','c. Menjalin kerja sama yang bersifat kemitraan dalam bidang pengabdian kepada masyarakat bagi mahasiswa dan/atau dosen di FKIP UKSW dan FKIP UK Petra'),
+  (21,'MoA','Menjalin kerja sama yang bersifat kemitraan dalam bidang penguatan keilmuan dalam pendidikan dan pengajaran bagi mahasiswa dan/atau dosen di FKIP UKSW dan FKIP UK Petra dengan semangat Whole Person Education dalam kerangka Merdeka Belajar Kampus Merdeka'),
+  (22,'MoA','b. Menjalin kerja sama yang bersifat kemitraan dalam bidang penelitian dan publikasi ilmiah bagi mahasiswa dan/atau dosen di FKIP UKSW dan FKIP UK Petra'),
+  (23,'MoU','Mendukung visi/misi Para Pihak'),
+  (24,'MoA','Memenuhi kebutuhan guru bahasa Tionghoa dalam meningkatkan kemampuan bahasa Tionghoa dan keterampilan mengajar bahasa Tionghoa'),
+  (25,'MoA','Mengirimkan Mahasiswa S1 dan S2 untuk study abroad ke Monash University'),
+  (26,'MoA','Menyepakati hak dan kewajiban Para Pihak'),
+  (27,'MoA','Menyelenggarakan kerjasama pelaksanaan Tridharma Perguruan Tinggi dalam Program Sinergitas Pembangunan Kota Surabaya.'),
+  (28,'MoA','Terlaksananya program kelas kolaborasi yaitu pembelajaran oleh dosen dan praktisi kepada mahasiswa.'),
+  (29,'MoU','Magang dan Rekrutmen'),
+  (30,'MoU','Berafiliasi agar mendapatkan jangkauan yang lebih lagi untuk kedua Pihak.'),
+  (31,'MoU','Mendukung visi/misi Para Pihak'),
+  (32,'MoU','Pemanfaatan dan pengembangan sistem pembelajaran Petraverse di universitas'),
+  (33,'MoA','untuk menawarkan program magister gelar bersama untuk mahasiswa dari Program Studi Magister Teknik Sipil, PCU'),
+  (34,'MoA','Menyepakati hak dan kewajiban masing-masing UKP dan Saxion IFA.'),
+  (35,'MoA','Sebagai landasan dalam pelaksanaan Pendidikan Sertifikasi Internasional Pemasar Digital Profesional (Certified Digital Marketing Professional - CDMP)'),
+  (36,'MoU','Kegiatan bersama dalam rangka mengedukasi masyarakat terkait literasi budaya dan sains'),
+  (37,'MoA','Menyepakati hak dan kewajiban Para Pihak'),
+  (38,'MoA','Karya Esensi Data / QED Research Consulting, membantu Career Center untuk melaksanakan riset focus group discussion bagi alumni Petra'),
+  (39,'MoU','Kolaborasi dg dunia industri dalam hal transfer pengetahuan/pengalaman dlm menghasilkan SDM yang lebih berkualitas'),
+  (40,'MoA','Memberikan beasiswa serta menyediakan tempat magang bagi Mahasiswa FKIP'),
+  (41,'MoA','mengembangkan kerja sama berdasarkan kebutuhan akademik, ilmiah dan pendidikan masing – masing'),
+  (42,'MoA','Memanfaatkan pembelajaran dalam jaringan (daring) pada Petraverse.'),
+  (43,'MoA','Melengkapi kompetensi lulusan Universitas Kristen Petra.'),
+  (44,'MoA','Melengkapi kompetensi lulusan Universitas Kristen Petra.'),
+  (45,'MoA','menetapkan peran dan tanggung jawab masing-masing Pihak dalam bekerja sama untuk memajukan kepentingan satu sama lain dan kepentingan bersama dengan mempromosikan CPA Australia dan penunjukan CPA di Organisasi Partisipan'),
+  (46,'MoU','Meningkatkan kesadaran, kemauan dan kemampuan untuk hidup sehat bagi setiap orang agar terwujudnya derajat kesehatan masyarakat yang optimal'),
+  (47,'MoA','Melaksanakan Program Matching Fund "Kedaireka" 2023'),
+  (48,'MoU','Meningkatkan kualitas keilmuan desain dan kreatif, serta mendorong industri kreatif, khususnya produk alas kaki di Indonesia.'),
+  (49,'MoA','Mendukung visi/misi Para Pihak'),
+  (50,'MoA','untuk meningkatkan hubungan kelembagaan PARA PIHAK dalam kegiatan Pendidikan, Penelitian, dan Pengabdian Kepada Masyarakat, dan kegiatan penunjang lainnya.'),
+  (51,'MoA','untuk meningkatkan hubungan kelembagaan PARA PIHAK dalam kegiatan Pendidikan, Penelitian, dan Pengabdian Kepada Masyarakat, dan kegiatan penunjang lainnya.'),
+  (52,'MoA','untuk meningkatkan hubungan kelembagaan PARA PIHAK dalam kegiatan Pendidikan, Penelitian, dan Pengabdian Kepada Masyarakat, dan kegiatan penunjang lainnya.'),
+  (53,'MoA','untuk meningkatkan hubungan kelembagaan PARA PIHAK dalam kegiatan Pendidikan, Penelitian, dan Pengabdian Kepada Masyarakat, dan kegiatan penunjang lainnya.'),
+  (54,'MoU','Memperkuat, mempromosikan, dan mengembangkan hubungan kolaborasi riset dan inovasi antara PARA PIHAK'),
+  (55,'MoA','Menyepakati hak dan kewajiban Para Pihak'),
+  (56,'MoA','Menyepakati hak dan kewajiban Para Pihak'),
+  (57,'MoA','Penyelenggaraan Magang atau Pelatihan Kerja'),
+  (58,'MoA','Perekrutan lulusan Universitas Kristen Petra'),
+  (59,'MoU','Mengoptimalkan penyelenggaraan Pendidikan, Penelitian, Pengabdian kepada Masyarakat, serta Pengembangan Sumber Daya Institusi di lingkungan PARA PIHAK;'),
+  (60,'MoU','Mendukung visi/misi Para Pihak'),
+  (61,'MoA','Pelaksanaan program Pemantapan Guru Muda (PGM) untuk Mahasiswa FKIP'),
+  (62,'MoA','Menyepakati hak dan kewajiban Para Pihak'),
+  (63,'MoA','Pembinaan Program Studi Sarjana Pendidikan Dokter dan Program Studi Profesi Gigi yang baru'),
+  (64,'MoA','Pelaksanaaan Enrichment Talk dengan narasumber oleh Dekan FKG UGM'),
+  (65,'MoA','Menyepakati hak dan kewajiban Para Pihak'),
+  (66,'MoA','Pelaksanaan program magang'),
+  (67,'MoA','Mengadakan kerja sama dalam berbagai bidang pelayanan dan kesaksian sesuai dengan Visi dan Misi yang diemban.'),
+  (68,'MoA','Pembentukkan pendidikan kedokteran dan menciptakan tenaga profesional di bidang kedokteran'),
+  (69,'MoA','Mendukung visi/misi Para Pihak'),
+  (70,'MoU','Mendukung persiapan pendirian FKG'),
+  (71,'MoA','Menawarkan sertifikasi internasional dan nasional dalam bidang manajemen risiko dan audit internal'),
+  (72,'MoA','UKP sebagai pelaksana pemantauan pelatihan dalam ekosistem prakerja'),
+  (73,'MoU','Mendukung visi/misi Para Pihak'),
+  (74,'MoA','Pelaksanaan pendidikan non gelar di bidang seni dan budaya serta bahasa Indonesia bagi WNA'),
+  (75,'MoA','Menyepakati hak dan kewajiban Para Pihak'),
+  (76,'MoU','Melakukan tes psikologi'),
+  (77,'MoA','Sebagai landasan dalam pelaksanaan Pendidikan Sertifikasi Internasional Perencana Keuangan Personal (Certified of Financial Planner) dan RFP'),
+  (78,'MoA','Melahirkan lulusan yang berkompeten dan berintegritas untuk melayani masyarakat melalui bidang keilmuan masing-masing.'),
+  (79,'MoA','kegiatan pembelajaran mengaplikasikan faith and learning integration di tempat PIHAK KEDUA dalam rangka penelitian dan penyelenggaraan pengabdian kepada masyarakat.'),
+  (80,'MoU','Membangun kerja sama strategis dalam pengembangan pendidikan, riset, pelatihan, serta pengabdian masyarakat di bidang keamanan siber.'),
+  (81,'MoA','promosi'),
+  (82,'MoA','Mendukung visi/misi Para Pihak'),
+  (83,'MoU','Memanfaatkan sumber daya yang dimiliki masing-masing sesuai dengan fungsi dan kewenangan masing-masing'),
+  (84,'MoA','Memberikan donasi untuk pelaksanaan kelas di UK Petra'),
+  (85,'MoA','Melaksanakan Penelitian Bersama guna mendukung pengembangan ilmu pengetahuan dan industri.'),
+  (86,'MoA','Mendukung pengembangan Program Studi Teknik Sipil, Universitas Kristen Petra, khususnya dalam menghasilkan Sarjana Teknik Sipil yang berkualitas, serta dilandasi itikad baik para pihak.'),
+  (87,'MoA','Penyediaan produk dan/atau jasa Layanan Perbankan yang terintegrasi dengan Layanan Digitalisasi yang dikembangkan dan dikelola partner yang ditunjuk, yang diperuntukkan untuk memenuhi kebutuhan Universitas'),
+  (88,'MoA','Melengkapi kompetensi lulusan Universitas Kristen Petra'),
+  (89,'MoU','Meningkatkan kualitas pelaksanaan tugas dan fungsi para pihak sesuai dengan kewenangan yang dimiliki.'),
+  (90,'MoU','Mengembangkan kerja sama berdasarkan kebutuhan akademiik, ilmiah, dan pendidikan masing-masing'),
+  (91,'MoU','Melakukan kerja sama dengan memanfaatkan sumber daya yang dimiliki oleh masing-masing pihak.'),
+  (92,'MoA','Mendukung pengembangan SDM/Fakultas serta mahasiswa dari masing-masing pihak khususnya dalam ranah global dan peningkatan/kemajuan akademik.'),
+  (93,'MoA','Melaksanakan kegiatan Bakti Sosial Pelayanan Kesehatan Gigi dan Mulut bagi Anak dan Masyarakat di Wilayah Waingapu, Sumba Timur'),
+  (94,'MoU','Bekerja sama dalam hal penyelenggaraan pelatihan dan kegiatan peningkatan kompetensi bidang kesehatan'),
+  (95,'MoA','Saling mendukung pengembangan institusi dan SDM bidang kedokteran gigi serta menguatkan kemitraan dengan universitas LN.'),
+  (96,'MoU','Magang dan Rekrutmen Lulusan'),
+  (97,'MoA','Menjalin kerja sama dalam bidang penelitian bersama dan pengembangan akademik untuk mencapai visi dan misi masing-masing pihak'),
+  (98,'MoA','Pengakuan Internasional dan Standarisasi Global Melalui Sertifikasi Internasional'),
+  (99,'MoA','Meningkatkan kemampuan softsfkill dan hardskill mahasiswa')
+),
+petra_opsi as (
+  select value, (row_number() over (order by id) - 1) as rn,
+         count(*) over () as n
+  from managed_options where option_group = 'manfaat_petra'
+),
+mitra_opsi as (
+  select value, (row_number() over (order by id) - 1) as rn,
+         count(*) over () as n
+  from managed_options where option_group = 'manfaat_mitra'
+)
+insert into proposal_dokumen
+  (jenis_kerjasama, status_proposal, tujuan_kerjasama, manfaat_bagi_petra, manfaat_bagi_mitra, id_akun_pembuat)
+select
+  td.jenis::jenis_kerjasama_t, 'Draft', td.tujuan, mp.value, mm.value,
+  (select id from akun where email = 'staf-kui@petra.ac.id')
+from tujuan_docs td
+join petra_opsi mp on mp.rn = (td.seq - 1) % mp.n
+join mitra_opsi mm on mm.rn = (td.seq - 1) % mm.n;
+
+-- MoU/MoA type-specific rows are NOT NULL; the source CSVs carry none of this
+-- detail, so each gets one honest placeholder rather than inventing content.
+insert into proposal_dokumen_mou (id_proposal_dokumen, ringkasan_kegiatan)
+select pd.id, 'Data historis hasil impor (TUJUAN_KERJASAMA.csv); ringkasan kegiatan belum diisi ulang.'
+from proposal_dokumen pd
+where pd.jenis_kerjasama = 'MoU'
+  and not exists (select 1 from proposal_dokumen_mou m where m.id_proposal_dokumen = pd.id);
+
+insert into proposal_dokumen_moa
+  (id_proposal_dokumen, hak_petra, hak_calon_mitra, kewajiban_petra, kewajiban_calon_mitra)
+select pd.id,
+  'Data historis hasil impor; hak PETRA belum diisi ulang.',
+  'Data historis hasil impor; hak mitra belum diisi ulang.',
+  'Data historis hasil impor; kewajiban PETRA belum diisi ulang.',
+  'Data historis hasil impor; kewajiban mitra belum diisi ulang.'
+from proposal_dokumen pd
+where pd.jenis_kerjasama = 'MoA'
+  and not exists (select 1 from proposal_dokumen_moa m where m.id_proposal_dokumen = pd.id);
