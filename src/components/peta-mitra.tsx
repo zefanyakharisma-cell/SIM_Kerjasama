@@ -9,20 +9,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
  * the map holds its own imperative state, and a wrapper would only add a
  * dependency to re-express what `useEffect` already does in twenty lines.
  *
- * Partners without coordinates are simply absent. That is deliberate — the
- * alternative, defaulting to 0°,0°, pins every un-geocoded partner in the Gulf
- * of Guinea, which looks like data rather than like missing data (open item
- * O4).
+ * One bubble per country, sized by how many active partners it holds; the
+ * coordinates come from the country master (v_peta_mitra), so a new partner
+ * appears on the map without anyone geocoding it.
  */
 
 export type Pin = {
   id: number;
   nama: string;
-  kota: string | null;
   latitude: number;
   longitude: number;
-  is_international: boolean;
-  negara: string;
+  is_domestic: boolean;
+  jumlah_mitra: number;
   jumlah_dokumen: number;
 };
 
@@ -47,8 +45,8 @@ export function PetaMitra({ pin }: { pin: Pin[] }) {
   const terlihat = useMemo(() => {
     const kotak = WILAYAH[wilayah];
     return pin.filter((p) => {
-      if (lingkup === "intl" && !p.is_international) return false;
-      if (lingkup === "domestik" && p.is_international) return false;
+      if (lingkup === "intl" && p.is_domestic) return false;
+      if (lingkup === "domestik" && !p.is_domestic) return false;
       if (!kotak) return true;
       const [s, b, u, t] = kotak;
       return p.latitude >= s && p.latitude <= u && p.longitude >= b && p.longitude <= t;
@@ -90,15 +88,17 @@ export function PetaMitra({ pin }: { pin: Pin[] }) {
       lapisan.current.clearLayers();
       for (const p of terlihat) {
         L.circleMarker([p.latitude, p.longitude], {
-          radius: Math.min(4 + p.jumlah_dokumen, 14),
+          // Area, not radius, tracks the count, so 4x the partners reads as
+          // 4x the bubble rather than 16x.
+          radius: Math.min(5 + 3 * Math.sqrt(p.jumlah_mitra), 30),
           // Colour carries one meaning here, and the popup names it in words.
-          color: p.is_international ? "#3880d0" : "#6aaa43",
+          color: p.is_domestic ? "#6aaa43" : "#3880d0",
           fillOpacity: 0.65,
           weight: 1,
         })
           .bindPopup(
-            `<strong>${p.nama}</strong><br/>${p.kota ? p.kota + ", " : ""}${p.negara}<br/>` +
-              `${p.jumlah_dokumen} dokumen · ${p.is_international ? "Luar Negeri" : "Dalam Negeri"}`,
+            `<strong>${p.nama}</strong><br/>${p.jumlah_mitra} mitra · ${p.jumlah_dokumen} dokumen<br/>` +
+              (p.is_domestic ? "Dalam Negeri" : "Luar Negeri"),
           )
           .addTo(lapisan.current);
       }
@@ -151,8 +151,8 @@ export function PetaMitra({ pin }: { pin: Pin[] }) {
       <div ref={wadah} className="h-80 w-full rounded-lg" />
 
       <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-        {terlihat.length} mitra tampil. Mitra tanpa koordinat belum muncul di peta
-        — koordinat diisi lewat geocoding kota dan negara.
+        {terlihat.length} negara · {terlihat.reduce((n, p) => n + p.jumlah_mitra, 0)} mitra
+        tampil. Ukuran lingkaran menunjukkan jumlah mitra di negara tersebut.
       </p>
     </div>
   );

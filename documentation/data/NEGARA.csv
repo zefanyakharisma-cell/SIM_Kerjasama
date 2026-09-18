@@ -1,0 +1,253 @@
+ID;NAME;LATITUDE;LONGITUDE
+1;Afghanistan;34,5289;69,1725
+2;Aland Islands;60,0973;19,9348
+3;Albania;41,3275;19,8189
+4;Algeria;36,7525;3,042
+5;American Samoa;-14,2781;-170,7025
+6;Andorra;42,5078;1,5211
+7;Angola;-8,8368;13,2343
+8;Anguilla;18,217;-63,0578
+9;Antarctica;-90;0
+10;Antigua And Barbuda;17,1172;-61,8457
+11;Argentina;-34,6051;-58,4004
+12;Armenia;40,182;44,5146
+13;Aruba;12,524;-70,027
+14;Australia;-35,2835;149,1281
+15;Austria;48,2064;16,3707
+16;Azerbaijan;40,3777;49,892
+17;Bahamas;25,0582;-77,3431
+18;Bahrain;26,2154;50,5832
+19;Bangladesh;23,7104;90,4074
+20;Barbados;13,1;-59,6167
+21;Belarus;53,9;27,5667
+22;Belgium;50,8503;4,3517
+23;Belize;17,251;-88,759
+24;Benin;6,4969;2,6289
+25;Bermuda;32,2948;-64,7814
+26;Bhutan;27,4661;89,6419
+27;Bolivia;-19,0333;-65,2627
+28;Bonaire, Saint Eustatius and Saba;12,15;-68,2667
+29;Bosnia And Herzegovina;43,8563;18,4131
+30;Botswana;-24,6545;25,9086
+31;Bouvet Island;-54,42;3,36
+32;Brazil;-15,7939;-47,8828
+33;British Indian Ocean Territory;-7,3195;72,4229
+34;Brunei Darussalam;4,9031;114,9398
+35;Bulgaria;42,6977;23,3219
+36;Burkina Faso;12,3714;-1,5197
+37;Burundi;-3,4264;29,9308
+38;Cambodia;11,5564;104,9282
+39;Cameroon;3,848;11,5021
+40;Canada;45,4215;-75,6972
+41;Cape Verde;14,9331;-23,5133
+42;Cayman Islands;19,2866;-81,3744
+43;Central African Republic;4,3947;18,5582
+44;Chad;12,1348;15,0557
+45;Chile;-33,4489;-70,6693
+46;China;39,9042;116,4074
+47;Christmas Island;-10,4217;105,6791
+48;Cocos (Keeling) Islands;-12,1568;96,8225
+49;Colombia;4,711;-74,0721
+50;Comoros;-11,7172;43,2473
+51;Congo;-4,2634;15,2429
+52;Congo, The Democratic Republic Of The;-4,4419;15,2663
+53;Cook Islands;-21,2078;-159,775
+54;Costa Rica;9,9281;-84,0907
+55;Cote D Ivoire;6,8276;-5,2893
+56;Croatia;45,815;15,9819
+57;Cuba;23,1136;-82,3666
+58;Curacao;12,1084;-68,9335
+59;Cyprus;35,1856;33,3823
+60;Czech Republic;50,0755;14,4378
+61;Denmark;55,6761;12,5683
+62;Djibouti;11,588;43,145
+63;Dominica;15,3017;-61,3881
+64;Dominican Republic;18,4861;-69,9312
+65;Ecuador;-0,1807;-78,4678
+66;Egypt;30,0444;31,2357
+67;El Salvador;13,6929;-89,2182
+68;England;51,5074;-0,1278
+69;Equatorial Guinea;3,7504;8,7371
+70;Eritrea;15,3229;38,9251
+71;Estonia;59,437;24,7536
+72;Ethiopia;9,032;38,7469
+73;Falkland Islands (Malvinas);-51,6977;-57,8517
+74;Faroe Islands;62,0079;-6,79
+75;Fiji;-18,1416;178,4419
+76;Finland;60,1699;24,9384
+77;France;48,8566;2,3522
+78;French Guiana;4,9224;-52,3135
+79;French Polynesia;-17,5516;-149,5585
+80;French Southern Territories;-49,35;70,22
+81;Gabon;0,4162;9,4673
+82;Gambia;13,4549;-16,579
+83;Georgia;41,7151;44,8271
+84;Germany;52,52;13,405
+85;Ghana;5,6037;-0,187
+86;Gibraltar;36,1408;-5,3536
+87;Greece;37,9838;23,7275
+88;Greenland;64,1835;-51,7216
+89;Grenada;12,0564;-61,7485
+90;Guadeloupe;15,996;-61,7255
+91;Guam;13,4757;144,7489
+92;Guatemala;14,6349;-90,5069
+93;Guernsey;49,4555;-2,5879
+94;Guinea;9,6412;-13,5784
+95;Guinea-Bissau;11,8817;-15,617
+96;Guyana;6,8013;-58,1551
+97;Haiti;18,5944;-72,3074
+98;Heard Island And Mcdonald Islands;-53,1;73,5
+99;Holy See (Vatican City State);41,9029;12,4534
+100;Honduras;14,0723;-87,1921
+101;Hong Kong;22,3193;114,1694
+102;Hungary;47,4979;19,0402
+103;Iceland;64,1466;-21,9426
+104;India;28,6139;77,209
+105;Indonesia;-6,2088;106,8456
+106;Iran, Islamic Republic Of;35,6892;51,389
+107;Iraq;33,3152;44,3661
+108;Ireland;53,3498;-6,2603
+109;Isle Of Man;54,15;-4,4833
+110;Israel;31,7683;35,2137
+111;Italy;41,9028;12,4964
+112;Jamaica;17,9712;-76,7936
+113;Japan;35,6762;139,6503
+114;Jersey;49,186;-2,103
+115;Jordan;31,9539;35,9106
+116;Kazakhstan;51,1694;71,4491
+117;Kenya;-1,2921;36,8219
+118;Kiribati;1,3292;172,979
+119;Korea, Democratic People Republic Of;39,0392;125,7625
+120;Korea, Republic Of;37,5665;126,978
+121;Kuwait;29,3759;47,9774
+122;Kyrgyzstan;42,8746;74,5698
+123;Lao People Democratic Republic;17,9757;102,6331
+124;Latvia;56,9496;24,1052
+125;Lebanon;33,8938;35,5018
+126;Lesotho;-29,3151;27,4869
+127;Liberia;6,3156;-10,8074
+128;Libyan Arab Jamahiriya;32,8872;13,1913
+129;Liechtenstein;47,141;9,5209
+130;Lithuania;54,6872;25,2797
+131;Luxembourg;49,6116;6,1319
+132;Macao;22,1987;113,5439
+133;Macedonia, The Former Yugoslav Republic Of;41,9981;21,4254
+134;Madagascar;-18,8792;47,5079
+135;Malawi;-13,9626;33,7741
+136;Malaysia;3,139;101,6869
+137;Maldives;4,1755;73,5093
+138;Mali;12,6392;-8,0029
+139;Malta;35,8989;14,5146
+140;Marshall Islands;7,1164;171,1858
+141;Martinique;14,6161;-61,0588
+142;Mauritania;18,0735;-15,9582
+143;Mauritius;-20,1609;57,5012
+144;Mayotte;-12,7806;45,2278
+145;Mexico;19,4326;-99,1332
+146;Micronesia, Federated States Of;6,9248;158,1611
+147;Moldova, Republic Of;47,0105;28,8638
+148;Monaco;43,7384;7,4246
+149;Mongolia;47,8864;106,9057
+150;Montenegro;42,4304;19,2594
+151;Montserrat;16,7056;-62,2129
+152;Morocco;34,0209;-6,8416
+153;Mozambique;-25,9692;32,5732
+154;Myanmar;19,7633;96,0785
+155;Namibia;-22,5609;17,0658
+156;Nauru;-0,5477;166,9209
+157;Nepal;27,7172;85,324
+158;Netherlands;52,3676;4,9041
+159;Netherlands Antilles;12,1084;-68,9335
+160;New Caledonia;-22,2558;166,4505
+161;New Zealand;-41,2866;174,7756
+162;Nicaragua;12,114;-86,2362
+163;Niger;13,5127;2,1128
+164;Nigeria;9,0765;7,3986
+165;Niue;-19,0544;-169,8672
+166;Norfolk Island;-29,0564;167,9597
+167;Northern Mariana Islands;15,1778;145,75
+168;Norway;59,9139;10,7522
+169;Oman;23,588;58,3829
+170;Pakistan;33,6844;73,0479
+171;Palau;7,5006;134,6242
+172;Palestinian Territory, Occupied;31,9038;35,2034
+173;Panama;8,9824;-79,5199
+174;Papua New Guinea;-9,4438;147,1803
+175;Paraguay;-25,2637;-57,5759
+176;Peru;-12,0464;-77,0428
+177;Philippines;14,5995;120,9842
+178;Pitcairn;-25,0663;-130,1005
+179;Poland;52,2297;21,0122
+180;Portugal;38,7223;-9,1393
+181;Puerto Rico;18,4655;-66,1057
+182;Qatar;25,2854;51,531
+183;Reunion;-20,8789;55,4481
+184;Romania;44,4268;26,1025
+185;Russian Federation;55,7558;37,6173
+186;Rwanda;-1,9441;30,0619
+187;Saint Bartelemey;17,8962;-62,8498
+188;Saint Helena;-15,9244;-5,7181
+189;Saint Kitts And Nevis;17,3026;-62,7177
+190;Saint Lucia;14,0101;-60,9875
+191;Saint Martin;18,0731;-63,0822
+192;Saint Pierre And Miquelon;46,7811;-56,1771
+193;Saint Vincent And The Grenadines;13,16;-61,2248
+194;Samoa;-13,8333;-171,7667
+195;San Marino;43,9367;12,4464
+196;Sao Tome And Principe;0,3365;6,7273
+197;Saudi Arabia;24,7136;46,6753
+198;Senegal;14,7167;-17,4677
+199;Serbia;44,7866;20,4489
+200;Serbia And Montenegro;44,7866;20,4489
+201;Seychelles;-4,6191;55,4513
+202;Sierra Leone;8,4657;-13,2317
+203;Singapore;1,3521;103,8198
+204;Sint Maarten;18,026;-63,0471
+205;Slovakia;48,1486;17,1077
+206;Slovenia;46,0569;14,5058
+207;Solomon Islands;-9,4456;159,9729
+208;Somalia;2,0469;45,3182
+209;South Africa;-25,7479;28,2293
+210;South Georgia And The South Sandwich Islands;-54,2833;-36,5
+211;South Sudan;4,8594;31,5713
+212;Spain;40,4168;-3,7038
+213;Sri Lanka;6,9271;79,8612
+214;Sudan;15,5007;32,5599
+215;Suriname;5,852;-55,2038
+216;Svalbard And Jan Mayen;78,2232;15,6469
+217;Swaziland;-26,3054;31,1367
+218;Sweden;59,3293;18,0686
+219;Switzerland;46,948;7,4474
+220;Syrian Arab Republic;33,5138;36,2765
+221;Taiwan, Province Of China;25,033;121,5654
+222;Tajikistan;38,5598;68,787
+223;Tanzania, United Republic Of;-6,163;35,7516
+224;Thailand;13,7563;100,5018
+225;Timor-Leste;-8,5569;125,5603
+226;Togo;6,1256;1,2254
+227;Tokelau;-9,365;-171,2175
+228;Tonga;-21,1393;-175,204
+229;Trinidad And Tobago;10,6549;-61,5019
+230;Tunisia;36,8065;10,1815
+231;Turkey;39,9334;32,8597
+232;Turkmenistan;37,9601;58,3261
+233;Turks And Caicos Islands;21,4612;-71,1419
+234;Tuvalu;-8,5211;179,194
+235;Uganda;0,3476;32,5825
+236;Ukraine;50,4501;30,5234
+237;United Arab Emirates;24,4539;54,3773
+238;United Kingdom;51,5074;-0,1278
+239;United States;38,9072;-77,0369
+240;United States Minor Outlying Islands;38,9072;-77,0369
+241;Uruguay;-34,9011;-56,1645
+242;Uzbekistan;41,2995;69,2401
+243;Vanuatu;-17,7333;168,3273
+244;Venezuela;10,4806;-66,9036
+245;Viet Nam;21,0278;105,8342
+246;Virgin Islands, British;18,4269;-64,6208
+247;Virgin Islands, U.S.;18,3419;-64,9307
+248;Wallis And Futuna;-13,2825;-176,1736
+249;Western Sahara;27,1253;-13,1625
+250;Yemen;15,3694;44,191
+251;Zambia;-15,3875;28,3228
+252;Zimbabwe;-17,8252;31,0335
