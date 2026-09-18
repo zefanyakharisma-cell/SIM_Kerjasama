@@ -966,3 +966,132 @@ begin
   raise notice 'PASS riwayat_tulis pins id_akun and restricts aksi';
 end
 $t$;
+
+-- ===========================================================================
+-- Revisi V7 — the evaluation goes to the lingkup heads, one PETRA answer per
+-- head, KUI overrides any outcome, and Akan Berakhir is set immediately.
+--
+-- Lingkup = International Business Management (under Prodi Manajemen, under
+-- SBM) + KUI, so the heads are Dekan SBM (jabatan 3) and Kepala KUI (1).
+-- ===========================================================================
+do $t$
+declare
+  v_pt int; v_p int; v_no int; v_t int; v_ok boolean;
+  v_fak_dekan int; v_fak_kui int; v_token text;
+  v_nilai jsonb := jsonb_build_object(
+    'exp_quality',4,'exp_relevance',4,'exp_productivity',4,'exp_sustainability',4,'exp_communication',4,
+    'sat_quality',4,'sat_relevance',4,'sat_productivity',4,'sat_sustainability',4,'sat_communication',4);
+begin
+  if (select role from akun where id = 7) <> 'io_admin' then
+    raise exception 'FAIL V7.1: Staf KUI is not admin';
+  end if;
+
+  perform set_config('simks.akun_id','7',true);
+  insert into partner (nama, is_international, id_negara, kota)
+  values ('Uji Mitra V7', false, 1, 'Surabaya') returning id into v_pt;
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',4) returning id into v_p;
+  insert into partner_pengusul (id_partner, id_proposal_dokumen, is_lead) values (v_pt, v_p, true);
+  insert into pengusul (id_jabatan, id_proposal_dokumen) values (4, v_p);
+  insert into proposal_dokumen_unit (id_proposal_dokumen, id_unit) values (v_p, 7), (v_p, 2);
+
+  perform ajukan_proposal(v_p);
+  perform kirim_disposisi(v_p, array[1], 'uji V7');
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p;
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t, 'approve', null);
+  perform set_config('simks.akun_id','7',true);
+  select aktivasi_dokumen(v_p, 'UJI/V7/1', current_date - 300, current_date - 300,
+                          current_date + 30) into v_no;
+
+  -- §4: inside the window from the moment it exists; the threshold moves it both ways.
+  if (select status from dokumen_kerja_sama where no = v_no) <> 'Akan Berakhir' then
+    raise exception 'FAIL V7.4a: activation inside the window is not Akan Berakhir';
+  end if;
+  update settings set value = '0' where key = 'expiring_soon_months';
+  if (select status from dokumen_kerja_sama where no = v_no) <> 'Aktif' then
+    raise exception 'FAIL V7.4b: lowering the threshold did not return it to Aktif';
+  end if;
+  update settings set value = '6' where key = 'expiring_soon_months';
+  if (select status from dokumen_kerja_sama where no = v_no) <> 'Akan Berakhir' then
+    raise exception 'FAIL V7.4c: restoring the threshold did not mark it again';
+  end if;
+
+  -- §5: routed to the head of every top-level unit in the lingkup.
+  if array(select * from jabatan_kepala_lingkup(v_no) order by 1) <> array[1,3] then
+    raise exception 'FAIL V7.5a: lingkup heads are %',
+      array(select * from jabatan_kepala_lingkup(v_no) order by 1);
+  end if;
+  perform kirim_permintaan_pembaruan(v_no, 'uji V7');
+  select no into v_fak_dekan from evaluasi
+   where id_dokumen_kerjasama = v_no and respondent_type = 'faculty' and id_jabatan_pengusul = 3;
+  select no into v_fak_kui from evaluasi
+   where id_dokumen_kerjasama = v_no and respondent_type = 'faculty' and id_jabatan_pengusul = 1;
+  if v_fak_dekan is null or v_fak_kui is null then
+    raise exception 'FAIL V7.5b: not one PETRA evaluation per head';
+  end if;
+  select t.token into v_token from partner_eval_token t join evaluasi e on e.no = t.id_evaluasi
+   where e.id_dokumen_kerjasama = v_no;
+
+  -- A head answers only their own row.
+  perform set_config('simks.akun_id','3',true);
+  v_ok := false;
+  begin
+    perform kirim_evaluasi_fakultas(v_fak_kui, v_nilai || '{"rekomendasi":"continue"}');
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL V7.5c: a head answered another head''s evaluation'; end if;
+
+  perform kirim_evaluasi_fakultas(v_fak_dekan, v_nilai || '{"rekomendasi":"continue"}');
+  perform kirim_evaluasi_partner(v_token, v_nilai ||
+    '{"rekomendasi":"continue","respondent_nama":"Dr Mitra","respondent_email":"m@uji.test"}');
+  if status_gerbang_pembaruan(v_no) <> 'menunggu' then
+    raise exception 'FAIL V7.8a: one head still pending, gate is %', status_gerbang_pembaruan(v_no);
+  end if;
+
+  -- §8.2: one head stops → PETRA stops → split, and KUI is told.
+  perform set_config('simks.akun_id','1',true);
+  perform kirim_evaluasi_fakultas(v_fak_kui, v_nilai || '{"rekomendasi":"terminate"}');
+  if status_gerbang_pembaruan(v_no) <> 'split' then
+    raise exception 'FAIL V7.8b: any head terminating should split, got %', status_gerbang_pembaruan(v_no);
+  end if;
+  if not exists (select 1 from notifikasi where no_dokumen_kerjasama = v_no
+                   and jenis_notifikasi = 'split_decision') then
+    raise exception 'FAIL V7.8c: KUI was not told about the split';
+  end if;
+
+  -- §6 + §8.1: override to continue opens the gate and tells the pengusul.
+  perform putuskan_pembaruan(v_no, 'continue', 'Dibahas offline: lanjut.');
+  if status_gerbang_pembaruan(v_no) <> 'terbuka' then
+    raise exception 'FAIL V7.6a: override continue did not open the gate';
+  end if;
+  if not exists (select 1 from notifikasi where no_dokumen_kerjasama = v_no
+                   and jenis_notifikasi = 'renewal_open' and id_jabatan_penerima = 4) then
+    raise exception 'FAIL V7.8d: the pengusul was not told the renewal is open';
+  end if;
+
+  -- §6: any finished outcome can be overridden, not only a split.
+  perform putuskan_pembaruan(v_no, 'terminate', 'Berubah: berhenti.');
+  if status_gerbang_pembaruan(v_no) <> 'terminate' then
+    raise exception 'FAIL V7.6b: override on an open gate did not apply';
+  end if;
+
+  -- Reopening voids standing overrides: the fresh answer decides.
+  perform buka_ulang_evaluasi(v_fak_kui);
+  if status_gerbang_pembaruan(v_no) <> 'menunggu' then
+    raise exception 'FAIL V7.6c: reopen did not wait for the new answer';
+  end if;
+  perform kirim_evaluasi_fakultas(
+    (select no from evaluasi where id_supersedes = v_fak_kui), v_nilai || '{"rekomendasi":"continue"}');
+  if status_gerbang_pembaruan(v_no) <> 'terbuka' then
+    raise exception 'FAIL V7.6d: a stale override outvoted a fresh answer, got %',
+      status_gerbang_pembaruan(v_no);
+  end if;
+
+  raise notice 'PASS Revisi V7';
+
+  delete from proposal_dokumen_unit where id_proposal_dokumen = v_p;
+  perform bersihkan_proposal_uji(v_p);
+  delete from partner where id = v_pt;
+end
+$t$;

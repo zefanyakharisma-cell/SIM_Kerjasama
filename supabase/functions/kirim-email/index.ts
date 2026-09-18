@@ -28,6 +28,9 @@ const JUDUL: Record<string, string> = {
   sla_eskalasi: "Eskalasi: seorang approver belum menindak",
   evaluation_submitted: "Evaluasi pembaruan masuk",
   split_decision: "Evaluasi berbeda — perlu keputusan KUI",
+  revision_submitted: "Revisi dokumen diunggah",
+  renewal_open: "Evaluasi lanjut — unggah dokumen perpanjangan",
+  renewal_terminated: "Evaluasi tidak dilanjutkan",
 };
 
 const supabase = createClient(

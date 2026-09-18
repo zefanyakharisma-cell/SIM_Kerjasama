@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { PilihBanyak } from "@/components/pilih-banyak";
 import {
   aksiApproval,
   hapusTarget,
@@ -181,18 +182,23 @@ export function EditorDisposisi({
   jabatanTersedia: { id: number; nama: string; tier: number | null }[];
   targetPending: { no: number; nama: string }[];
 }) {
-  const [pilih, setPilih] = useState("");
+  const [pilih, setPilih] = useState<number[]>([]);
+  // Remounts the picker to clear it once everything picked has been added.
+  const [putaran, setPutaran] = useState(0);
   const [galat, setGalat] = useState<string | null>(null);
   const [menunggu, mulai] = useTransition();
   const { konfirmasi, dialog } = useKonfirmasi();
 
   function tambah() {
-    if (!pilih) return;
+    if (!pilih.length) return;
     setGalat(null);
     mulai(async () => {
-      const hasil = await tambahTarget(idProposal, Number(pilih));
-      if (!hasil.ok) setGalat(hasil.pesan);
-      else setPilih("");
+      for (const id of pilih) {
+        const hasil = await tambahTarget(idProposal, id);
+        if (!hasil.ok) return setGalat(hasil.pesan);
+      }
+      setPilih([]);
+      setPutaran((x) => x + 1);
     });
   }
 
@@ -223,23 +229,15 @@ export function EditorDisposisi({
         Approver yang sudah menyetujui tidak dapat dihapus.
       </p>
 
-      <div className="flex flex-wrap gap-2">
-        <select
-          value={pilih}
-          onChange={(e) => setPilih(e.target.value)}
-          className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <option value="">Pilih jabatan…</option>
-          {jabatanTersedia.map((j) => (
-            <option key={j.id} value={j.id}>
-              Tier {j.tier} — {j.nama}
-            </option>
-          ))}
-        </select>
+      <div className="space-y-2">
+        <PilihBanyak
+          key={putaran}
+          opsi={jabatanTersedia.map((j) => ({ id: j.id, label: j.nama }))}
+          onChange={setPilih}
+        />
         <button
           type="button"
-          disabled={menunggu || !pilih}
+          disabled={menunggu || !pilih.length}
           onClick={tambah}
           className="rounded-lg border px-4 py-2 text-sm disabled:opacity-60"
           style={{ borderColor: "var(--border)" }}

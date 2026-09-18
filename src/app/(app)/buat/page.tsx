@@ -6,6 +6,7 @@ import { SearchSelect } from "@/components/search-select";
 import { KerjaSamaFields } from "@/components/kerja-sama-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { uraiPeriode } from "@/lib/periode";
+import { TERIMA_PDF_WORD } from "@/lib/unggah";
 
 /**
  * Buat Kerja Sama — the Proposal Form (PRD §7.2, Design §5.5).
@@ -346,8 +347,8 @@ export default async function BuatKerjaSama({
           </label>
         </Bagian>
 
-        <Bagian judul="Upload Dokumen" keterangan="Opsional. Unggah draf dokumen kerja sama dalam format PDF.">
-          <input type="file" name="upload_dokumen" accept="application/pdf" aria-label="Upload dokumen (PDF)" className="text-sm" />
+        <Bagian judul="Upload Dokumen" keterangan="Opsional. Unggah draf dokumen kerja sama dalam format PDF atau Word.">
+          <input type="file" name="upload_dokumen" accept={TERIMA_PDF_WORD} aria-label="Upload dokumen (PDF atau Word)" className="text-sm" />
         </Bagian>
 
         <Bagian

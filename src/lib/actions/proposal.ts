@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { susunPeriode } from "@/lib/periode";
+import { unggahBerkas } from "@/lib/unggah";
 
 /**
  * Creating a proposal (PRD §7.2). Draft and Ajukan are the same write with a
@@ -28,6 +29,23 @@ export async function simpanProposal(formData: FormData) {
     manfaat_bagi_mitra: formData.get("manfaat_bagi_mitra") || null,
     informasi_tambahan: formData.get("informasi_tambahan") || null,
   };
+
+  // The searchable fields are free-text inputs in the browser (Revisi V7 §7),
+  // so the list is enforced here: a value must be one of the table's.
+  const DAFTAR = [
+    ["tujuan_kerjasama", "tujuan_kerjasama", "Tujuan Kerja Sama"],
+    ["manfaat_bagi_petra", "manfaat_petra", "Manfaat bagi UKP"],
+    ["manfaat_bagi_mitra", "manfaat_mitra", "Manfaat bagi Mitra"],
+  ] as const;
+  for (const [kolomNama, tabel, label] of DAFTAR) {
+    const nilai = kolom[kolomNama];
+    if (!nilai) continue;
+    const { count } = await supabase
+      .from(tabel)
+      .select("nilai", { count: "exact", head: true })
+      .eq("nilai", String(nilai));
+    if (!count) throw new Error(`${label} harus dipilih dari daftar.`);
+  }
 
   let id: number;
 
@@ -192,23 +210,15 @@ export async function simpanProposal(formData: FormData) {
     if (errKontak) throw new Error(`Kontak utama gagal diset: ${errKontak.message}`);
   }
 
-  // Upload Dokumen (Revisi V4 §4) — optional, stored in the same bucket the
-  // laporan flow already uses for disposition attachments. The name is
-  // sanitised before it becomes part of a storage path (no slashes, no
-  // characters storage.foldername would split on unexpectedly).
+  // Upload Dokumen (Revisi V4 §4) — optional, PDF or Word (Revisi V7 §8.1),
+  // stored in the same bucket the laporan flow already uses.
   const berkas = formData.get("upload_dokumen") as File | null;
   if (berkas && berkas.size > 0) {
-    const namaAman = berkas.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const path = `draft/${id}/${Date.now()}-${namaAman}`;
-    const { error: errUpload } = await supabase.storage
-      .from("dokumen-kerjasama")
-      .upload(path, berkas, { upsert: true });
-    if (errUpload) {
-      throw new Error(`Berkas gagal diunggah: ${errUpload.message}`);
-    }
+    const unggah = await unggahBerkas(supabase, `draft/${id}`, berkas);
+    if ("pesan" in unggah) throw new Error(unggah.pesan);
     const { error: errFileDraft } = await supabase
       .from("proposal_dokumen")
-      .update({ file_draft: path })
+      .update({ file_draft: unggah.path })
       .eq("id", id);
     if (errFileDraft) {
       throw new Error(`Path berkas gagal disimpan: ${errFileDraft.message}`);

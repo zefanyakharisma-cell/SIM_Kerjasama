@@ -10,8 +10,9 @@ const inputGaya = { borderColor: "var(--border)" };
  *
  * Jenis toggles which of the MoU / MoA blocks is shown — MoU shows a summary
  * of activity, MoA shows Hak/Kewajiban, never both (§3.a.1). Tujuan and the
- * two Manfaat fields are click-and-choose dropdowns backed by the
- * tujuan_kerjasama/manfaat_petra/manfaat_mitra tables, not free text (§3.a.2).
+ * two Manfaat fields choose from the tujuan_kerjasama/manfaat_petra/
+ * manfaat_mitra tables, not free text (§3.a.2) — searchable by typing
+ * (Revisi V7 §7). simpanProposal refuses a value that is not on the list.
  */
 export function KerjaSamaFields({
   jenisAwal,
@@ -61,48 +62,17 @@ export function KerjaSamaFields({
 
       <label className="mt-4 block">
         <span className="mb-1 block text-sm font-medium">Tujuan Kerja Sama</span>
-        <select name="tujuan_kerjasama" defaultValue={tujuanAwal} className={inputKelas} style={inputGaya}>
-          <option value="">Pilih tujuan...</option>
-          {tujuanOpsi.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
+        <PilihCari name="tujuan_kerjasama" opsi={tujuanOpsi} awal={tujuanAwal} placeholder="Ketik untuk mencari tujuan..." />
       </label>
 
       <label className="mt-4 block">
         <span className="mb-1 block text-sm font-medium">Manfaat bagi UKP</span>
-        <select
-          name="manfaat_bagi_petra"
-          defaultValue={manfaatPetraAwal}
-          className={inputKelas}
-          style={inputGaya}
-        >
-          <option value="">Pilih manfaat...</option>
-          {manfaatPetraOpsi.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
+        <PilihCari name="manfaat_bagi_petra" opsi={manfaatPetraOpsi} awal={manfaatPetraAwal} placeholder="Ketik untuk mencari manfaat..." />
       </label>
 
       <label className="mt-4 block">
         <span className="mb-1 block text-sm font-medium">Manfaat bagi Mitra</span>
-        <select
-          name="manfaat_bagi_mitra"
-          defaultValue={manfaatMitraAwal}
-          className={inputKelas}
-          style={inputGaya}
-        >
-          <option value="">Pilih manfaat...</option>
-          {manfaatMitraOpsi.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
+        <PilihCari name="manfaat_bagi_mitra" opsi={manfaatMitraOpsi} awal={manfaatMitraAwal} placeholder="Ketik untuk mencari manfaat..." />
         <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
           Satu pernyataan bersama, berlaku untuk seluruh mitra pada dokumen ini.
         </span>
@@ -163,6 +133,38 @@ export function KerjaSamaFields({
           </label>
         </div>
       )}
+    </>
+  );
+}
+
+/** Type to search a fixed list — a native datalist, no library. */
+function PilihCari({
+  name,
+  opsi,
+  awal,
+  placeholder,
+}: {
+  name: string;
+  opsi: string[];
+  awal: string;
+  placeholder: string;
+}) {
+  return (
+    <>
+      <input
+        name={name}
+        list={`${name}-opsi`}
+        defaultValue={awal}
+        placeholder={placeholder}
+        autoComplete="off"
+        className={inputKelas}
+        style={inputGaya}
+      />
+      <datalist id={`${name}-opsi`}>
+        {opsi.map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
     </>
   );
 }

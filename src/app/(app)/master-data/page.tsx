@@ -471,7 +471,7 @@ export default async function MasterData({
     const [{ data: jabatan }, { data: pegawai }, { data: unit }] = await Promise.all([
       supabase
         .from("jabatan")
-        .select("id, nama, tier_disposisi, id_unit, id_pegawai, is_active, unit ( nama ), pegawai ( nama )")
+        .select("id, nama, tier_disposisi, kepala_unit, id_unit, id_pegawai, is_active, unit ( nama ), pegawai ( nama )")
         .order("nama"),
       supabase.from("pegawai").select("id, nama, is_active").order("nama"),
       supabase.from("unit").select("id, nama, is_active").order("nama"),
@@ -518,6 +518,11 @@ export default async function MasterData({
                   ))}
               </select>
             </Isian>
+            {/* The head a Disposisi Evaluasi is routed to (Revisi V7 §5). */}
+            <label className="flex items-center gap-2 text-sm sm:col-span-2">
+              <input type="checkbox" name="kepala_unit" defaultChecked={j?.kepala_unit ?? false} />
+              Kepala unit (Dekan / Kepala Unit Pendukung)
+            </label>
             <Simpan ubah={Boolean(j)} batal={tautanTab} />
           </form>
         </Kartu>
@@ -530,6 +535,7 @@ export default async function MasterData({
                   <Nonaktif aktif={x.is_active} />
                   <span className="block text-xs" style={redup}>
                     {x.unit?.nama ?? "—"} · {x.tier_disposisi ? `Tier ${x.tier_disposisi}` : "Bukan approver"} ·{" "}
+                    {x.kepala_unit ? "Kepala unit · " : ""}
                     {x.pegawai?.nama ?? "belum ada kontak"}
                   </span>
                 </span>

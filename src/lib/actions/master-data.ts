@@ -181,6 +181,7 @@ export async function simpanJabatan(f: FormData) {
     nama,
     id_unit: idUnit,
     tier_disposisi: tier >= 1 && tier <= 3 ? tier : null,
+    kepala_unit: f.get("kepala_unit") === "on",
     id_pegawai: Number(f.get("id_pegawai") ?? 0) || null,
   };
   const klien = await klienAdmin();

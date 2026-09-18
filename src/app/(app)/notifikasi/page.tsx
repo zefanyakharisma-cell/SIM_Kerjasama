@@ -33,7 +33,12 @@ const JUDUL: Record<string, string> = {
   renewal_request_sla: "SLA permintaan pembaruan",
   evaluation_submitted: "Evaluasi masuk",
   split_decision: "Evaluasi berbeda — perlu keputusan",
+  renewal_open: "Evaluasi lanjut — unggah dokumen perpanjangan",
+  renewal_terminated: "Evaluasi tidak dilanjutkan",
 };
+
+// Evaluation outcomes open the Pembaruan tab, where the files and actions are.
+const KE_PEMBARUAN = new Set(["split_decision", "renewal_open", "renewal_terminated"]);
 
 const KE_DISPOSISI = new Set([
   "disposition_assigned",
@@ -49,6 +54,7 @@ const WARNA: Record<string, string> = {
   pending: "var(--status-pending)",
   rejected: "var(--action-danger)",
   split_decision: "var(--action-danger)",
+  renewal_open: "var(--status-active)",
   expiring_soon: "var(--sla-yellow)",
   renewal_request_assigned: "var(--renewal-request)",
 };
@@ -175,7 +181,9 @@ export default async function Notifikasi() {
                       (n.id_proposal_dokumen
                         ? KE_DISPOSISI.has(n.jenis_notifikasi)
                           ? `/kerja-sama/${n.id_proposal_dokumen}/laporan?tab=disposisi`
-                          : `/kerja-sama/${n.id_proposal_dokumen}`
+                          : KE_PEMBARUAN.has(n.jenis_notifikasi)
+                            ? `/kerja-sama/${n.id_proposal_dokumen}/laporan?tab=pembaruan`
+                            : `/kerja-sama/${n.id_proposal_dokumen}`
                         : `/pembaruan/${n.no_dokumen_kerjasama}`) as any
                     }
                     className={kelas}

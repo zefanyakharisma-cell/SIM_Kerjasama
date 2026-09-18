@@ -8,6 +8,8 @@ import { SlaFlag } from "@/components/sla-flag";
 import { SubmitButton } from "@/components/submit-button";
 import { EditorDisposisi, PanelApproval, TombolReaktivasi } from "@/components/approval-actions";
 import { PembaruanPanel } from "@/components/pembaruan-panel";
+import { PilihBanyak } from "@/components/pilih-banyak";
+import { TERIMA_PDF_WORD, bisaPratinjau, unggahBerkas } from "@/lib/unggah";
 import { Tabs } from "@/components/tabs";
 
 /**
@@ -171,7 +173,7 @@ export default async function LaporanDokumen({
       .createSignedUrl(pathBerkas, 3600);
     previewUrl = signed?.signedUrl ?? null;
   }
-  const labelUnduh = dok?.upload_dokumen ? "Unduh PDF" : "Download Draft";
+  const labelUnduh = dok?.upload_dokumen ? "Unduh Dokumen" : "Download Draft";
 
   const { data: riwayat } = await supabase
     .from("riwayat_approval")
@@ -348,15 +350,9 @@ export default async function LaporanDokumen({
     const berkasBaru = formData.get("berkas") as File | null;
 
     if (sumberDokumen === "baru" && berkasBaru && berkasBaru.size > 0) {
-      // Strip path separators and anything but safe filename characters —
-      // this becomes part of a storage path.
-      const namaAman = berkasBaru.name.replace(/[/\\]/g, "_").replace(/[^\w.\-]/g, "_");
-      const path = `disposisi/${idProposal}/${Date.now()}-${namaAman}`;
-      const { error } = await klien.storage
-        .from("dokumen-kerjasama")
-        .upload(path, berkasBaru, { upsert: true });
-      if (error) balik("Gagal mengunggah dokumen.");
-      lampiran = path;
+      const unggah = await unggahBerkas(klien, `disposisi/${idProposal}`, berkasBaru);
+      if ("pesan" in unggah) return balik(unggah.pesan);
+      lampiran = unggah.path;
     } else if (sumberDokumen === "draf") {
       lampiran = proposal?.file_draft ?? null;
     }
@@ -562,7 +558,10 @@ export default async function LaporanDokumen({
             <Kartu judul="Dokumen">
               {previewUrl ? (
                 <div className="overflow-hidden rounded-lg border" style={gaya}>
-                  <iframe src={previewUrl} className="h-96 w-full" title="Pratinjau dokumen" />
+                  {/* A Word draft cannot be previewed inline — download only. */}
+                  {bisaPratinjau(pathBerkas) ? (
+                    <iframe src={previewUrl} className="h-96 w-full" title="Pratinjau dokumen" />
+                  ) : null}
                   <a
                     href={previewUrl}
                     download
@@ -757,7 +756,9 @@ export default async function LaporanDokumen({
         </section>
       ) : null}
 
-      {tab === "pembaruan" && adaPembaruan ? <PembaruanPanel noDokumen={dok.no} io={io} /> : null}
+      {tab === "pembaruan" && adaPembaruan ? (
+        <PembaruanPanel noDokumen={dok.no} io={io} idJabatan={akun?.id_jabatan ?? null} galat={galat} />
+      ) : null}
 
       {tab === "disposisi" && bolehDisposisi ? (
         <div className="space-y-6">
@@ -850,7 +851,7 @@ export default async function LaporanDokumen({
                         <input
                           type="file"
                           name="berkas"
-                          accept="application/pdf"
+                          accept={TERIMA_PDF_WORD}
                           required
                           className="block text-xs"
                         />
@@ -886,8 +887,8 @@ export default async function LaporanDokumen({
           ) : (
             <>
               <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
-                Pilih jabatan yang harus menyetujui. Tier dibaca dari master jabatan; tier
-                yang kosong akan dilewati, bukan menghambat.
+                Pilih jabatan yang harus menyetujui. Urutan persetujuan tetap
+                mengikuti tier di master jabatan.
                 {prefillSet.size > 0
                   ? " Daftar ini sudah tercentang dari approval dokumen sebelumnya — masih dapat diubah."
                   : ""}
@@ -898,32 +899,12 @@ export default async function LaporanDokumen({
                   <legend className="mb-1 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
                     To
                   </legend>
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((tier) => {
-                      const daftar = (jabatanApprover ?? []).filter((j) => j.tier_disposisi === tier);
-                      if (daftar.length === 0) return null;
-                      return (
-                        <fieldset key={tier}>
-                          <legend className="mb-1 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                            TIER {tier}
-                          </legend>
-                          <div className="grid gap-1 sm:grid-cols-2">
-                            {daftar.map((j) => (
-                              <label key={j.id} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  name="jabatan"
-                                  value={j.id}
-                                  defaultChecked={prefillSet.has(j.id)}
-                                />
-                                {j.nama}
-                              </label>
-                            ))}
-                          </div>
-                        </fieldset>
-                      );
-                    })}
-                  </div>
+                  {/* One searchable list; tiers still order the approval (Revisi V7 §9). */}
+                  <PilihBanyak
+                    name="jabatan"
+                    opsi={(jabatanApprover ?? []).map((j) => ({ id: j.id, label: j.nama }))}
+                    awal={(jabatanApprover ?? []).filter((j) => prefillSet.has(j.id)).map((j) => j.id)}
+                  />
                 </fieldset>
 
                 <label className="mb-4 block text-sm">
@@ -962,7 +943,7 @@ export default async function LaporanDokumen({
                       />
                       Unggah dokumen baru
                     </label>
-                    <input type="file" name="berkas" accept="application/pdf" className="text-xs" />
+                    <input type="file" name="berkas" accept={TERIMA_PDF_WORD} className="text-xs" />
                   </div>
                 </fieldset>
 

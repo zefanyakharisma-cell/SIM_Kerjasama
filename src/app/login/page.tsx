@@ -8,7 +8,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 const DEMO_PASSWORD = "Demo123!";
 const DEMO_ACCOUNTS = [
   { email: "kepala-kui@petra.ac.id", label: "Kepala KUI — io_admin · Tier 1" },
-  { email: "staf-kui@petra.ac.id", label: "Staf KUI — io_staff" },
+  { email: "direktur-kui@petra.ac.id", label: "Direktur KUI — io_admin" },
+  { email: "staf-kui@petra.ac.id", label: "Staf KUI — io_admin" },
   { email: "sekretariat-rektorat@petra.ac.id", label: "Sekretariat Rektorat — submitter · Tier 1" },
   { email: "dekan-sbm@petra.ac.id", label: "Dekan SBM — submitter · Tier 2" },
   { email: "kaprodi-manajemen@petra.ac.id", label: "Kaprodi Manajemen — submitter" },

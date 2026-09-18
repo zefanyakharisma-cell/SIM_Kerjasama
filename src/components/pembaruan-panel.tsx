@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
 import {
@@ -9,12 +10,15 @@ import {
   bacaJawaban,
 } from "@/components/likert";
 import {
+  arsipkanDokumen,
   bukaUlangEvaluasi,
   buatProposalPerpanjangan,
   kirimEvaluasiFakultas,
   kirimPermintaanPembaruan,
   putuskanPembaruan,
+  type Hasil,
 } from "@/lib/actions/pembaruan";
+import { unggahBerkas, TERIMA_PDF_WORD } from "@/lib/unggah";
 
 /**
  * One renewal, end to end (PRD §9.3–§9.6, Design §5.3, §5.9, §5.11) — the
@@ -28,7 +32,7 @@ import {
  */
 
 const KOLOM_EVAL =
-  "no, respondent_type, status, rekomendasi, continuation_mode, catatan_evaluasi, " +
+  "no, respondent_type, status, id_jabatan_pengusul, jabatan ( nama ), rekomendasi, continuation_mode, catatan_evaluasi, " +
   "respondent_nama, respondent_email, waktu_evaluasi, form_revision, id_supersedes, " +
   "exp_quality, exp_relevance, exp_productivity, exp_sustainability, exp_communication, " +
   "sat_quality, sat_relevance, sat_productivity, sat_sustainability, sat_communication";
@@ -44,19 +48,19 @@ export const GERBANG: Record<string, { label: string; warna: string; jelas: stri
     label: "Gerbang terbuka",
     warna: "var(--status-active)",
     jelas:
-      "Kedua pihak merekomendasikan lanjut. Unit pemilik dapat mengunggah draf perpanjangan.",
+      "PETRA dan mitra melanjutkan (atau KUI memutuskan lanjut). Unit pengusul mengunggah dokumen perpanjangan.",
   },
   terminate: {
     label: "Tidak dilanjutkan",
     warna: "var(--status-archived)",
     jelas:
-      "Kedua pihak merekomendasikan berhenti. Dokumen berjalan sampai tanggal berakhir, lalu diarsipkan sebagai kedaluwarsa tanpa pembaruan.",
+      "Tidak dilanjutkan. Dokumen berjalan sampai tanggal berakhir, lalu diarsipkan sebagai tidak diperbarui. KUI masih dapat meng-override.",
   },
   split: {
     label: "Evaluasi berbeda",
     warna: "var(--action-danger)",
     jelas:
-      "Fakultas dan mitra tidak sepakat. Tidak ada yang berjalan otomatis: KUI harus memilih lanjut atau hentikan, dengan alasan yang tercatat.",
+      "PETRA dan mitra tidak sepakat. Setelah diskusi, KUI meng-override (lanjut/hentikan, dengan alasan tercatat) atau mengarsipkan dokumen.",
   },
 };
 
@@ -148,7 +152,17 @@ function RingkasEvaluasi({ e }: { e: any }) {
 
 const kartu = "mb-6 rounded-xl border bg-white p-4";
 
-export async function PembaruanPanel({ noDokumen, io }: { noDokumen: number; io: boolean }) {
+export async function PembaruanPanel({
+  noDokumen,
+  io,
+  idJabatan,
+  galat,
+}: {
+  noDokumen: number;
+  io: boolean;
+  idJabatan: number | null;
+  galat?: string;
+}) {
   const supabase = await supabaseServer();
 
   const { data: r } = await supabase
@@ -197,7 +211,8 @@ export async function PembaruanPanel({ noDokumen, io }: { noDokumen: number; io:
     .order("no");
 
   const hidup = (evaluasi ?? []).filter((e: any) => e.status !== "superseded");
-  const fak: any = hidup.find((e: any) => e.respondent_type === "faculty");
+  // One PETRA answer per lingkup head (Revisi V7 §5).
+  const fakultas: any[] = hidup.filter((e: any) => e.respondent_type === "faculty");
   const mitra: any = hidup.find((e: any) => e.respondent_type === "partner");
   const lampau = (evaluasi ?? []).filter((e: any) => e.status === "superseded");
 
@@ -210,28 +225,62 @@ export async function PembaruanPanel({ noDokumen, io }: { noDokumen: number; io:
     `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host") ?? "localhost:3000"}`;
   const tautanMitra = r.token_partner ? `${asal}/evaluasi/${r.token_partner}` : null;
 
+  // The files §8.1 hands to the unit: the signed PDF and the last revision
+  // from disposition (catat_revisi keeps file_draft current).
+  const { data: berkas } = await supabase
+    .from("dokumen_kerja_sama")
+    .select("upload_dokumen, proposal_dokumen ( file_draft )")
+    .eq("no", noDokumen)
+    .maybeSingle();
+  const pathBerkas = [
+    { label: "Dokumen bertanda tangan", path: (berkas as any)?.upload_dokumen },
+    { label: "Revisi terakhir dari disposisi", path: (berkas as any)?.proposal_dokumen?.file_draft },
+  ].filter((b): b is { label: string; path: string } => Boolean(b.path));
+  const { data: berkasSigned } = pathBerkas.length
+    ? await supabase.storage
+        .from("dokumen-kerjasama")
+        .createSignedUrls(pathBerkas.map((b) => b.path), 3600)
+    : { data: [] };
+
+  // A refused action comes back to this tab with the database's own reason.
+  const halaman = `/kerja-sama/${r.id_proposal}/laporan?tab=pembaruan`;
+  const cek = (hasil: Hasil) => {
+    if (!hasil.ok) redirect(`${halaman}&galat=${encodeURIComponent(hasil.pesan)}` as any);
+  };
+
   async function isiEvaluasiFakultas(formData: FormData) {
     "use server";
-    await kirimEvaluasiFakultas(Number(formData.get("no_evaluasi")), bacaJawaban(formData));
+    cek(await kirimEvaluasiFakultas(Number(formData.get("no_evaluasi")), bacaJawaban(formData)));
   }
 
   async function putuskan(formData: FormData) {
     "use server";
-    await putuskanPembaruan(
-      noDokumen,
-      formData.get("keputusan") as "continue" | "terminate",
-      String(formData.get("alasan") ?? ""),
+    cek(
+      await putuskanPembaruan(
+        noDokumen,
+        formData.get("keputusan") as "continue" | "terminate",
+        String(formData.get("alasan") ?? ""),
+      ),
     );
+  }
+
+  async function arsipkan() {
+    "use server";
+    cek(await arsipkanDokumen(noDokumen, "not_renewed", r.id_proposal));
   }
 
   async function bukaUlang(formData: FormData) {
     "use server";
-    await bukaUlangEvaluasi(Number(formData.get("no_evaluasi")));
+    cek(await bukaUlangEvaluasi(Number(formData.get("no_evaluasi"))));
   }
 
-  async function unggahDraf(formData: FormData) {
+  async function unggahDokumen(formData: FormData) {
     "use server";
-    await buatProposalPerpanjangan(noDokumen, String(formData.get("file") ?? "") || null);
+    const file = formData.get("berkas") as File | null;
+    if (!file || file.size === 0) return cek({ ok: false, pesan: "Pilih dokumen perpanjangan." });
+    const unggah = await unggahBerkas(await supabaseServer(), `perpanjangan/${r.id_proposal}`, file);
+    if ("pesan" in unggah) return cek({ ok: false, pesan: unggah.pesan });
+    cek(await buatProposalPerpanjangan(noDokumen, unggah.path));
   }
 
   return (
@@ -249,21 +298,30 @@ export async function PembaruanPanel({ noDokumen, io }: { noDokumen: number; io:
         </p>
       </section>
 
+      {galat ? (
+        <p
+          role="alert"
+          className="mb-6 rounded-lg border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
+        >
+          {galat}
+        </p>
+      ) : null}
+
       {/* Split review: the two grids adjacent, so the disagreement is legible
           (Design §5.11). */}
-      {r.gerbang === "split" && io ? (
-        <section className={kartu} style={{ borderColor: "var(--action-danger)" }}>
-          <h2 className="mb-3 text-sm font-semibold">Tinjau keputusan berbeda</h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <h3 className="mb-1 text-xs font-semibold">Fakultas</h3>
-              {fak ? <RingkasEvaluasi e={fak} /> : null}
-            </div>
-            <div>
-              <h3 className="mb-1 text-xs font-semibold">Mitra</h3>
-              {mitra ? <RingkasEvaluasi e={mitra} /> : null}
-            </div>
-          </div>
+      {r.gerbang !== "menunggu" && io && !r.id_proposal_penerus ? (
+        <section
+          className={kartu}
+          style={{ borderColor: r.gerbang === "split" ? "var(--action-danger)" : "var(--border)" }}
+        >
+          <h2 className="mb-1 text-sm font-semibold">
+            {r.gerbang === "split" ? "Tinjau keputusan berbeda" : "Override keputusan evaluasi"}
+          </h2>
+          <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+            Keputusan KUI menggantikan hasil evaluasi di bawah. Membuka ulang evaluasi
+            membatalkan keputusan ini.
+          </p>
 
           <form action={putuskan} className="mt-4">
             <label className="block text-sm">
@@ -301,54 +359,88 @@ export async function PembaruanPanel({ noDokumen, io }: { noDokumen: number; io:
               Keputusan ini tercatat bersama alasannya dan tidak dapat dihapus.
             </p>
           </form>
+
+          {r.gerbang === "split" ? (
+            <form action={arsipkan} className="mt-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+              <SubmitButton
+                labelMenunggu="Mengarsipkan…"
+                className="rounded-lg border px-3 py-2 text-sm font-medium"
+                style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
+              >
+                Arsipkan
+              </SubmitButton>
+              <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                Tidak dilanjutkan — dokumen langsung diarsipkan.
+              </span>
+            </form>
+          ) : null}
         </section>
       ) : null}
 
-      {/* Faculty side */}
+      {/* PETRA side: one answer per lingkup head (Revisi V7 §5). Only the
+          head a row is addressed to fills it in. */}
       <section className={kartu} style={{ borderColor: "var(--border)" }}>
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold">Evaluasi Fakultas</h2>
-          {fak?.status === "submitted" && io ? (
-            <form action={bukaUlang}>
-              <input type="hidden" name="no_evaluasi" value={fak.no} />
-              <SubmitButton labelMenunggu="Memproses…" className="text-xs underline">
-                Buka ulang
-              </SubmitButton>
-            </form>
-          ) : null}
-        </div>
-
-        {fak?.status === "submitted" ? (
-          <RingkasEvaluasi e={fak} />
-        ) : fak ? (
-          <form action={isiEvaluasiFakultas}>
-            <input type="hidden" name="no_evaluasi" value={fak.no} />
-            <GridLikert
-              awalan="exp"
-              judul="1. Harapan unit"
-              keterangan="Seberapa tinggi harapan unit terhadap kerja sama ini pada tiap aspek?"
-            />
-            <GridLikert
-              awalan="sat"
-              judul="2. Kepuasan unit"
-              keterangan="Seberapa puas unit dengan pelaksanaannya pada tiap aspek?"
-            />
-            <BlokRekomendasi />
-            <SubmitButton
-              labelMenunggu="Mengirim…"
-              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-              style={{ background: "var(--midnight)" }}
-            >
-              Kirim Evaluasi Fakultas
-            </SubmitButton>
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              Setelah dikirim, jawaban terkunci. KUI dapat membukanya kembali bila perlu.
-            </p>
-          </form>
-        ) : (
+        <h2 className="mb-3 text-sm font-semibold">Evaluasi PETRA</h2>
+        {fakultas.length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Belum ada evaluasi fakultas untuk dokumen ini.
+            Belum ada evaluasi PETRA untuk dokumen ini.
           </p>
+        ) : (
+          <ul className="space-y-5">
+            {fakultas.map((fak: any) => (
+              <li key={fak.no}>
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-medium">
+                    {fak.jabatan?.nama ?? "Unit pemilik"}
+                    <span className="ml-2 text-xs font-normal" style={{ color: "var(--text-muted)" }}>
+                      {fak.status === "submitted" ? "sudah mengisi" : "menunggu"}
+                    </span>
+                  </h3>
+                  {fak.status === "submitted" && io ? (
+                    <form action={bukaUlang}>
+                      <input type="hidden" name="no_evaluasi" value={fak.no} />
+                      <SubmitButton labelMenunggu="Memproses…" className="text-xs underline">
+                        Buka ulang
+                      </SubmitButton>
+                    </form>
+                  ) : null}
+                </div>
+
+                {fak.status === "submitted" ? (
+                  <RingkasEvaluasi e={fak} />
+                ) : fak.id_jabatan_pengusul === idJabatan || (!fak.id_jabatan_pengusul && !io) ? (
+                  <form action={isiEvaluasiFakultas}>
+                    <input type="hidden" name="no_evaluasi" value={fak.no} />
+                    <GridLikert
+                      awalan="exp"
+                      judul="1. Harapan unit"
+                      keterangan="Seberapa tinggi harapan unit terhadap kerja sama ini pada tiap aspek?"
+                    />
+                    <GridLikert
+                      awalan="sat"
+                      judul="2. Kepuasan unit"
+                      keterangan="Seberapa puas unit dengan pelaksanaannya pada tiap aspek?"
+                    />
+                    <BlokRekomendasi />
+                    <SubmitButton
+                      labelMenunggu="Mengirim…"
+                      className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                      style={{ background: "var(--midnight)" }}
+                    >
+                      Kirim Evaluasi PETRA
+                    </SubmitButton>
+                    <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                      Setelah dikirim, jawaban terkunci. KUI dapat membukanya kembali bila perlu.
+                    </p>
+                  </form>
+                ) : (
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                    Menunggu jawaban dari {fak.jabatan?.nama ?? "unit pemilik"}.
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
@@ -395,19 +487,27 @@ export async function PembaruanPanel({ noDokumen, io }: { noDokumen: number; io:
           absent rather than disabled, and the banner above says why. */}
       {r.gerbang === "terbuka" && !r.id_proposal_penerus ? (
         <section className={`${kartu} border-2`} style={{ borderColor: "var(--status-active)" }}>
-          <h2 className="mb-2 text-sm font-semibold">Unggah Draf Perpanjangan</h2>
+          <h2 className="mb-2 text-sm font-semibold">Unggah Dokumen Perpanjangan</h2>
           <p className="mb-3 text-sm" style={{ color: "var(--text-secondary)" }}>
             Proposal baru akan dibuat sebagai Perpanjangan dan tertaut ke dokumen
             ini. Data mitra, agenda, bidang dan lingkup disalin dari dokumen
             sebelumnya; hanya approval yang diulang.
           </p>
-          <form action={unggahDraf} className="flex flex-wrap gap-2">
-            <input
-              name="file"
-              placeholder="Nama berkas draf"
-              className="min-w-[14rem] flex-1 rounded-lg border px-3 py-2 text-sm"
-              style={{ borderColor: "var(--border)" }}
-            />
+          {berkasSigned?.length ? (
+            <ul className="mb-3 space-y-1 text-sm">
+              {pathBerkas.map((b, i) =>
+                berkasSigned[i]?.signedUrl ? (
+                  <li key={b.path}>
+                    <a href={berkasSigned[i].signedUrl} className="underline" target="_blank" rel="noreferrer">
+                      {b.label}
+                    </a>
+                  </li>
+                ) : null,
+              )}
+            </ul>
+          ) : null}
+          <form action={unggahDokumen} className="flex flex-wrap items-center gap-2">
+            <input type="file" name="berkas" accept={TERIMA_PDF_WORD} required className="text-sm" />
             <SubmitButton
               labelMenunggu="Memproses…"
               className="rounded-lg px-4 py-2 text-sm font-medium text-white"

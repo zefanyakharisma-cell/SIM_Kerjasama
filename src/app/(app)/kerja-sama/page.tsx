@@ -408,8 +408,9 @@ function TabelDokumen({
                   <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
                     {b.jabatan_pengusul ?? "—"}
                   </td>
-                  <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
-                    {b.lingkup ?? "—"}
+                  {/* A count, names on hover (Revisi V7 §2); filter and search still use the names. */}
+                  <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }} title={b.lingkup ?? undefined}>
+                    {b.jumlah_lingkup ? `${b.jumlah_lingkup} Unit` : "—"}
                   </td>
                   <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
                     <Tanggal nilai={b.tanggal_mulai} />

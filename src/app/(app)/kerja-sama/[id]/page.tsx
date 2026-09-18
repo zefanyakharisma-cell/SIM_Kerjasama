@@ -7,6 +7,8 @@ import { arsipkanDokumen } from "@/lib/actions/pembaruan";
 import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
 import { SubmitButton } from "@/components/submit-button";
+import { PilihBanyak } from "@/components/pilih-banyak";
+import { TERIMA_PDF, unggahBerkas } from "@/lib/unggah";
 import {
   EditorDisposisi,
   PanelApproval,
@@ -180,6 +182,14 @@ export default async function DetailDokumen({
   async function aktifkan(formData: FormData) {
     "use server";
     const akhir = String(formData.get("tanggal_berakhir") ?? "");
+    // The signed document (Revisi V7 §3).
+    let uploadDokumen: string | null = null;
+    const berkas = formData.get("berkas") as File | null;
+    if (berkas && berkas.size > 0) {
+      const unggah = await unggahBerkas(await supabaseServer(), `dokumen/${idProposal}`, berkas, TERIMA_PDF);
+      if ("pesan" in unggah) throw new Error(unggah.pesan);
+      uploadDokumen = unggah.path;
+    }
     await aktivasiDokumen(idProposal, {
       // Typed by IO, never generated and never format-checked (BR-22).
       noDokumen: String(formData.get("no_dokumen") ?? ""),
@@ -189,6 +199,7 @@ export default async function DetailDokumen({
       tanggalBerakhir: akhir === "" ? null : akhir,
       folderKui: String(formData.get("folder_kui") ?? "") || null,
       noBerkasDikti: String(formData.get("no_berkas_dikti") ?? "") || null,
+      uploadDokumen,
     });
     revalidatePath(`/kerja-sama/${idProposal}`);
   }
@@ -391,44 +402,21 @@ export default async function DetailDokumen({
             >
               <h2 className="mb-1 text-sm font-semibold">Kirim Disposisi Approval</h2>
               <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
-                Pilih jabatan yang harus menyetujui. Tier dibaca dari master jabatan;
-                tier yang kosong akan dilewati, bukan menghambat.
+                Pilih jabatan yang harus menyetujui. Urutan persetujuan tetap
+                mengikuti tier di master jabatan.
                 {prefillSet.size > 0
                   ? " Daftar ini sudah tercentang dari approval dokumen sebelumnya — masih dapat diubah."
                   : ""}
               </p>
 
               <form action={kirimDisposisiAwal}>
-                <div className="mb-3 space-y-3">
-                  {[1, 2, 3].map((tier) => {
-                    const daftar = (jabatanApprover ?? []).filter(
-                      (j) => j.tier_disposisi === tier,
-                    );
-                    if (daftar.length === 0) return null;
-                    return (
-                      <fieldset key={tier}>
-                        <legend
-                          className="mb-1 text-xs font-semibold"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          TIER {tier}
-                        </legend>
-                        <div className="grid gap-1 sm:grid-cols-2">
-                          {daftar.map((j) => (
-                            <label key={j.id} className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                name="jabatan"
-                                value={j.id}
-                                defaultChecked={prefillSet.has(j.id)}
-                              />
-                              {j.nama}
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-                    );
-                  })}
+                {/* One searchable list; tiers still order the approval (Revisi V7 §9). */}
+                <div className="mb-3">
+                  <PilihBanyak
+                    name="jabatan"
+                    opsi={(jabatanApprover ?? []).map((j) => ({ id: j.id, label: j.nama }))}
+                    awal={(jabatanApprover ?? []).filter((j) => prefillSet.has(j.id)).map((j) => j.id)}
+                  />
                 </div>
 
                 <label className="mb-3 block text-sm">
@@ -516,6 +504,16 @@ export default async function DetailDokumen({
                   <span className="mb-1 block font-medium">No. Berkas Dikti</span>
                   <input
                     name="no_berkas_dikti"
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: "var(--border)" }}
+                  />
+                </label>
+                <label className="block text-sm sm:col-span-2">
+                  <span className="mb-1 block font-medium">Upload Dokumen (PDF bertanda tangan)</span>
+                  <input
+                    type="file"
+                    name="berkas"
+                    accept={TERIMA_PDF}
                     className="w-full rounded-lg border px-3 py-2 text-sm"
                     style={{ borderColor: "var(--border)" }}
                   />

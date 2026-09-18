@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { unggahBerkas } from "@/lib/unggah";
 
 /**
  * Server Actions write; Server Components read (EC-04).
@@ -87,21 +88,12 @@ export async function unggahRevisi(
   const berkas = formData.get("berkas") as File | null;
   if (!berkas || berkas.size === 0) return { ok: false, pesan: "Pilih berkas revisi." };
 
-  const supabase = await supabaseServer();
-  // Sanitised before it becomes part of a storage path.
-  const namaAman = berkas.name.replace(/[/\\]/g, "_").replace(/[^\w.\-]/g, "_");
-  const path = `revisi/${idProposal}/${Date.now()}-${namaAman}`;
-  const { error } = await supabase.storage
-    .from("dokumen-kerjasama")
-    .upload(path, berkas, { upsert: true });
-  if (error) {
-    console.error("[simks] unggah revisi gagal:", error.message);
-    return { ok: false, pesan: "Gagal mengunggah berkas revisi." };
-  }
+  const unggah = await unggahBerkas(await supabaseServer(), `revisi/${idProposal}`, berkas);
+  if ("pesan" in unggah) return { ok: false, pesan: unggah.pesan };
 
   const hasil = await panggil("catat_revisi", {
     p_id_proposal: idProposal,
-    p_file: path,
+    p_file: unggah.path,
     p_catatan: String(formData.get("catatan") ?? "") || null,
     p_no_target_peminta: noTarget,
   });
@@ -153,6 +145,8 @@ export async function aktivasiDokumen(
     jabatanPetra?: string | null;
     penandatanganMitra?: string | null;
     jabatanMitra?: string | null;
+    // Storage path of the signed document (Revisi V7 §3).
+    uploadDokumen?: string | null;
   },
 ): Promise<Hasil> {
   const hasil = await panggil("aktivasi_dokumen", {
@@ -168,6 +162,7 @@ export async function aktivasiDokumen(
     p_jabatan_petra: data.jabatanPetra || null,
     p_penandatangan_mitra: data.penandatanganMitra || null,
     p_jabatan_mitra: data.jabatanMitra || null,
+    p_upload_dokumen: data.uploadDokumen || null,
   });
   revalidatePath(`/kerja-sama/${idProposal}`);
   revalidatePath(`/kerja-sama/${idProposal}/laporan`);

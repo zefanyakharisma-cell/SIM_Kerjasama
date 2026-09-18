@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { isIO, akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { aktivasiDokumen } from "@/lib/actions/workflow";
 import { SubmitButton } from "@/components/submit-button";
+import { TERIMA_PDF, unggahBerkas } from "@/lib/unggah";
 
 /**
  * Disetujui tab's activation form (revision V3). Every row on that tab has
@@ -51,6 +52,14 @@ export default async function AktivasiDokumen({
   async function aktifkan(formData: FormData) {
     "use server";
     const akhir = String(formData.get("tanggal_berakhir") ?? "");
+    // The signed document (Revisi V7 §3). Optional, as the Google Drive link is.
+    let uploadDokumen: string | null = null;
+    const berkas = formData.get("berkas") as File | null;
+    if (berkas && berkas.size > 0) {
+      const unggah = await unggahBerkas(await supabaseServer(), `dokumen/${idProposal}`, berkas, TERIMA_PDF);
+      if ("pesan" in unggah) throw new Error(unggah.pesan);
+      uploadDokumen = unggah.path;
+    }
     const hasil = await aktivasiDokumen(idProposal, {
       noDokumen: String(formData.get("no_dokumen") ?? ""),
       tanggalMulai: String(formData.get("tanggal_mulai") ?? ""),
@@ -60,6 +69,7 @@ export default async function AktivasiDokumen({
       penandatanganMitra: String(formData.get("penandatangan_mitra") ?? "") || null,
       jabatanPetra: String(formData.get("jabatan_petra") ?? "") || null,
       jabatanMitra: String(formData.get("jabatan_mitra") ?? "") || null,
+      uploadDokumen,
     });
     if (!hasil.ok) throw new Error(hasil.pesan);
     redirect(`/kerja-sama/${idProposal}/laporan` as any);
@@ -115,6 +125,11 @@ export default async function AktivasiDokumen({
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Jabatan Penandatangan Mitra</span>
           <input name="jabatan_mitra" className={inputKelas} style={gaya} />
+        </label>
+
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-sm font-medium">Upload Dokumen (PDF bertanda tangan)</span>
+          <input type="file" name="berkas" accept={TERIMA_PDF} className={inputKelas} style={gaya} />
         </label>
 
         <div className="sm:col-span-2">
