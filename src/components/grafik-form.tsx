@@ -10,6 +10,10 @@ export type ConfigGrafik = {
   grouping?: string;
   sumber_data?: string;
   maks?: number;
+  /** Fakultas grouping only: which level of the unit tree to count. */
+  level?: string;
+  /** Date groupings only: month or year buckets. */
+  periode?: string;
   filter?: { region?: string; status?: string; dokumen?: string; fakultas?: string };
 };
 
@@ -25,6 +29,8 @@ export function grafikDariForm(formData: FormData) {
       grouping: s("grouping", "negara"),
       sumber_data: s("sumber_data", "dokumen"),
       maks: Math.min(50, Math.max(1, Number(formData.get("maks")) || 10)),
+      level: s("level", "fakultas"),
+      periode: s("periode", "bulan"),
       filter: {
         region: s("f_region"),
         status: s("f_status"),
@@ -99,11 +105,35 @@ export function GrafikForm({
         name="grouping"
         nilai={c.grouping}
         opsi={[
+          ["status", "Status Dokumen"],
+          ["jenis", "Jenis Dokumen"],
           ["negara", "Negara"],
-          ["jenis", "Jenis dokumen"],
-          ["status", "Status"],
-          ["fakultas", "Fakultas / unit"],
-          ["bulan", "Bulan"],
+          ["fakultas", "Fakultas / Program Studi"],
+          ["jenis_unit", "Unit (UA/UP)"],
+          ["tanda_tangan", "Tanggal Ditandatangani"],
+          ["mulai", "Tanggal Mulai"],
+          ["selesai", "Tanggal Selesai"],
+        ]}
+      />
+      {/* Always shown, read only by the grouping they belong to — keeps the
+          form free of client JS. */}
+      <Pilih
+        label="Tingkat (khusus Fakultas / Program Studi)"
+        name="level"
+        nilai={c.level}
+        opsi={[
+          ["fakultas", "Fakultas saja"],
+          ["prodi", "Program Studi saja"],
+          ["keduanya", "Keduanya"],
+        ]}
+      />
+      <Pilih
+        label="Periode (khusus pengelompokan tanggal)"
+        name="periode"
+        nilai={c.periode}
+        opsi={[
+          ["bulan", "Per bulan"],
+          ["tahun", "Per tahun"],
         ]}
       />
       <Pilih
