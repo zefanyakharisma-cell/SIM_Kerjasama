@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { BlokRekomendasi, GridLikert, bacaJawaban } from "@/components/likert";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * The partner evaluation page — the only unauthenticated surface in the system
@@ -241,13 +242,13 @@ export default async function EvaluasiMitra({
           </div>
         </fieldset>
 
-        <button
-          type="submit"
+        <SubmitButton
+          labelMenunggu="Mengirim… · Submitting…"
           className="w-full rounded-lg px-4 py-3 text-sm font-medium text-white"
           style={{ background: "var(--midnight)" }}
         >
-          Kirim Evaluasi · Submit
-        </button>
+          Kirim Evaluasi · Submit Evaluation
+        </SubmitButton>
         <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
           Setelah dikirim, tautan ini akan tertutup. · Once submitted, this link
           closes. Formulir {ev.form_revision}.

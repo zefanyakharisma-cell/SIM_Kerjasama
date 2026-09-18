@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { isIO, akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { aktivasiDokumen } from "@/lib/actions/workflow";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * Disetujui tab's activation form (revision V3). Every row on that tab has
@@ -105,13 +106,13 @@ export default async function AktivasiDokumen({
         </label>
 
         <div className="sm:col-span-2">
-          <button
-            type="submit"
+          <SubmitButton
+            labelMenunggu="Mengaktifkan…"
             className="rounded-lg px-4 py-2 text-sm font-medium text-white"
             style={{ background: "var(--status-active)" }}
           >
             Aktifkan Dokumen
-          </button>
+          </SubmitButton>
         </div>
       </form>
     </div>

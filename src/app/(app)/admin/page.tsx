@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * Settings — the master-data admin area (PRD §11, Design §5.12).
@@ -208,7 +209,7 @@ export default async function Admin() {
     <div className="max-w-4xl">
       <header className="mb-5">
         <h1 className="text-xl font-semibold" style={{ color: "var(--midnight)" }}>
-          Settings
+          Pengaturan
         </h1>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
           Master data dan konfigurasi. Nilai di halaman ini menentukan perilaku
@@ -228,6 +229,7 @@ export default async function Admin() {
                 <input type="hidden" name="id" value={j.id} />
                 <select
                   name="tier"
+                  aria-label={`Tier approval ${j.nama}`}
                   defaultValue={j.tier_disposisi ?? ""}
                   className="rounded-lg border px-2 py-1 text-sm"
                   style={gaya}
@@ -237,9 +239,9 @@ export default async function Admin() {
                   <option value="2">Tier 2</option>
                   <option value="3">Tier 3</option>
                 </select>
-                <button type="submit" className="text-xs underline">
+                <SubmitButton labelMenunggu="Menyimpan…" className="text-xs underline">
                   Simpan
-                </button>
+                </SubmitButton>
               </form>
             </li>
           ))}
@@ -324,21 +326,21 @@ export default async function Admin() {
                   </span>
                 </div>
                 <form action={gabungMitra} className="flex flex-wrap items-center gap-2">
-                  <select name="dari" className="rounded-lg border px-2 py-1 text-xs" style={gaya}>
+                  <select name="dari" aria-label="Mitra yang digabungkan" className="rounded-lg border px-2 py-1 text-xs" style={gaya}>
                     <option value={d.id_a}>{d.nama_a} (digabungkan)</option>
                     <option value={d.id_b}>{d.nama_b} (digabungkan)</option>
                   </select>
-                  <select name="ke" className="rounded-lg border px-2 py-1 text-xs" style={gaya}>
+                  <select name="ke" aria-label="Mitra yang dipertahankan" className="rounded-lg border px-2 py-1 text-xs" style={gaya}>
                     <option value={d.id_b}>{d.nama_b} (dipertahankan)</option>
                     <option value={d.id_a}>{d.nama_a} (dipertahankan)</option>
                   </select>
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    labelMenunggu="Menggabungkan…"
                     className="rounded-lg px-2 py-1 text-xs font-medium text-white"
                     style={{ background: "var(--action-danger)" }}
                   >
                     Gabungkan
-                  </button>
+                  </SubmitButton>
                 </form>
               </li>
             ))}
@@ -363,6 +365,7 @@ export default async function Admin() {
                 <input type="hidden" name="id" value={p.id} />
                 <input
                   name="latitude"
+                  aria-label={`Latitude ${p.nama}`}
                   defaultValue={p.latitude ?? ""}
                   placeholder="lat"
                   className="w-24 rounded-lg border px-2 py-1 text-xs"
@@ -370,14 +373,15 @@ export default async function Admin() {
                 />
                 <input
                   name="longitude"
+                  aria-label={`Longitude ${p.nama}`}
                   defaultValue={p.longitude ?? ""}
                   placeholder="lon"
                   className="w-24 rounded-lg border px-2 py-1 text-xs"
                   style={gaya}
                 />
-                <button type="submit" className="text-xs underline">
+                <SubmitButton labelMenunggu="Menyimpan…" className="text-xs underline">
                   Simpan
-                </button>
+                </SubmitButton>
               </form>
             </li>
           ))}
@@ -396,13 +400,14 @@ export default async function Admin() {
                 <input type="hidden" name="key" value={s.key} />
                 <input
                   name="value"
+                  aria-label={`Nilai ${s.key}`}
                   defaultValue={s.value}
                   className="w-56 rounded-lg border px-2 py-1 text-sm"
                   style={gaya}
                 />
-                <button type="submit" className="text-xs underline">
+                <SubmitButton labelMenunggu="Menyimpan…" className="text-xs underline">
                   Simpan
-                </button>
+                </SubmitButton>
               </form>
             </li>
           ))}
@@ -464,7 +469,7 @@ export default async function Admin() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium">Filter — region</span>
+            <span className="mb-1 block text-xs font-medium">Filter — wilayah</span>
             <select name="f_region" className={inputKelas} style={gaya}>
               <option value="">Semua</option>
               <option value="Internasional">Internasional</option>
@@ -477,7 +482,7 @@ export default async function Admin() {
               <option value="">Aktif (bawaan)</option>
               <option value="Aktif">Aktif</option>
               <option value="Akan Berakhir">Akan Berakhir</option>
-              <option value="Kedaluarsa">Kedaluarsa</option>
+              <option value="Kedaluarsa">Kedaluwarsa</option>
               <option value="Diarsipkan">Diarsipkan</option>
               <option value="Draft">Draft</option>
             </select>
@@ -519,13 +524,13 @@ export default async function Admin() {
             />
           </label>
           <div className="sm:col-span-2">
-            <button
-              type="submit"
+            <SubmitButton
+              labelMenunggu="Menyimpan…"
               className="rounded-lg px-4 py-2 text-sm font-medium text-white"
               style={{ background: "var(--midnight)" }}
             >
               Simpan Grafik
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Bagian>
@@ -545,9 +550,9 @@ export default async function Admin() {
                 <form action={nonaktifkanOpsi}>
                   <input type="hidden" name="tabel" value={o.tabel} />
                   <input type="hidden" name="id" value={o.id} />
-                  <button type="submit" className="text-xs underline">
+                  <SubmitButton labelMenunggu="Menonaktifkan…" className="text-xs underline">
                     Nonaktifkan
-                  </button>
+                  </SubmitButton>
                 </form>
               ) : (
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>

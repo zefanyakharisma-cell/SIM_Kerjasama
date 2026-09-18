@@ -6,6 +6,7 @@ import { aktivasiDokumen, kirimDisposisi } from "@/lib/actions/workflow";
 import { arsipkanDokumen } from "@/lib/actions/pembaruan";
 import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
+import { SubmitButton } from "@/components/submit-button";
 import {
   EditorDisposisi,
   PanelApproval,
@@ -230,7 +231,7 @@ export default async function DetailDokumen({
 
       {beku ? (
         <div className="mb-6 rounded-xl border-2 p-4" style={{ borderColor: "var(--status-pending)" }}>
-          <h2 className="text-sm font-semibold" style={{ color: "var(--status-pending)" }}>
+          <h2 className="text-sm font-semibold" style={{ color: "var(--status-pending-text)" }}>
             Dokumen ditangguhkan sejak {waktuLokal(beku.mulai)}
           </h2>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
@@ -315,7 +316,7 @@ export default async function DetailDokumen({
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="text-sm font-semibold">Approval</h2>
               {ronde && ronde > 1 ? (
-                <span className="text-xs" style={{ color: "var(--status-pending)" }}>
+                <span className="text-xs" style={{ color: "var(--status-pending-text)" }}>
                   Ronde ke-{ronde} — diulang setelah penangguhan
                 </span>
               ) : null}
@@ -431,13 +432,13 @@ export default async function DetailDokumen({
                   />
                 </label>
 
-                <button
-                  type="submit"
+                <SubmitButton
+                  labelMenunggu="Mengirim…"
                   className="rounded-lg px-4 py-2 text-sm font-medium text-white"
                   style={{ background: "var(--midnight)" }}
                 >
                   Kirim Disposisi
-                </button>
+                </SubmitButton>
               </form>
             </section>
           ) : null}
@@ -512,13 +513,13 @@ export default async function DetailDokumen({
                   />
                 </label>
                 <div className="sm:col-span-2">
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    labelMenunggu="Memproses…"
                     className="rounded-lg px-4 py-2 text-sm font-medium text-white"
                     style={{ background: "var(--status-active)" }}
                   >
                     Aktifkan Dokumen
-                  </button>
+                  </SubmitButton>
                   {proposal.id_dokumen_sebelumnya ? (
                     <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
                       Dokumen ini adalah perpanjangan. Saat diaktifkan, dokumen
@@ -558,13 +559,13 @@ export default async function DetailDokumen({
               </p>
               <form action={akhiriLebihAwal}>
                 <input type="hidden" name="no" value={dok.no} />
-                <button
-                  type="submit"
+                <SubmitButton
+                  labelMenunggu="Memproses…"
                   className="rounded-lg border px-4 py-2 text-sm font-medium"
                   style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
                 >
                   Akhiri kerja sama ini
-                </button>
+                </SubmitButton>
               </form>
             </section>
           ) : null}

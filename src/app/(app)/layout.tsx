@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { SidebarNav } from "@/components/sidebar-nav";
@@ -18,7 +19,7 @@ const MENU = [
   // Master data and system settings. Shown to everyone, refused by RLS to
   // everyone else — but hiding it keeps the menu honest about what a role can
   // actually do, so it is filtered below.
-  { href: "/admin", label: "Settings", adminSaja: true },
+  { href: "/admin", label: "Pengaturan", adminSaja: true },
 ] as const;
 
 export default async function AppLayout({
@@ -63,13 +64,14 @@ export default async function AppLayout({
     .is("waktu_dibaca", null);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col md:flex-row">
       <SidebarNav
         menu={MENU.filter((m) => !("adminSaja" in m) || akun.role === "io_admin")}
         belumDibaca={belumDibaca ?? 0}
         jabatan={jabatan?.nama ?? "Jabatan"}
         email={akun.email}
         role={akun.role}
+        terlipatAwal={(await cookies()).get("sidebar-terlipat")?.value === "1"}
       />
 
       <main className="min-w-0 flex-1 p-6 md:p-8">{children}</main>

@@ -5,6 +5,7 @@ import { isIO, akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { kirimDisposisi } from "@/lib/actions/workflow";
 import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
+import { SubmitButton } from "@/components/submit-button";
 import { EditorDisposisi, PanelApproval, TombolReaktivasi } from "@/components/approval-actions";
 
 /**
@@ -574,14 +575,14 @@ export default async function LaporanDokumen({
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="text-sm font-semibold">Approval</h2>
               {ronde && ronde > 1 ? (
-                <span className="text-xs" style={{ color: "var(--status-pending)" }}>
+                <span className="text-xs" style={{ color: "var(--status-pending-text)" }}>
                   Ronde ke-{ronde} — diulang setelah penangguhan
                 </span>
               ) : null}
             </div>
 
             {beku ? (
-              <p className="mb-3 text-xs" style={{ color: "var(--status-pending)" }}>
+              <p className="mb-3 text-xs" style={{ color: "var(--status-pending-text)" }}>
                 Dokumen ditangguhkan. Hitungan SLA berhenti sampai KUI mengaktifkannya kembali.
                 {io ? (
                   <span className="ml-2 inline-block align-middle">
@@ -780,13 +781,13 @@ export default async function LaporanDokumen({
                   </div>
                 </fieldset>
 
-                <button
-                  type="submit"
+                <SubmitButton
+                  labelMenunggu="Mengirim…"
                   className="rounded-lg px-4 py-2 text-sm font-medium text-white"
                   style={{ background: "var(--midnight)" }}
                 >
                   Kirim Disposisi
-                </button>
+                </SubmitButton>
               </form>
             </>
           )}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * In-app notifications (Design §7).
@@ -86,13 +87,13 @@ export default async function Notifikasi() {
         </div>
         {belumDibaca > 0 ? (
           <form action={tandaiTerbaca}>
-            <button
-              type="submit"
+            <SubmitButton
+              labelMenunggu="Menandai…"
               className="rounded-lg border px-3 py-1.5 text-xs"
               style={{ borderColor: "var(--border)", background: "white" }}
             >
               Tandai semua terbaca ({belumDibaca})
-            </button>
+            </SubmitButton>
           </form>
         ) : null}
       </header>
@@ -132,7 +133,7 @@ export default async function Notifikasi() {
                   </span>
                 ) : null}
                 <span
-                  className="mt-0.5 block pl-3.5 text-[11px]"
+                  className="mt-0.5 block pl-3.5 text-xs"
                   style={{ color: "var(--text-muted)" }}
                 >
                   {new Date(n.waktu_kirim).toLocaleString("id-ID", {

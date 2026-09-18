@@ -4,6 +4,7 @@ import { PohonLingkup } from "@/components/lingkup-tree";
 import { MitraPicker } from "@/components/mitra-picker";
 import { SearchSelect } from "@/components/search-select";
 import { KerjaSamaFields } from "@/components/kerja-sama-fields";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * Buat Kerja Sama — the Proposal Form (PRD §7.2, Design §5.5).
@@ -304,7 +305,7 @@ export default async function BuatKerjaSama({
         </Bagian>
 
         <Bagian judul="Upload Dokumen" keterangan="Opsional. Unggah draf dokumen kerja sama dalam format PDF.">
-          <input type="file" name="upload_dokumen" accept="application/pdf" className="text-sm" />
+          <input type="file" name="upload_dokumen" accept="application/pdf" aria-label="Upload dokumen (PDF)" className="text-sm" />
         </Bagian>
 
         <Bagian
@@ -315,24 +316,24 @@ export default async function BuatKerjaSama({
         </Bagian>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            type="submit"
+          <SubmitButton
             name="aksi"
             value="draft"
+            labelMenunggu="Menyimpan…"
             className="rounded-lg border px-4 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "white" }}
           >
             Simpan sebagai Draft
-          </button>
-          <button
-            type="submit"
+          </SubmitButton>
+          <SubmitButton
             name="aksi"
             value="ajukan"
+            labelMenunggu="Mengajukan…"
             className="rounded-lg px-4 py-2 text-sm font-medium text-white"
             style={{ background: "var(--midnight)" }}
           >
             Ajukan
-          </button>
+          </SubmitButton>
         </div>
       </form>
     </div>

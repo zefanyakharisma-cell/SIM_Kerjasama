@@ -18,7 +18,8 @@
 
   --text-primary: #000000;
   --text-secondary: #46505c;
-  --text-muted: #7b8794;
+  /* #5f6b78: 5.3:1 on white, 4.7:1 on --surface-sunk (the old #7b8794 failed AA). */
+  --text-muted: #5f6b78;
 
   --status-draft: #7b8794;      /* inert */
   --status-progress: #3880d0;   /* submitted / in disposition */
@@ -31,12 +32,29 @@
   --sla-yellow: #ffbc00;
   --sla-red: #e31f26;
   --action-danger: #e31f26;     /* irreversible only, so red always means stop */
+
+  /*
+   * Text-safe variants. The signal hues above are for dots, borders and fills;
+   * as text on white, yellow is 1.7:1 and orange 2.9:1. Anything that is read
+   * uses these (all >= 4.5:1 on white).
+   */
+  --sla-yellow-text: #8a6100;
+  --status-pending-text: #b34700;
+  --status-progress-strong: #2a64a8; /* white text on it: 6:1 */
+  --focus-ring: #2a64a8;
 }
+
+/* One visible focus ring for every control, keyboard only. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+aside :focus-visible { outline-color: #ffffff; }
 
 body {
   background: var(--surface-sunk);
   color: var(--text-primary);
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

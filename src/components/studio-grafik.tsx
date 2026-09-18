@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * Studio Grafik Mitra — the rendering half (PRD §8.1).
@@ -175,7 +176,7 @@ export function StudioGrafik({
           className="rounded-xl border bg-white p-10 text-center text-sm"
           style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
-          Belum ada grafik tersimpan. KUI Admin dapat menambahkannya di Settings.
+          Belum ada grafik tersimpan. KUI Admin dapat menambahkannya di Pengaturan.
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
@@ -194,38 +195,38 @@ export function StudioGrafik({
                         <form action={onPindah}>
                           <input type="hidden" name="id_chart" value={g.id} />
                           <input type="hidden" name="arah" value="naik" />
-                          <button
-                            type="submit"
+                          <SubmitButton
+                            labelMenunggu="…"
                             disabled={i === 0}
                             className="rounded px-1.5 py-0.5 hover:bg-black/5 disabled:opacity-30"
                             aria-label="Naikkan"
                           >
                             ↑
-                          </button>
+                          </SubmitButton>
                         </form>
                         <form action={onPindah}>
                           <input type="hidden" name="id_chart" value={g.id} />
                           <input type="hidden" name="arah" value="turun" />
-                          <button
-                            type="submit"
+                          <SubmitButton
+                            labelMenunggu="…"
                             disabled={i === grafik.length - 1}
                             className="rounded px-1.5 py-0.5 hover:bg-black/5 disabled:opacity-30"
                             aria-label="Turunkan"
                           >
                             ↓
-                          </button>
+                          </SubmitButton>
                         </form>
                       </>
                     ) : null}
                     {onSembunyikan ? (
                       <form action={onSembunyikan}>
                         <input type="hidden" name="id_chart" value={g.id} />
-                        <button
-                          type="submit"
+                        <SubmitButton
+                          labelMenunggu="Memproses…"
                           className="rounded px-1.5 py-0.5 underline hover:bg-black/5"
                         >
                           Sembunyikan
-                        </button>
+                        </SubmitButton>
                       </form>
                     ) : null}
                   </div>
@@ -243,9 +244,9 @@ export function StudioGrafik({
           {tersembunyi.map((g) => (
             <form key={g.id} action={onTampilkan}>
               <input type="hidden" name="id_chart" value={g.id} />
-              <button type="submit" className="underline">
+              <SubmitButton labelMenunggu="Memproses…" className="underline">
                 {g.judul}
-              </button>
+              </SubmitButton>
             </form>
           ))}
         </div>

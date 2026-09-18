@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
 import { kirimPermintaanPembaruan } from "@/lib/actions/pembaruan";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * Pembaruan — the renewal queue (PRD §9, Design §5.3, §5.8).
@@ -27,7 +28,7 @@ function BenderaPembaruan({ hari }: { hari: number | null }) {
   if (hari === null) return null;
   // 30 reminder / 60 yellow / 90 red, in days (PRD §13.1).
   const warna =
-    hari > 90 ? "var(--sla-red)" : hari > 60 ? "var(--sla-yellow)" : "var(--text-secondary)";
+    hari > 90 ? "var(--sla-red)" : hari > 60 ? "var(--sla-yellow-text)" : "var(--text-secondary)";
   return (
     <span className="text-xs font-medium" style={{ color: warna }}>
       {hari > 60 ? "▲ " : ""}
@@ -102,7 +103,7 @@ export default async function Pembaruan() {
                     </span>{" "}
                     <span className="text-sm">{d.nama_mitra}</span>
                   </span>
-                  <span className="text-xs" style={{ color: "var(--sla-yellow)" }}>
+                  <span className="text-xs" style={{ color: "var(--sla-yellow-text)" }}>
                     berakhir {d.tanggal_berakhir} · {d.sisa_hari} hari lagi
                   </span>
                 </div>
@@ -114,13 +115,13 @@ export default async function Pembaruan() {
                     className="min-w-[14rem] flex-1 rounded-lg border px-3 py-1.5 text-sm"
                     style={{ borderColor: "var(--border)" }}
                   />
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    labelMenunggu="Mengirim…"
                     className="rounded-lg px-3 py-1.5 text-sm font-medium text-white"
                     style={{ background: "var(--renewal-request)" }}
                   >
                     Kirim Permintaan Pembaruan
-                  </button>
+                  </SubmitButton>
                 </form>
               </li>
             ))}

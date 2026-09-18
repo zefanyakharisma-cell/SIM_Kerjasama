@@ -7,6 +7,7 @@ import {
   reaktivasiPending,
   tambahTarget,
 } from "@/lib/actions/workflow";
+import { useKonfirmasi } from "@/components/konfirmasi-dialog";
 
 type Aksi = "approve" | "reject" | "pending" | "revision";
 
@@ -49,10 +50,20 @@ export function PanelApproval({
   const [catatan, setCatatan] = useState("");
   const [galat, setGalat] = useState<string | null>(null);
   const [menunggu, mulai] = useTransition();
+  const { konfirmasi, dialog } = useKonfirmasi();
 
-  function jalankan(aksi: Aksi) {
+  async function jalankan(aksi: Aksi) {
     const pesan = KONFIRMASI[aksi];
-    if (pesan && !window.confirm(pesan)) return;
+    if (
+      pesan &&
+      !(await konfirmasi({
+        judul: aksi === "reject" ? "Tolak dokumen ini?" : "Tangguhkan dokumen ini?",
+        pesan,
+        labelKonfirmasi: LABEL[aksi],
+        nada: aksi === "reject" ? "bahaya" : "tangguh",
+      }))
+    )
+      return;
 
     setGalat(null);
     mulai(async () => {
@@ -107,7 +118,7 @@ export function PanelApproval({
           disabled={menunggu}
           onClick={() => jalankan("pending")}
           className="rounded-lg border-2 px-4 py-2 text-sm font-medium disabled:opacity-60"
-          style={{ borderColor: "var(--status-pending)", color: "var(--status-pending)" }}
+          style={{ borderColor: "var(--status-pending)", color: "var(--status-pending-text)" }}
         >
           {LABEL.pending}
         </button>
@@ -135,6 +146,7 @@ export function PanelApproval({
           {galat}
         </p>
       ) : null}
+      {dialog}
     </div>
   );
 }
@@ -159,6 +171,7 @@ export function EditorDisposisi({
   const [pilih, setPilih] = useState("");
   const [galat, setGalat] = useState<string | null>(null);
   const [menunggu, mulai] = useTransition();
+  const { konfirmasi, dialog } = useKonfirmasi();
 
   function tambah() {
     if (!pilih) return;
@@ -170,12 +183,16 @@ export function EditorDisposisi({
     });
   }
 
-  function hapus(noTarget: number, nama: string) {
+  async function hapus(noTarget: number, nama: string) {
     if (
-      !window.confirm(
-        `Hapus ${nama} dari daftar approver? Jika beliau adalah penghambat ` +
+      !(await konfirmasi({
+        judul: "Hapus approver?",
+        pesan:
+          `Hapus ${nama} dari daftar approver? Jika beliau adalah penghambat ` +
           `terakhir di tier ini, dokumen langsung maju ke tier berikutnya.`,
-      )
+        labelKonfirmasi: "Hapus",
+        nada: "bahaya",
+      }))
     )
       return;
     setGalat(null);
@@ -242,6 +259,7 @@ export function EditorDisposisi({
           {galat}
         </p>
       ) : null}
+      {dialog}
     </div>
   );
 }
@@ -250,19 +268,24 @@ export function EditorDisposisi({
 export function TombolReaktivasi({ idProposal }: { idProposal: number }) {
   const [galat, setGalat] = useState<string | null>(null);
   const [menunggu, mulai] = useTransition();
+  const { konfirmasi, dialog } = useKonfirmasi();
 
   return (
     <div>
       <button
         type="button"
         disabled={menunggu}
-        onClick={() => {
+        onClick={async () => {
           if (
-            !window.confirm(
-              "Mengaktifkan kembali dokumen ini akan mengulang SELURUH approval " +
+            !(await konfirmasi({
+              judul: "Aktifkan kembali dokumen ini?",
+              pesan:
+                "Mengaktifkan kembali dokumen ini akan mengulang SELURUH approval " +
                 "dari Tier 1. Persetujuan yang sudah diberikan pada ronde " +
                 "sebelumnya tetap tercatat, tetapi tidak lagi berlaku. Lanjutkan?",
-            )
+              labelKonfirmasi: "Aktifkan Kembali",
+              nada: "tangguh",
+            }))
           )
             return;
           setGalat(null);
@@ -272,7 +295,7 @@ export function TombolReaktivasi({ idProposal }: { idProposal: number }) {
           });
         }}
         className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-        style={{ background: "var(--status-pending)" }}
+        style={{ background: "var(--status-pending-text)" }}
       >
         Aktifkan Kembali
       </button>
@@ -281,6 +304,7 @@ export function TombolReaktivasi({ idProposal }: { idProposal: number }) {
           {galat}
         </p>
       ) : null}
+      {dialog}
     </div>
   );
 }

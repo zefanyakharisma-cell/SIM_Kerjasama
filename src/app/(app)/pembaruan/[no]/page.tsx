@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
+import { SubmitButton } from "@/components/submit-button";
 import {
   BlokRekomendasi,
   DIMENSI,
@@ -73,45 +74,47 @@ function RingkasEvaluasi({ e }: { e: any }) {
           : "—"}{" "}
         · {e.form_revision}
       </p>
-      <table className="w-full text-xs">
-        <thead>
-          <tr style={{ color: "var(--text-secondary)" }}>
-            <th className="py-1 text-left font-medium">Aspek</th>
-            <th className="px-2 py-1 text-center font-medium">Harapan</th>
-            <th className="px-2 py-1 text-center font-medium">Kepuasan</th>
-            <th className="px-2 py-1 text-center font-medium">Selisih</th>
-          </tr>
-        </thead>
-        <tbody>
-          {DIMENSI.map((d) => {
-            const h = e[`exp_${d.kunci}`];
-            const k = e[`sat_${d.kunci}`];
-            const gap = h != null && k != null ? k - h : null;
-            return (
-              <tr key={d.kunci} className="border-t" style={{ borderColor: "var(--border)" }}>
-                <td className="py-1">{d.id}</td>
-                <td className="px-2 py-1 text-center">{h ?? "—"}</td>
-                <td className="px-2 py-1 text-center">{k ?? "—"}</td>
-                {/* Satisfaction below expectation is the finding worth seeing,
-                    so the sign is what carries the colour (Design §2.1). */}
-                <td
-                  className="px-2 py-1 text-center font-medium"
-                  style={{
-                    color:
-                      gap === null
-                        ? "var(--text-muted)"
-                        : gap < 0
-                          ? "#ec008c"
-                          : "var(--status-approved)",
-                  }}
-                >
-                  {gap === null ? "—" : gap > 0 ? `+${gap}` : gap}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr style={{ color: "var(--text-secondary)" }}>
+              <th className="py-1 text-left font-medium">Aspek</th>
+              <th className="px-2 py-1 text-center font-medium">Harapan</th>
+              <th className="px-2 py-1 text-center font-medium">Kepuasan</th>
+              <th className="px-2 py-1 text-center font-medium">Selisih</th>
+            </tr>
+          </thead>
+          <tbody>
+            {DIMENSI.map((d) => {
+              const h = e[`exp_${d.kunci}`];
+              const k = e[`sat_${d.kunci}`];
+              const gap = h != null && k != null ? k - h : null;
+              return (
+                <tr key={d.kunci} className="border-t" style={{ borderColor: "var(--border)" }}>
+                  <td className="py-1">{d.id}</td>
+                  <td className="px-2 py-1 text-center">{h ?? "—"}</td>
+                  <td className="px-2 py-1 text-center">{k ?? "—"}</td>
+                  {/* Satisfaction below expectation is the finding worth seeing,
+                      so the sign is what carries the colour (Design §2.1). */}
+                  <td
+                    className="px-2 py-1 text-center font-medium"
+                    style={{
+                      color:
+                        gap === null
+                          ? "var(--text-muted)"
+                          : gap < 0
+                            ? "#ec008c"
+                            : "var(--status-approved)",
+                    }}
+                  >
+                    {gap === null ? "—" : gap > 0 ? `+${gap}` : gap}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       <p className="mt-2">
         <strong>
           {e.rekomendasi === "continue" ? "Rekomendasi: lanjutkan" : "Rekomendasi: akhiri"}
@@ -256,24 +259,24 @@ export default async function DetailPembaruan({
               />
             </label>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="submit"
+              <SubmitButton
+                labelMenunggu="Menyimpan…"
                 name="keputusan"
                 value="continue"
                 className="rounded-lg px-3 py-2 text-sm font-medium text-white"
                 style={{ background: "var(--status-active)" }}
               >
                 Lanjutkan
-              </button>
-              <button
-                type="submit"
+              </SubmitButton>
+              <SubmitButton
+                labelMenunggu="Menyimpan…"
                 name="keputusan"
                 value="terminate"
                 className="rounded-lg px-3 py-2 text-sm font-medium text-white"
                 style={{ background: "var(--action-danger)" }}
               >
                 Hentikan
-              </button>
+              </SubmitButton>
             </div>
             <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
               Keputusan ini tercatat bersama alasannya dan tidak dapat dihapus.
@@ -292,9 +295,9 @@ export default async function DetailPembaruan({
           {fak?.status === "submitted" && io ? (
             <form action={bukaUlang}>
               <input type="hidden" name="no_evaluasi" value={fak.no} />
-              <button type="submit" className="text-xs underline">
+              <SubmitButton labelMenunggu="Memproses…" className="text-xs underline">
                 Buka ulang
-              </button>
+              </SubmitButton>
             </form>
           ) : null}
         </div>
@@ -315,13 +318,13 @@ export default async function DetailPembaruan({
               keterangan="Seberapa puas unit dengan pelaksanaannya pada tiap aspek?"
             />
             <BlokRekomendasi />
-            <button
-              type="submit"
+            <SubmitButton
+              labelMenunggu="Mengirim…"
               className="rounded-lg px-4 py-2 text-sm font-medium text-white"
               style={{ background: "var(--midnight)" }}
             >
               Kirim Evaluasi Fakultas
-            </button>
+            </SubmitButton>
             <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
               Setelah dikirim, jawaban terkunci. KUI dapat membukanya kembali bila perlu.
             </p>
@@ -343,9 +346,9 @@ export default async function DetailPembaruan({
           {mitra?.status === "submitted" && io ? (
             <form action={bukaUlang}>
               <input type="hidden" name="no_evaluasi" value={mitra.no} />
-              <button type="submit" className="text-xs underline">
+              <SubmitButton labelMenunggu="Memproses…" className="text-xs underline">
                 Buka ulang & terbitkan tautan baru
-              </button>
+              </SubmitButton>
             </form>
           ) : null}
         </div>
@@ -395,13 +398,13 @@ export default async function DetailPembaruan({
               className="min-w-[14rem] flex-1 rounded-lg border px-3 py-2 text-sm"
               style={{ borderColor: "var(--border)" }}
             />
-            <button
-              type="submit"
+            <SubmitButton
+              labelMenunggu="Memproses…"
               className="rounded-lg px-4 py-2 text-sm font-medium text-white"
               style={{ background: "var(--midnight)" }}
             >
               Buat Proposal Perpanjangan
-            </button>
+            </SubmitButton>
           </form>
         </section>
       ) : null}

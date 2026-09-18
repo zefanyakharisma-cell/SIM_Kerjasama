@@ -16,7 +16,7 @@ export function SlaFlag({
 }) {
   if (beku) {
     return (
-      <span className="text-xs" style={{ color: "var(--status-pending)" }}>
+      <span className="text-xs" style={{ color: "var(--status-pending-text)" }}>
         ⏸ Jam berhenti
       </span>
     );
@@ -27,7 +27,7 @@ export function SlaFlag({
     bendera === "red"
       ? "var(--sla-red)"
       : bendera === "yellow"
-        ? "var(--sla-yellow)"
+        ? "var(--sla-yellow-text)"
         : "var(--text-secondary)";
 
   return (

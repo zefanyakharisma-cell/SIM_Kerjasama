@@ -19,6 +19,7 @@ export function SearchSelect({
   placeholder,
   className,
   onValueChange,
+  ariaLabel,
 }: {
   name: string;
   options: { id: number; label: string }[];
@@ -26,6 +27,8 @@ export function SearchSelect({
   placeholder?: string;
   className?: string;
   onValueChange?: (id: number | null) => void;
+  /** Accessible name when the field is not wrapped in a <label>. */
+  ariaLabel?: string;
 }) {
   const awal = options.find((o) => o.id === defaultValue) ?? null;
   const [teks, setTeks] = useState(awal?.label ?? "");
@@ -48,6 +51,7 @@ export function SearchSelect({
         value={teks}
         onChange={(e) => ubah(e.target.value)}
         placeholder={placeholder}
+        aria-label={ariaLabel}
         className={className ?? inputKelas}
         style={inputGaya}
       />

@@ -130,6 +130,7 @@ export function MitraPicker({
                 options={partners.map((p) => ({ id: p.id, label: p.nama }))}
                 defaultValue={b.idPartnerAwal}
                 placeholder="Cari nama mitra..."
+                ariaLabel="Mitra"
                 onValueChange={(idBaru) => setIdPartnerTerpilih((s) => ({ ...s, [b.key]: idBaru }))}
               />
 
@@ -168,6 +169,7 @@ export function MitraPicker({
                       .filter((c) => c.id_partner === idPartnerTerpilih[b.key])
                       .map((c) => ({ id: c.id, label: c.nama }))}
                     placeholder="Cari nama kontak..."
+                    ariaLabel="Kontak Mitra"
                   />
                 ) : (
                   <FormKontak i={i} />
@@ -179,12 +181,14 @@ export function MitraPicker({
               <input
                 name={`mitra_baru_nama_${i}`}
                 placeholder="Nama Mitra (*)"
+                aria-label="Nama Mitra"
                 required
                 className={`${inputKelas} sm:col-span-2`}
                 style={inputGaya}
               />
               <select
                 name={`mitra_baru_negara_${i}`}
+                aria-label="Negara"
                 required
                 className={inputKelas}
                 style={inputGaya}
@@ -199,7 +203,7 @@ export function MitraPicker({
                   </option>
                 ))}
               </select>
-              <select name={`mitra_baru_jenis_${i}`} className={inputKelas} style={inputGaya} defaultValue="">
+              <select name={`mitra_baru_jenis_${i}`} aria-label="Jenis Mitra" className={inputKelas} style={inputGaya} defaultValue="">
                 <option value="">Jenis Mitra</option>
                 {jenisMitra.map((j) => (
                   <option key={j.id} value={j.id}>
@@ -207,12 +211,13 @@ export function MitraPicker({
                   </option>
                 ))}
               </select>
-              <input name={`mitra_baru_kota_${i}`} placeholder="Kota" className={inputKelas} style={inputGaya} />
-              <input name={`mitra_baru_alamat_${i}`} placeholder="Alamat" className={inputKelas} style={inputGaya} />
-              <input name={`mitra_baru_telp_${i}`} placeholder="No. Telp" className={inputKelas} style={inputGaya} />
+              <input name={`mitra_baru_kota_${i}`} placeholder="Kota" aria-label="Kota" className={inputKelas} style={inputGaya} />
+              <input name={`mitra_baru_alamat_${i}`} placeholder="Alamat" aria-label="Alamat" className={inputKelas} style={inputGaya} />
+              <input name={`mitra_baru_telp_${i}`} placeholder="No. Telp" aria-label="No. Telp Mitra" className={inputKelas} style={inputGaya} />
               <input
                 name={`mitra_baru_homepage_${i}`}
                 placeholder="Homepage"
+                aria-label="Homepage"
                 className={`${inputKelas} sm:col-span-2`}
                 style={inputGaya}
               />
@@ -253,13 +258,15 @@ function FormKontak({ i }: { i: number }) {
       <input
         name={`kontak_nama_${i}`}
         placeholder="Nama Kontak"
+        aria-label="Nama Kontak"
         className={`${inputKelas} sm:col-span-2`}
         style={inputGaya}
       />
-      <input name={`kontak_jabatan_${i}`} placeholder="Jabatan" className={inputKelas} style={inputGaya} />
-      <input name={`kontak_email_${i}`} type="email" placeholder="Email" className={inputKelas} style={inputGaya} />
+      <input name={`kontak_jabatan_${i}`} placeholder="Jabatan" aria-label="Jabatan Kontak" className={inputKelas} style={inputGaya} />
+      <input name={`kontak_email_${i}`} type="email" placeholder="Email" aria-label="Email Kontak" className={inputKelas} style={inputGaya} />
       <input
         name={`kontak_telp_${i}`}
+        aria-label="No. Telp Kontak"
         placeholder="No. Telp"
         className={`${inputKelas} sm:col-span-2`}
         style={inputGaya}

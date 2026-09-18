@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * Master Data — a focused view/edit surface for the entities the dashboard
@@ -161,6 +162,7 @@ export default async function MasterData({
                   <input type="hidden" name="id" value={p.id} />
                   <input
                     name="latitude"
+                    aria-label={`Latitude ${p.nama}`}
                     defaultValue={p.latitude ?? ""}
                     placeholder="lat"
                     className="w-24 rounded-lg border px-2 py-1 text-xs"
@@ -168,14 +170,15 @@ export default async function MasterData({
                   />
                   <input
                     name="longitude"
+                    aria-label={`Longitude ${p.nama}`}
                     defaultValue={p.longitude ?? ""}
                     placeholder="lon"
                     className="w-24 rounded-lg border px-2 py-1 text-xs"
                     style={gaya}
                   />
-                  <button type="submit" className="text-xs underline">
+                  <SubmitButton labelMenunggu="Menyimpan…" className="text-xs underline">
                     Simpan
-                  </button>
+                  </SubmitButton>
                 </form>
               </li>
             ))}
@@ -211,6 +214,7 @@ export default async function MasterData({
                   <input type="hidden" name="id" value={j.id} />
                   <select
                     name="id_pegawai"
+                    aria-label={`Kontak pegawai ${j.nama}`}
                     defaultValue={j.id_pegawai ?? ""}
                     className="rounded-lg border px-2 py-1 text-xs"
                     style={gaya}
@@ -222,15 +226,15 @@ export default async function MasterData({
                       </option>
                     ))}
                   </select>
-                  <button type="submit" className="text-xs underline">
+                  <SubmitButton labelMenunggu="Menyimpan…" className="text-xs underline">
                     Simpan
-                  </button>
+                  </SubmitButton>
                 </form>
               </li>
             ))}
           </ul>
           <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-            Ubah tier approval di Settings. Pegawai yang dipilih di sini
+            Ubah tier approval di Pengaturan. Pegawai yang dipilih di sini
             otomatis menjadi Nama Kontak/No.HP jabatan ini di laporan Kerja
             Sama Aktif.
           </p>
@@ -269,17 +273,17 @@ export default async function MasterData({
         <div className="rounded-xl border bg-white p-4" style={gaya}>
           <h2 className="mb-3 text-sm font-semibold">Tambah Pegawai</h2>
           <form action={tambahPegawai} className="grid gap-2 sm:grid-cols-3">
-            <input name="nama" required placeholder="Nama" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
-            <input name="email" type="email" placeholder="Email" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
-            <input name="no_hp" placeholder="No. HP" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
+            <input name="nama" required placeholder="Nama" aria-label="Nama" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
+            <input name="email" type="email" placeholder="Email" aria-label="Email" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
+            <input name="no_hp" placeholder="No. HP" aria-label="No. HP" className="rounded-lg border px-2 py-1 text-sm" style={gaya} />
             <div className="sm:col-span-3">
-              <button
-                type="submit"
+              <SubmitButton
+                labelMenunggu="Menyimpan…"
                 className="rounded-lg px-4 py-2 text-sm font-medium text-white"
                 style={{ background: "var(--midnight)" }}
               >
                 Simpan
-              </button>
+              </SubmitButton>
             </div>
           </form>
         </div>

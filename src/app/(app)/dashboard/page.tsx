@@ -62,7 +62,7 @@ function Kartu({
         {nilai}
       </div>
       {catatan ? (
-        <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
           {catatan}
         </div>
       ) : null}
@@ -506,10 +506,10 @@ export default async function Dashboard({
           href="/master-data?tab=mitra&jenis=domestik"
         />
         <Kartu
-          label="Dokumen Akan Kadaluarsa"
+          label="Dokumen Akan Kedaluwarsa"
           nilai={akanBerakhir ?? 0}
           catatan={`Dalam ${bulan} bulan ke depan`}
-          warna="var(--sla-yellow)"
+          warna="var(--sla-yellow-text)"
           href="/kerja-sama?tab=berakhir"
         />
         <Kartu
@@ -558,49 +558,51 @@ export default async function Dashboard({
             Rata-rata dari evaluasi pembaruan. Selisih negatif berarti kepuasan di
             bawah harapan.
           </p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
-                <th className="py-2 font-medium">Aspek</th>
-                <th className="px-2 py-2 text-center font-medium">Harapan</th>
-                <th className="px-2 py-2 text-center font-medium">Kepuasan</th>
-                <th className="px-2 py-2 text-center font-medium">Selisih</th>
-                <th className="px-2 py-2 text-right font-medium">Dokumen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ringkasGap.map((r: any) => {
-                const h = r.harapan / r.n;
-                const k = r.kepuasan / r.n;
-                const selisih = k - h;
-                return (
-                  <tr key={r.dimensi} className="border-t" style={{ borderColor: "var(--border)" }}>
-                    <td className="py-2">{r.dimensi}</td>
-                    <td className="px-2 py-2 text-center">{h.toFixed(2)}</td>
-                    <td className="px-2 py-2 text-center">{k.toFixed(2)}</td>
-                    <td
-                      className="px-2 py-2 text-center font-medium"
-                      style={{ color: selisih < 0 ? "#ec008c" : "var(--status-approved)" }}
-                    >
-                      {selisih > 0 ? "+" : ""}
-                      {selisih.toFixed(2)}
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      {/* The drill-down: any figure leads to the partnerships
-                          behind it (Q8). */}
-                      <Link
-                        href="/pembaruan"
-                        className="underline"
-                        style={{ color: "var(--text-secondary)" }}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
+                  <th className="py-2 font-medium">Aspek</th>
+                  <th className="px-2 py-2 text-center font-medium">Harapan</th>
+                  <th className="px-2 py-2 text-center font-medium">Kepuasan</th>
+                  <th className="px-2 py-2 text-center font-medium">Selisih</th>
+                  <th className="px-2 py-2 text-right font-medium">Dokumen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ringkasGap.map((r: any) => {
+                  const h = r.harapan / r.n;
+                  const k = r.kepuasan / r.n;
+                  const selisih = k - h;
+                  return (
+                    <tr key={r.dimensi} className="border-t" style={{ borderColor: "var(--border)" }}>
+                      <td className="py-2">{r.dimensi}</td>
+                      <td className="px-2 py-2 text-center">{h.toFixed(2)}</td>
+                      <td className="px-2 py-2 text-center">{k.toFixed(2)}</td>
+                      <td
+                        className="px-2 py-2 text-center font-medium"
+                        style={{ color: selisih < 0 ? "#ec008c" : "var(--status-approved)" }}
                       >
-                        {r.dokumen.size} dokumen
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        {selisih > 0 ? "+" : ""}
+                        {selisih.toFixed(2)}
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        {/* The drill-down: any figure leads to the partnerships
+                            behind it (Q8). */}
+                        <Link
+                          href="/pembaruan"
+                          className="underline"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {r.dokumen.size} dokumen
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
     </div>

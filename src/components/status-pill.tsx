@@ -21,8 +21,14 @@ const WARNA: Record<string, string> = {
   Diarsipkan: "var(--status-archived)",
 };
 
-/** A frozen document reads "Ditangguhkan", never a bare "Pending" (Design §4.1). */
-const LABEL: Record<string, string> = { Pending: "Ditangguhkan" };
+/**
+ * A frozen document reads "Ditangguhkan", never a bare "Pending" (Design §4.1).
+ * "Kedaluarsa" is the stored DB value; users see the KBBI spelling.
+ */
+const LABEL: Record<string, string> = {
+  Pending: "Ditangguhkan",
+  Kedaluarsa: "Kedaluwarsa",
+};
 
 const ALASAN: Record<string, string> = {
   rejected: "Ditolak",
