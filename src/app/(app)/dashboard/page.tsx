@@ -6,7 +6,7 @@ import { PetaMitra, type Pin } from "@/components/peta-mitra";
 import { StudioGrafik, type Grafik } from "@/components/studio-grafik";
 import { GrafikForm, grafikDariForm, type NilaiGrafik } from "@/components/grafik-form";
 import { Tabs } from "@/components/tabs";
-import { STATUS_DOKUMEN_AKTIF } from "@/lib/laporan";
+import { STATUS_DOKUMEN_AKTIF, lolosIlike } from "@/lib/laporan";
 
 /**
  * Dashboard — the control panel (PRD §8.1).
@@ -93,9 +93,10 @@ function Kartu({
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const { tab } = await searchParams;
+  const sp = await searchParams;
+  const { tab } = sp;
   const aktif: TabKey = (tab as TabKey) in TAB ? (tab as TabKey) : "dashboard";
   const supabase = await supabaseServer();
 
@@ -187,74 +188,185 @@ export default async function Dashboard({
   }
 
   // -------------------------------------------------------------- Activity Log
+  // One row per event, REA-style: the document (resource), what was done
+  // (event), who did it and who it went to (agents). v_log_aktivitas resolves
+  // all of it from the append-only approval log.
   if (aktif === "aktivitas") {
-    const { data: aktivitas } = await supabase
-      .from("riwayat_approval")
-      .select(
-        `id, aksi, catatan, tanggal, waktu, id_proposal_dokumen,
-         akun:id_akun ( jabatan ( nama ) )`,
-      )
-      .order("tanggal", { ascending: false })
-      .order("waktu", { ascending: false })
-      .limit(200);
-
     const KEGIATAN: Record<string, string> = {
-      created: "membuat proposal",
-      submitted: "mengajukan dokumen",
-      dispositioned: "mengirim disposisi approval",
-      approve: "menyetujui",
-      reject: "menolak",
-      pending: "menangguhkan",
-      revision_requested: "meminta revisi",
-      reactivated: "mengaktifkan kembali",
-      disposition_added: "menambah approver",
-      disposition_removed: "menghapus approver",
-      activated: "mengaktifkan dokumen",
-      archived: "mengarsipkan dokumen",
-      renewal_requested: "mengirim disposisi evaluasi pembaruan",
-      evaluation_submitted: "mengirim evaluasi",
-      renewal_decided: "memutuskan pembaruan",
-      evaluation_reopened: "membuka ulang evaluasi",
+      created: "Membuat proposal",
+      submitted: "Mengajukan dokumen",
+      dispositioned: "Mengirim disposisi approval",
+      approve: "Menyetujui",
+      reject: "Menolak",
+      pending: "Menangguhkan",
+      revision_requested: "Meminta revisi",
+      reactivated: "Mengaktifkan kembali",
+      disposition_added: "Menambah approver",
+      disposition_removed: "Menghapus approver",
+      activated: "Mengaktifkan dokumen",
+      archived: "Mengarsipkan dokumen",
+      renewal_requested: "Mengirim disposisi evaluasi",
+      evaluation_submitted: "Mengirim evaluasi",
+      renewal_decided: "Memutuskan pembaruan",
+      evaluation_reopened: "Membuka ulang evaluasi",
     };
+    const PER = 50;
+    const tgl = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "");
+    const f = {
+      aksi: sp.aksi && Object.hasOwn(KEGIATAN, sp.aksi) ? sp.aksi : "",
+      q: (sp.q ?? "").trim(),
+      dari: tgl(sp.dari),
+      sampai: tgl(sp.sampai),
+    };
+    const adaFilter = Boolean(f.aksi || f.q || f.dari || f.sampai);
+    const hal = Math.max(1, Number(sp.hal ?? 1) || 1);
+
+    let q: any = supabase.from("v_log_aktivitas").select("*", { count: "exact" });
+    if (f.aksi) q = q.eq("aksi", f.aksi);
+    if (f.q) q = q.ilike("cari", `%${lolosIlike(f.q)}%`);
+    if (f.dari) q = q.gte("waktu", f.dari);
+    // waktu is a timestamp: "until" a date includes that whole day.
+    if (f.sampai) q = q.lte("waktu", `${f.sampai}T23:59:59.999`);
+    const { data: aktivitas, count } = await q
+      .order("waktu", { ascending: false })
+      .order("id", { ascending: false })
+      .range((hal - 1) * PER, hal * PER - 1);
+    const halAkhir = Math.max(1, Math.ceil((count ?? 0) / PER));
+    const tautan = (h: number) =>
+      `/dashboard?${new URLSearchParams({
+        tab: "aktivitas",
+        ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)),
+        hal: String(h),
+      })}` as Route;
+
+    const gaya = { borderColor: "var(--border)" };
+    const input = "w-full rounded border px-2 py-1 text-xs";
+    const labelGaya = { color: "var(--text-secondary)" };
 
     return (
       <div>
         {judul}
         {nav}
-        <ul className="space-y-1.5">
-          {(aktivitas ?? []).map((a: any) => (
-            <li
-              key={a.id}
-              className="flex flex-wrap gap-2 rounded-lg border bg-white px-3 py-2 text-sm"
-              style={{ borderColor: "var(--border)" }}
+        <form
+          method="get"
+          action="/dashboard"
+          className="mb-3 grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-5"
+          style={gaya}
+        >
+          <input type="hidden" name="tab" value="aktivitas" />
+          <label className="block text-xs sm:col-span-2">
+            <span className="mb-0.5 block" style={labelGaya}>Dokumen / Mitra</span>
+            <input
+              name="q"
+              defaultValue={f.q}
+              placeholder="No. dokumen, #id, atau nama mitra…"
+              className={input}
+              style={gaya}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="mb-0.5 block" style={labelGaya}>Aksi</span>
+            <select name="aksi" defaultValue={f.aksi} className={input} style={gaya}>
+              <option value="">Semua</option>
+              {Object.entries(KEGIATAN).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs">
+            <span className="mb-0.5 block" style={labelGaya}>Dari / sampai</span>
+            <span className="flex gap-1">
+              <input type="date" name="dari" aria-label="Dari tanggal" defaultValue={f.dari} className={input} style={gaya} />
+              <input type="date" name="sampai" aria-label="Sampai tanggal" defaultValue={f.sampai} className={input} style={gaya} />
+            </span>
+          </label>
+          <span className="flex items-end gap-1">
+            <button
+              type="submit"
+              className="rounded px-3 py-1 text-xs font-medium text-white"
+              style={{ background: "var(--midnight)" }}
             >
-              <span className="whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
-                {a.tanggal} {String(a.waktu).slice(0, 5)}
-              </span>
-              <span>
-                {/* The audit identifies positions, never individuals (§12.3). */}
-                <strong>{a.akun?.jabatan?.nama ?? "Sistem"}</strong>{" "}
-                {KEGIATAN[a.aksi] ?? a.aksi}
-                {a.id_proposal_dokumen ? (
-                  <>
-                    {" "}
-                    <Link href={`/kerja-sama/${a.id_proposal_dokumen}`} className="underline">
-                      #{a.id_proposal_dokumen}
-                    </Link>
-                  </>
-                ) : null}
-                {a.catatan ? (
-                  <span style={{ color: "var(--text-secondary)" }}> — {a.catatan}</span>
-                ) : null}
-              </span>
-            </li>
-          ))}
-          {!aktivitas?.length ? (
-            <li className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Belum ada aktivitas.
-            </li>
-          ) : null}
-        </ul>
+              Saring
+            </button>
+            {adaFilter ? (
+              <Link href="/dashboard?tab=aktivitas" className="rounded border px-3 py-1 text-xs" style={gaya}>
+                Reset
+              </Link>
+            ) : null}
+          </span>
+        </form>
+
+        <div className="overflow-x-auto rounded-xl border bg-white" style={gaya}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left" style={labelGaya}>
+                {["Waktu", "Dokumen", "Dari", "Aksi", "Kepada", "Catatan"].map((l) => (
+                  <th key={l} className="px-3 py-2 font-medium">
+                    {l}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(aktivitas ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center" style={{ color: "var(--text-muted)" }}>
+                    {adaFilter ? "Tidak ada aktivitas yang cocok dengan filter ini." : "Belum ada aktivitas."}
+                  </td>
+                </tr>
+              ) : (
+                (aktivitas ?? []).map((a: any) => (
+                  <tr key={a.id} className="border-t align-top" style={gaya}>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                      {String(a.waktu).slice(0, 16).replace("T", " ")}
+                    </td>
+                    <td className="px-3 py-2">
+                      {a.id_proposal ? (
+                        <Link href={`/kerja-sama/${a.id_proposal}`} className="no-dokumen underline">
+                          {a.no_dokumen ?? `#${a.id_proposal}`}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                      <span className="block text-xs" style={labelGaya}>
+                        {[a.jenis_kerjasama, a.nama_mitra].filter(Boolean).join(" · ")}
+                      </span>
+                    </td>
+                    {/* The audit identifies positions, never individuals (§12.3). */}
+                    <td className="px-3 py-2 font-medium">{a.dari}</td>
+                    <td className="px-3 py-2">{KEGIATAN[a.aksi] ?? a.aksi}</td>
+                    <td className="px-3 py-2" style={labelGaya}>
+                      {a.kepada ?? "—"}
+                    </td>
+                    <td className="px-3 py-2" style={labelGaya}>
+                      {a.catatan ?? "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {halAkhir > 1 ? (
+          <nav className="mt-3 flex items-center gap-3 text-sm">
+            {hal > 1 ? (
+              <Link href={tautan(hal - 1)} className="underline">
+                ← Sebelumnya
+              </Link>
+            ) : null}
+            <span className="text-xs" style={labelGaya}>
+              halaman {hal} dari {halAkhir}
+            </span>
+            {hal < halAkhir ? (
+              <Link href={tautan(hal + 1)} className="underline">
+                Berikutnya →
+              </Link>
+            ) : null}
+          </nav>
+        ) : null}
       </div>
     );
   }
