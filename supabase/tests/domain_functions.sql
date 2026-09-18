@@ -490,6 +490,25 @@ begin
       status_gerbang_pembaruan(v_no);
   end if;
 
+  -- A document under evaluation reads "Disposisi Evaluasi"; on a terminate
+  -- gate, expiry archives it as not_renewed. Rolled back so the reopen checks
+  -- below still see a live document.
+  if (select status_tampil from v_daftar_dokumen where no_dokumen_kerjasama = v_no)
+     <> 'Disposisi Evaluasi' then
+    raise exception 'FAIL 9.9i: evaluated document does not read Disposisi Evaluasi';
+  end if;
+  begin
+    update dokumen_kerja_sama set tanggal_berakhir = current_date - 1 where no = v_no;
+    perform sapu_kedaluarsa();
+    if (select status || '/' || alasan_arsip from dokumen_kerja_sama where no = v_no)
+       <> 'Diarsipkan/not_renewed' then
+      raise exception 'FAIL 9.9j: terminate gate did not archive as not_renewed';
+    end if;
+    raise exception 'rollback_9_9j';
+  exception when others then
+    if sqlerrm <> 'rollback_9_9j' then raise; end if;
+  end;
+
   -- §9.10 — reopening supersedes without editing, and the gate reads the latest.
   select buka_ulang_evaluasi(v_mitra) into v_token2;
   if (select status from evaluasi where no = v_mitra) <> 'superseded' then

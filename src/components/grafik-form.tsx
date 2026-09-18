@@ -133,6 +133,7 @@ export function GrafikForm({
           ["", "Aktif & Akan Berakhir (bawaan)"],
           ["Aktif", "Aktif"],
           ["Akan Berakhir", "Akan Berakhir"],
+          ["Disposisi Evaluasi", "Disposisi Evaluasi"],
           ["Kedaluarsa", "Kedaluwarsa"],
           ["Diarsipkan", "Diarsipkan"],
           ["Draft", "Draft"],

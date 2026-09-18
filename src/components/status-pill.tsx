@@ -17,6 +17,7 @@ const WARNA: Record<string, string> = {
   Ditolak: "var(--action-danger)",
   Aktif: "var(--status-active)",
   "Akan Berakhir": "var(--sla-yellow)",
+  "Disposisi Evaluasi": "var(--status-progress)",
   Kedaluarsa: "var(--status-archived)",
   Diarsipkan: "var(--status-archived)",
 };
@@ -33,7 +34,8 @@ const LABEL: Record<string, string> = {
 const ALASAN: Record<string, string> = {
   rejected: "Ditolak",
   expired_without_renewal: "Kedaluwarsa",
-  superseded_by_renewal: "Diperbarui",
+  not_renewed: "Tidak Diperpanjang",
+  superseded_by_renewal: "Diperpanjang",
   terminated_early: "Diakhiri lebih awal",
 };
 
