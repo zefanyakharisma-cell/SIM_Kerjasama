@@ -6,8 +6,8 @@ import { SubmitButton } from "@/components/submit-button";
 /**
  * Studio Grafik Mitra — the rendering half (PRD §8.1).
  *
- * IO Admin configures up to five charts in Settings; this only draws what was
- * saved. The aggregation happens in Postgres (`agregasi_grafik`), so a chart
+ * Each account manages its own charts from the Dashboard; this draws them and
+ * hosts the controls. The aggregation happens in Postgres (`agregasi_grafik`), so a chart
  * obeys the same RLS as every list — it is not a back door into rows the
  * account could not otherwise see.
  *
@@ -143,40 +143,65 @@ function Kanvas({ g }: { g: Grafik }) {
 
 export function StudioGrafik({
   grafik,
-  tersembunyi,
-  onSembunyikan,
-  onTampilkan,
   onPindah,
+  onHapus,
+  onReset,
+  editor,
+  tambah,
 }: {
   grafik: Grafik[];
-  // Per-account preference edits (revision request: everyone can edit and
-  // save their own Studio Grafik view). Optional so the component still works
+  // Every account owns its charts. All optional so the component still works
   // wherever charts are shown read-only.
-  tersembunyi?: { id: number; judul: string }[];
-  onSembunyikan?: AksiGrafik;
-  onTampilkan?: AksiGrafik;
   onPindah?: AksiGrafik;
+  onHapus?: AksiGrafik;
+  onReset?: AksiGrafik;
+  /** The edit form for each chart, rendered on the server, keyed by chart id. */
+  editor?: Record<number, React.ReactNode>;
+  /** The "Tambah Grafik" form, or absent once the account is at its limit. */
+  tambah?: React.ReactNode;
 }) {
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Studio Grafik Mitra</h2>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="rounded-lg border px-3 py-1.5 text-xs"
-          style={{ borderColor: "var(--border)", background: "white" }}
-        >
-          Ekspor PDF
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onReset ? (
+            <form action={onReset}>
+              <SubmitButton
+                labelMenunggu="Memproses…"
+                className="rounded-lg border px-3 py-1.5 text-xs"
+                style={{ borderColor: "var(--border)", background: "white" }}
+              >
+                Reset ke default
+              </SubmitButton>
+            </form>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-lg border px-3 py-1.5 text-xs"
+            style={{ borderColor: "var(--border)", background: "white" }}
+          >
+            Ekspor PDF
+          </button>
+        </div>
       </div>
+
+      {tambah ? (
+        <details className="mb-3 rounded-xl border bg-white p-3" style={{ borderColor: "var(--border)" }}>
+          <summary className="cursor-pointer text-sm font-medium" style={{ color: "var(--midnight)" }}>
+            + Tambah Grafik
+          </summary>
+          <div className="mt-3">{tambah}</div>
+        </details>
+      ) : null}
 
       {grafik.length === 0 ? (
         <div
           className="rounded-xl border bg-white p-10 text-center text-sm"
           style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
-          Belum ada grafik tersimpan. KUI Admin dapat menambahkannya di Pengaturan.
+          Belum ada grafik. Tambahkan grafik baru atau kembalikan grafik bawaan.
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
@@ -188,7 +213,7 @@ export function StudioGrafik({
             >
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-medium">{g.judul}</h3>
-                {onSembunyikan || onPindah ? (
+                {onHapus || onPindah ? (
                   <div className="flex items-center gap-1 text-xs">
                     {onPindah ? (
                       <>
@@ -218,39 +243,34 @@ export function StudioGrafik({
                         </form>
                       </>
                     ) : null}
-                    {onSembunyikan ? (
-                      <form action={onSembunyikan}>
+                    {onHapus ? (
+                      <form action={onHapus}>
                         <input type="hidden" name="id_chart" value={g.id} />
                         <SubmitButton
-                          labelMenunggu="Memproses…"
+                          labelMenunggu="Menghapus…"
                           className="rounded px-1.5 py-0.5 underline hover:bg-black/5"
+                          style={{ color: "var(--action-danger)" }}
                         >
-                          Sembunyikan
+                          Hapus
                         </SubmitButton>
                       </form>
                     ) : null}
                   </div>
                 ) : null}
               </div>
+              {editor?.[g.id] ? (
+                <details className="mb-2 text-xs">
+                  <summary className="cursor-pointer underline" style={{ color: "var(--text-secondary)" }}>
+                    Edit
+                  </summary>
+                  <div className="mt-2">{editor[g.id]}</div>
+                </details>
+              ) : null}
               <Kanvas g={g} />
             </div>
           ))}
         </div>
       )}
-
-      {onTampilkan && tersembunyi?.length ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-          <span>Disembunyikan:</span>
-          {tersembunyi.map((g) => (
-            <form key={g.id} action={onTampilkan}>
-              <input type="hidden" name="id_chart" value={g.id} />
-              <SubmitButton labelMenunggu="Memproses…" className="underline">
-                {g.judul}
-              </SubmitButton>
-            </form>
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }

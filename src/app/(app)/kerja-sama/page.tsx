@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { supabaseServer } from "@/lib/supabase/server";
+import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
+import { kirimPermintaanPembaruan } from "@/lib/actions/pembaruan";
 import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
+import { SubmitButton } from "@/components/submit-button";
+import { Tabs } from "@/components/tabs";
+import { GERBANG } from "@/components/pembaruan-panel";
 import {
   KOLOM,
   PER_HALAMAN,
@@ -165,6 +169,166 @@ function TabelProposal({
   );
 }
 
+/**
+ * The spec-fixed column set for Kerja Sama Aktif (revision V2 §1), shared by
+ * Akan Berakhir — an expiring document is still an active one. On Akan
+ * Berakhir the table gains the countdown and the renewal state, and the row
+ * is where IO sends the evaluation disposition to the unit and partner; the
+ * tracking itself lives on the document's Pembaruan tab.
+ */
+function TabelDokumen({
+  baris,
+  halaman,
+  pembaruan,
+}: {
+  baris: any[];
+  halaman: number;
+  pembaruan?: {
+    gerbang: Map<number, string>;
+    io: boolean;
+    minta: (formData: FormData) => Promise<void>;
+  };
+}) {
+  const kolom = [
+    "No",
+    "Nama Mitra",
+    "Jenis Dokumen",
+    "Agenda Kerja Sama",
+    "Pengusul",
+    "Lingkup",
+    "Tanggal Mulai",
+    "Tanggal Berakhir",
+    ...(pembaruan ? ["Sisa Hari", "Status Pembaruan"] : []),
+    "No. Dokumen",
+    "Action",
+  ];
+  return (
+    <div className="overflow-x-auto rounded-xl border bg-white" style={{ borderColor: "var(--border)" }}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
+            {kolom.map((label) => (
+              <th key={label} className="px-3 py-2 font-medium">
+                {label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {baris.length === 0 ? (
+            <tr>
+              <td colSpan={kolom.length} className="px-4 py-10 text-center" style={{ color: "var(--text-muted)" }}>
+                Belum ada dokumen pada tab ini.
+              </td>
+            </tr>
+          ) : (
+            baris.map((b: any, i: number) => {
+              const laporan = `/kerja-sama/${b.id_proposal}/laporan`;
+              const g = pembaruan?.gerbang.get(b.no_dokumen_kerjasama);
+              return (
+                <tr key={b.id_proposal} className="border-t" style={{ borderColor: "var(--border)" }}>
+                  <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                    {(halaman - 1) * PER_HALAMAN + i + 1}
+                  </td>
+                  <td className="px-3 py-2">{b.nama_mitra ?? "—"}</td>
+                  <td className="px-3 py-2">{b.jenis_kerjasama}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                    {b.agenda ?? "—"}
+                  </td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                    {b.jabatan_pengusul ?? "—"}
+                  </td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                    {b.lingkup ?? "—"}
+                  </td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                    <Tanggal nilai={b.tanggal_mulai} />
+                  </td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
+                    <Tanggal nilai={b.tanggal_berakhir} />
+                  </td>
+                  {pembaruan ? (
+                    <>
+                      <td className="px-3 py-2">
+                        <span
+                          className="text-xs font-medium"
+                          style={{
+                            color:
+                              b.sisa_hari !== null && b.sisa_hari <= 60
+                                ? "var(--sla-red)"
+                                : "var(--text-secondary)",
+                          }}
+                        >
+                          {b.sisa_hari === null ? "—" : `${b.sisa_hari} hari`}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {g ? (
+                          <span className="font-medium" style={{ color: GERBANG[g]?.warna }}>
+                            ● {GERBANG[g]?.label ?? g}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-muted)" }}>Belum dikirim</span>
+                        )}
+                      </td>
+                    </>
+                  ) : null}
+                  <td className="px-3 py-2 no-dokumen">{b.no_dokumen ?? `draf-${b.id_proposal}`}</td>
+                  <td className="px-3 py-2">
+                    <span className="flex items-center justify-center gap-1">
+                      <Link
+                        href={(g ? `${laporan}?tab=pembaruan` : laporan) as any}
+                        aria-label="Lihat laporan dokumen"
+                        className="inline-flex rounded p-1 hover:bg-black/5"
+                        style={{ color: "var(--midnight)" }}
+                      >
+                        <IkonCari />
+                      </Link>
+                      {pembaruan && !g && pembaruan.io && b.no_dokumen_kerjasama ? (
+                        // Native disclosure, no client JS: the optional message
+                        // for the unit, then the send.
+                        <details className="relative">
+                          <summary
+                            className="cursor-pointer list-none whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-white"
+                            style={{ background: "var(--renewal-request)" }}
+                          >
+                            Kirim Disposisi Evaluasi
+                          </summary>
+                          <form
+                            action={pembaruan.minta}
+                            className="absolute right-0 z-10 mt-1 w-64 space-y-2 rounded-lg border bg-white p-3 shadow"
+                            style={{ borderColor: "var(--border)" }}
+                          >
+                            <input type="hidden" name="no" value={b.no_dokumen_kerjasama} />
+                            <textarea
+                              name="pesan"
+                              rows={2}
+                              placeholder="Pesan untuk unit pemilik (opsional)…"
+                              className="w-full rounded border px-2 py-1 text-xs"
+                              style={{ borderColor: "var(--border)" }}
+                            />
+                            <SubmitButton
+                              labelMenunggu="Mengirim…"
+                              className="w-full rounded px-2 py-1 text-xs font-medium text-white"
+                              style={{ background: "var(--renewal-request)" }}
+                            >
+                              Kirim ke Unit &amp; Mitra
+                            </SubmitButton>
+                          </form>
+                        </details>
+                      ) : null}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default async function CariKerjaSama({
   searchParams,
 }: {
@@ -177,6 +341,25 @@ export default async function CariKerjaSama({
 
   const supabase = await supabaseServer();
   const { baris, total } = await ambilHalaman(supabase, tab, filter, halaman);
+  const io = isIO(await akunSaatIni());
+
+  // Renewal state for the rows on this page of Akan Berakhir; no row = not sent.
+  const nomor = baris.map((b: any) => b.no_dokumen_kerjasama).filter(Boolean);
+  const { data: jalan } =
+    tab === "berakhir" && nomor.length
+      ? await supabase
+          .from("v_pembaruan")
+          .select("no_dokumen_kerjasama, gerbang")
+          .in("no_dokumen_kerjasama", nomor)
+      : { data: [] };
+  const gerbang = new Map<number, string>(
+    (jalan ?? []).map((r: any) => [r.no_dokumen_kerjasama, r.gerbang]),
+  );
+
+  async function minta(formData: FormData) {
+    "use server";
+    await kirimPermintaanPembaruan(Number(formData.get("no")), String(formData.get("pesan") ?? ""));
+  }
 
   const halamanTerakhir = Math.max(1, Math.ceil(total / PER_HALAMAN));
   const kueri = kueriDariFilter(filter);
@@ -203,25 +386,7 @@ export default async function CariKerjaSama({
         </h1>
       </header>
 
-      <nav
-        className="mb-4 flex flex-wrap gap-1 border-b"
-        style={{ borderColor: "var(--border)" }}
-      >
-        {(Object.keys(TAB) as TabKey[]).map((k) => (
-          <Link
-            key={k}
-            href={`/kerja-sama?tab=${k}`}
-            className="border-b-2 px-3 py-2 text-sm"
-            style={{
-              borderColor: k === tab ? "var(--midnight)" : "transparent",
-              color: k === tab ? "var(--midnight)" : "var(--text-secondary)",
-              fontWeight: k === tab ? 600 : 400,
-            }}
-          >
-            {TAB[k]}
-          </Link>
-        ))}
-      </nav>
+      <Tabs basePath="/kerja-sama" tabs={TAB} aktif={tab} />
 
       {/* The export buttons sit with the filters, so it is visible that they
           export what is on screen (Design §4.5). */}
@@ -276,97 +441,9 @@ export default async function CariKerjaSama({
           editDraf={false}
         />
       ) : tab === "aktif" ? (
-        <div
-          className="overflow-x-auto rounded-xl border bg-white"
-          style={{ borderColor: "var(--border)" }}
-        >
-          {/* The spec-fixed column set for Kerja Sama Aktif (revision V2 §1) —
-              distinct from the shared filterable table below, which the other
-              tabs still use unchanged. */}
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
-                {[
-                  "No",
-                  "Nama Mitra",
-                  "Jenis Dokumen",
-                  "Agenda Kerja Sama",
-                  "Pengusul",
-                  "Lingkup",
-                  "Tanggal Mulai",
-                  "Tanggal Berakhir",
-                  "No. Dokumen",
-                  "Action",
-                ].map((label) => (
-                  <th key={label} className="px-3 py-2 font-medium">
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {baris.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center" style={{ color: "var(--text-muted)" }}>
-                    Belum ada dokumen pada tab ini.
-                  </td>
-                </tr>
-              ) : (
-                baris.map((b: any, i: number) => (
-                  <tr
-                    key={b.id_proposal}
-                    className="border-t"
-                    style={{ borderColor: "var(--border)" }}
-                  >
-                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
-                      {(halaman - 1) * PER_HALAMAN + i + 1}
-                    </td>
-                    <td className="px-3 py-2">{b.nama_mitra ?? "—"}</td>
-                    <td className="px-3 py-2">{b.jenis_kerjasama}</td>
-                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
-                      {b.agenda ?? "—"}
-                    </td>
-                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
-                      {b.jabatan_pengusul ?? "—"}
-                    </td>
-                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
-                      {b.lingkup ?? "—"}
-                    </td>
-                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
-                      <Tanggal nilai={b.tanggal_mulai} />
-                    </td>
-                    <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
-                      <Tanggal nilai={b.tanggal_berakhir} />
-                    </td>
-                    <td className="px-3 py-2 no-dokumen">
-                      {b.no_dokumen ?? `draf-${b.id_proposal}`}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <Link
-                        href={`/kerja-sama/${b.id_proposal}/laporan` as any}
-                        aria-label="Lihat laporan dokumen"
-                        className="inline-flex rounded p-1 hover:bg-black/5"
-                        style={{ color: "var(--midnight)" }}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          className="h-4 w-4"
-                        >
-                          <circle cx="11" cy="11" r="7" />
-                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                        </svg>
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <TabelDokumen baris={baris} halaman={halaman} />
+      ) : tab === "berakhir" ? (
+        <TabelDokumen baris={baris} halaman={halaman} pembaruan={{ gerbang, io, minta }} />
       ) : (
       <form method="get" action="/kerja-sama">
         <input type="hidden" name="tab" value={tab} />
@@ -382,12 +459,8 @@ export default async function CariKerjaSama({
                     {k.label}
                   </th>
                 ))}
-                <th className="px-3 py-2 font-medium">
-                  {tab === "berakhir" ? "Berakhir" : "Diajukan"}
-                </th>
-                <th className="px-3 py-2 font-medium">
-                  {tab === "berakhir" ? "Countdown" : ""}
-                </th>
+                <th className="px-3 py-2 font-medium">Diajukan</th>
+                <th className="px-3 py-2 font-medium" />
               </tr>
               {/* Every field gets a column filter control (Design §4.5). */}
               <tr className="border-b" style={{ borderColor: "var(--border)" }}>
@@ -514,29 +587,9 @@ export default async function CariKerjaSama({
                       {b.negara ?? "—"}
                     </td>
                     <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
-                      <Tanggal
-                        nilai={
-                          tab === "berakhir"
-                            ? b.tanggal_berakhir
-                            : b.waktu_proposal_dokumen
-                        }
-                      />
+                      <Tanggal nilai={b.waktu_proposal_dokumen} />
                     </td>
-                    <td className="px-3 py-2">
-                      {tab === "berakhir" ? (
-                        <span
-                          className="text-xs font-medium"
-                          style={{
-                            color:
-                              b.sisa_hari !== null && b.sisa_hari <= 60
-                                ? "var(--sla-red)"
-                                : "var(--text-secondary)",
-                          }}
-                        >
-                          {b.sisa_hari === null ? "—" : `${b.sisa_hari} hari`}
-                        </span>
-                      ) : null}
-                    </td>
+                    <td className="px-3 py-2" />
                   </tr>
                 ))
               )}

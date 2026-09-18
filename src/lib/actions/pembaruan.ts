@@ -36,7 +36,7 @@ export async function kirimPermintaanPembaruan(
     p_no_dokumen: noDokumen,
     p_pesan: pesan || null,
   });
-  revalidatePath("/pembaruan");
+  revalidatePath("/kerja-sama", "layout");
   return hasil;
 }
 
@@ -44,14 +44,12 @@ export async function kirimPermintaanPembaruan(
 export async function kirimEvaluasiFakultas(
   noEvaluasi: number,
   jawaban: Record<string, unknown>,
-  noDokumen: number,
 ): Promise<Hasil> {
   const hasil = await panggil("kirim_evaluasi_fakultas", {
     p_no: noEvaluasi,
     p_jawaban: jawaban,
   });
-  revalidatePath(`/pembaruan/${noDokumen}`);
-  revalidatePath("/pembaruan");
+  revalidatePath("/kerja-sama", "layout");
   return hasil;
 }
 
@@ -66,7 +64,7 @@ export async function putuskanPembaruan(
     p_keputusan: keputusan,
     p_alasan: alasan,
   });
-  revalidatePath(`/pembaruan/${noDokumen}`);
+  revalidatePath("/kerja-sama", "layout");
   return hasil;
 }
 
@@ -74,12 +72,9 @@ export async function putuskanPembaruan(
  * Reopening returns the NEW token, because the unit has to send it. The old one
  * is already inert and the prior answer is preserved as history (BR-30, DR-08).
  */
-export async function bukaUlangEvaluasi(
-  noEvaluasi: number,
-  noDokumen: number,
-): Promise<Hasil> {
+export async function bukaUlangEvaluasi(noEvaluasi: number): Promise<Hasil> {
   const hasil = await panggil("buka_ulang_evaluasi", { p_no: noEvaluasi });
-  revalidatePath(`/pembaruan/${noDokumen}`);
+  revalidatePath("/kerja-sama", "layout");
   return hasil;
 }
 
@@ -92,8 +87,7 @@ export async function buatProposalPerpanjangan(
     p_no_dokumen: noDokumen,
     p_file: file,
   });
-  revalidatePath(`/pembaruan/${noDokumen}`);
-  revalidatePath("/kerja-sama");
+  revalidatePath("/kerja-sama", "layout");
   return hasil;
 }
 

@@ -4,14 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
+import { Tabs } from "@/components/tabs";
 
 /**
- * Master Data — a focused view/edit surface for the entities the dashboard
- * and workflow depend on (partner, jabatan, unit, negara). Settings
- * (`/admin`) keeps the full config surface (thresholds, Studio Grafik,
- * managed options); this page exists so the international/domestic Mitra
- * split the dashboard KPI cards link to has somewhere to land, and so
- * "master data" reads as its own place in the nav, per the revision request.
+ * Master Data — the entities the dashboard and workflow depend on (mitra,
+ * jabatan, pegawai, unit, negara), one tab each. Settings (`/admin`) holds
+ * only system rules (approval tiers, thresholds, growing lists), so nothing
+ * is edited in two places.
  */
 export const dynamic = "force-dynamic";
 
@@ -81,23 +80,23 @@ export default async function MasterData({
     revalidatePath("/master-data");
   }
 
-  const nav = (
-    <nav className="mb-5 flex flex-wrap gap-1 border-b" style={gaya}>
-      {(Object.keys(TAB) as TabKey[]).map((k) => (
-        <Link
-          key={k}
-          href={`/master-data?tab=${k}` as Route}
-          className="border-b-2 px-3 py-2 text-sm"
-          style={{
-            borderColor: k === aktif ? "var(--midnight)" : "transparent",
-            color: k === aktif ? "var(--midnight)" : "var(--text-secondary)",
-            fontWeight: k === aktif ? 600 : 400,
-          }}
-        >
-          {TAB[k]}
-        </Link>
-      ))}
-    </nav>
+  async function gabungMitra(formData: FormData) {
+    "use server";
+    const klien = await supabaseServer();
+    const { error } = await klien.rpc("gabung_partner", {
+      p_dari: Number(formData.get("dari")),
+      p_ke: Number(formData.get("ke")),
+    });
+    if (error) console.error("[simks] gabung_partner ditolak:", error.message);
+    revalidatePath("/master-data");
+  }
+
+  const nav = <Tabs basePath="/master-data" tabs={TAB} aktif={aktif} />;
+
+  const Keterangan = ({ children }: { children: React.ReactNode }) => (
+    <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+      {children}
+    </p>
   );
 
   const judul = (
@@ -120,7 +119,10 @@ export default async function MasterData({
       .limit(500);
     if (jenis === "internasional") query = query.eq("is_international", true);
     if (jenis === "domestik") query = query.eq("is_international", false);
-    const { data: partner } = await query;
+    const [{ data: partner }, { data: duplikat }] = await Promise.all([
+      query,
+      supabase.from("v_partner_duplikat").select("*").limit(50),
+    ]);
 
     return (
       <div className="max-w-4xl">
@@ -147,7 +149,12 @@ export default async function MasterData({
           ))}
         </div>
 
-        <div className="rounded-xl border bg-white p-4" style={gaya}>
+        <div className="mb-4 rounded-xl border bg-white p-4" style={gaya}>
+          <h2 className="text-sm font-semibold">Koordinat Mitra</h2>
+          <Keterangan>
+            Dibutuhkan Peta Mitra Global. Mitra tanpa koordinat tidak muncul di peta — lebih
+            baik absen daripada disematkan di titik nol.
+          </Keterangan>
           <ul className="divide-y" style={gaya}>
             {(partner ?? []).map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-2 py-2">
@@ -188,6 +195,51 @@ export default async function MasterData({
               </li>
             ) : null}
           </ul>
+        </div>
+
+        <div className="rounded-xl border bg-white p-4" style={gaya}>
+          <h2 className="text-sm font-semibold">Gabung Duplikat</h2>
+          <Keterangan>
+            Deteksi bersifat saran; keputusan tetap manual. Penggabungan mengarahkan ulang
+            seluruh referensi dalam satu transaksi dan tidak pernah menghapus — catatan lama
+            tetap ada, ditandai tergabung.
+          </Keterangan>
+          {(duplikat ?? []).length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Tidak ada dugaan duplikat saat ini.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {(duplikat ?? []).map((d: any) => (
+                <li key={`${d.id_a}-${d.id_b}`} className="rounded-lg border p-2 text-sm" style={gaya}>
+                  <div className="mb-2">
+                    <strong>{d.nama_a}</strong> ↔ <strong>{d.nama_b}</strong>{" "}
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      kemiripan {d.kemiripan}
+                      {d.homepage_sama ? " · homepage sama" : ""}
+                    </span>
+                  </div>
+                  <form action={gabungMitra} className="flex flex-wrap items-center gap-2">
+                    <select name="dari" aria-label="Mitra yang digabungkan" className="rounded-lg border px-2 py-1 text-xs" style={gaya}>
+                      <option value={d.id_a}>{d.nama_a} (digabungkan)</option>
+                      <option value={d.id_b}>{d.nama_b} (digabungkan)</option>
+                    </select>
+                    <select name="ke" aria-label="Mitra yang dipertahankan" className="rounded-lg border px-2 py-1 text-xs" style={gaya}>
+                      <option value={d.id_b}>{d.nama_b} (dipertahankan)</option>
+                      <option value={d.id_a}>{d.nama_a} (dipertahankan)</option>
+                    </select>
+                    <SubmitButton
+                      labelMenunggu="Menggabungkan…"
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-white"
+                      style={{ background: "var(--action-danger)" }}
+                    >
+                      Gabungkan
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     );
@@ -234,7 +286,7 @@ export default async function MasterData({
             ))}
           </ul>
           <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-            Ubah tier approval di Pengaturan. Pegawai yang dipilih di sini
+            Ubah tier approval di Pengaturan › Tier Approval. Pegawai yang dipilih di sini
             otomatis menjadi Nama Kontak/No.HP jabatan ini di laporan Kerja
             Sama Aktif.
           </p>
@@ -311,6 +363,10 @@ export default async function MasterData({
         {judul}
         {nav}
         <div className="rounded-xl border bg-white p-4" style={gaya}>
+          <Keterangan>
+            Pohon unit yang ditelusuri cascade Lingkup Kerja Sama secara rekursif. Hierarki
+            yang salah membuat cascade salah; penyuntingan pohon dilakukan lewat impor.
+          </Keterangan>
           <ul className="text-sm">
             {(unit ?? []).map((u) => (
               <li
@@ -343,6 +399,10 @@ export default async function MasterData({
       {judul}
       {nav}
       <div className="rounded-xl border bg-white p-4" style={gaya}>
+        <Keterangan>
+          Satu-satunya sumber status dalam negeri / luar negeri. KPI mitra membaca boolean
+          ini, tidak pernah membandingkan nama negara.
+        </Keterangan>
         <ul className="grid gap-1 text-sm sm:grid-cols-2">
           {(negara ?? []).map((n) => (
             <li key={n.id} className="flex items-center justify-between gap-2 py-0.5">

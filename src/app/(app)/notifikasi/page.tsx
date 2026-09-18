@@ -124,9 +124,12 @@ export default async function Notifikasi() {
                     {JUDUL[n.jenis_notifikasi] ?? n.jenis_notifikasi}
                   </span>
                 </span>
+                {/* First line: [Jabatan] [aksi] [No. Dokumen] [Jenis] [Mitra]
+                    [— Agenda], so the reader knows which document it was;
+                    any further line is the writer's own detail. */}
                 {n.isi ? (
                   <span
-                    className="mt-0.5 block pl-3.5 text-sm"
+                    className="mt-0.5 block whitespace-pre-line pl-3.5 text-sm"
                     style={{ color: "var(--text-secondary)" }}
                   >
                     {n.isi}
@@ -151,9 +154,15 @@ export default async function Notifikasi() {
 
             return (
               <li key={n.id}>
-                {n.id_proposal_dokumen ? (
+                {n.id_proposal_dokumen || n.no_dokumen_kerjasama ? (
                   <Link
-                    href={`/kerja-sama/${n.id_proposal_dokumen}`}
+                    href={
+                      // Renewal notices carry only the document number;
+                      // /pembaruan/[no] redirects to its Pembaruan tab.
+                      (n.id_proposal_dokumen
+                        ? `/kerja-sama/${n.id_proposal_dokumen}`
+                        : `/pembaruan/${n.no_dokumen_kerjasama}`) as any
+                    }
                     className={kelas}
                     style={gaya}
                   >

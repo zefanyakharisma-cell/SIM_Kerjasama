@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { PetaMitra, type Pin } from "@/components/peta-mitra";
 import { StudioGrafik, type Grafik } from "@/components/studio-grafik";
+import { GrafikForm, grafikDariForm, type NilaiGrafik } from "@/components/grafik-form";
+import { Tabs } from "@/components/tabs";
 import { STATUS_DOKUMEN_AKTIF } from "@/lib/laporan";
 
 /**
@@ -97,27 +99,7 @@ export default async function Dashboard({
   const aktif: TabKey = (tab as TabKey) in TAB ? (tab as TabKey) : "dashboard";
   const supabase = await supabaseServer();
 
-  const nav = (
-    <nav
-      className="mb-5 flex flex-wrap gap-1 border-b"
-      style={{ borderColor: "var(--border)" }}
-    >
-      {(Object.keys(TAB) as TabKey[]).map((k) => (
-        <Link
-          key={k}
-          href={`/dashboard?tab=${k}`}
-          className="border-b-2 px-3 py-2 text-sm"
-          style={{
-            borderColor: k === aktif ? "var(--midnight)" : "transparent",
-            color: k === aktif ? "var(--midnight)" : "var(--text-secondary)",
-            fontWeight: k === aktif ? 600 : 400,
-          }}
-        >
-          {TAB[k]}
-        </Link>
-      ))}
-    </nav>
-  );
+  const nav = <Tabs basePath="/dashboard" tabs={TAB} aktif={aktif} />;
 
   const judul = (
     <header className="mb-5">
@@ -229,6 +211,10 @@ export default async function Dashboard({
       disposition_removed: "menghapus approver",
       activated: "mengaktifkan dokumen",
       archived: "mengarsipkan dokumen",
+      renewal_requested: "mengirim disposisi evaluasi pembaruan",
+      evaluation_submitted: "mengirim evaluasi",
+      renewal_decided: "memutuskan pembaruan",
+      evaluation_reopened: "membuka ulang evaluasi",
     };
 
     return (
@@ -339,126 +325,116 @@ export default async function Dashboard({
 
   const akun = await akunSaatIni();
 
-  // Saved charts, each aggregated by the database function that owns the
-  // whitelist of groupings (see the charts migration).
+  // The account's own charts (RLS scopes dashboard_chart to its owner). On
+  // the first visit the account gets its own copy of the five defaults; the
+  // flag keeps a deliberately emptied Studio empty.
+  if (akun) {
+    const { data: status } = await supabase
+      .from("akun")
+      .select("grafik_default_disalin")
+      .eq("id", akun.id)
+      .maybeSingle();
+    if (status && !status.grafik_default_disalin) {
+      await supabase.rpc("salin_grafik_default");
+    }
+  }
+
   const { data: tersimpan } = await supabase
     .from("dashboard_chart")
     .select("id, judul, jenis_grafik, config, urutan")
-    .eq("is_visible", true)
     .order("urutan")
-    .limit(5);
+    .order("id");
 
-  // This account's own hide/reorder overrides on top of the shared set —
-  // absent means "use the chart's own default position" (revision request:
-  // per-account Studio Grafik preferences).
-  const { data: preferensi } = akun
-    ? await supabase
-        .from("dashboard_chart_preference")
-        .select("id_chart, is_hidden, urutan")
-        .eq("id_akun", akun.id)
-    : { data: [] };
-  const prefByChart = new Map((preferensi ?? []).map((p) => [p.id_chart, p]));
+  // Each chart aggregated by the database function that owns the whitelist of
+  // groupings (see the charts migration) — in parallel, not one after another.
+  const grafik: Grafik[] = await Promise.all(
+    (tersimpan ?? []).map(async (g) => {
+      const { data: deret } = await supabase.rpc("agregasi_grafik", { p_config: g.config });
+      return {
+        id: g.id,
+        judul: g.judul,
+        jenis_grafik: g.jenis_grafik,
+        deret: (deret ?? []) as { label: string; nilai: number }[],
+      };
+    }),
+  );
 
-  const grafikTampil: Grafik[] = [];
-  const grafikTersembunyi: { id: number; judul: string }[] = [];
-  const urutanBaris: { id: number; judul: string; jenis_grafik: string; urutan: number }[] = [];
-  for (const g of tersimpan ?? []) {
-    const p = prefByChart.get(g.id);
-    if (p?.is_hidden) {
-      grafikTersembunyi.push({ id: g.id, judul: g.judul });
-      continue;
-    }
-    urutanBaris.push({
-      id: g.id,
-      judul: g.judul,
-      jenis_grafik: g.jenis_grafik,
-      urutan: p?.urutan ?? g.urutan,
-    });
-  }
-  urutanBaris.sort((a, b) => a.urutan - b.urutan);
+  const MAKS_GRAFIK = 12; // mirrors the batasi_grafik trigger
 
-  const configById = new Map((tersimpan ?? []).map((g) => [g.id, g.config]));
-  for (const g of urutanBaris) {
-    const { data: deret } = await supabase.rpc("agregasi_grafik", {
-      p_config: configById.get(g.id),
-    });
-    grafikTampil.push({
-      id: g.id,
-      judul: g.judul,
-      jenis_grafik: g.jenis_grafik,
-      deret: (deret ?? []) as { label: string; nilai: number }[],
-    });
-  }
-  const grafik = grafikTampil;
-
-  async function sembunyikanGrafik(formData: FormData) {
+  async function tambahGrafik(formData: FormData) {
     "use server";
-    const akunKini = await akunSaatIni();
-    if (!akunKini) return;
     const klien = await supabaseServer();
-    await klien.from("dashboard_chart_preference").upsert(
-      { id_akun: akunKini.id, id_chart: Number(formData.get("id_chart")), is_hidden: true },
-      { onConflict: "id_akun,id_chart" },
-    );
+    const { data: akhir } = await klien
+      .from("dashboard_chart")
+      .select("urutan")
+      .order("urutan", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    // id_akun defaults to the signed-in account in the database.
+    const { error } = await klien
+      .from("dashboard_chart")
+      .insert({ ...grafikDariForm(formData), urutan: (akhir?.urutan ?? 0) + 1 });
+    if (error) console.error("[simks] tambah grafik ditolak:", error.message);
     revalidatePath("/dashboard");
   }
 
-  async function tampilkanGrafik(formData: FormData) {
+  async function ubahGrafik(formData: FormData) {
     "use server";
-    const akunKini = await akunSaatIni();
-    if (!akunKini) return;
     const klien = await supabaseServer();
-    await klien.from("dashboard_chart_preference").upsert(
-      { id_akun: akunKini.id, id_chart: Number(formData.get("id_chart")), is_hidden: false },
-      { onConflict: "id_akun,id_chart" },
-    );
+    const { error } = await klien
+      .from("dashboard_chart")
+      .update(grafikDariForm(formData))
+      .eq("id", Number(formData.get("id")));
+    if (error) console.error("[simks] ubah grafik ditolak:", error.message);
     revalidatePath("/dashboard");
   }
 
-  // ponytail: naive adjacent-swap reorder (fine for a max-5-chart list); a full
-  // drag-and-drop reorder would need its own array-of-ids preference shape.
+  async function hapusGrafik(formData: FormData) {
+    "use server";
+    const klien = await supabaseServer();
+    await klien.from("dashboard_chart").delete().eq("id", Number(formData.get("id_chart")));
+    revalidatePath("/dashboard");
+  }
+
+  async function resetGrafik() {
+    "use server";
+    const klien = await supabaseServer();
+    await klien.rpc("salin_grafik_default");
+    revalidatePath("/dashboard");
+  }
+
+  // Adjacent swap of urutan with the neighbour; RLS keeps it to own charts.
   async function pindahGrafik(formData: FormData) {
     "use server";
-    const akunKini = await akunSaatIni();
-    if (!akunKini) return;
     const klien = await supabaseServer();
-
     const idChart = Number(formData.get("id_chart"));
-    const arah = String(formData.get("arah"));
-
     const { data: charts } = await klien
       .from("dashboard_chart")
       .select("id, urutan")
-      .eq("is_visible", true)
       .order("urutan")
-      .limit(5);
-    const { data: pref } = await klien
-      .from("dashboard_chart_preference")
-      .select("id_chart, urutan, is_hidden")
-      .eq("id_akun", akunKini.id);
-    const prefMap = new Map((pref ?? []).map((p) => [p.id_chart, p]));
+      .order("id");
+    const daftar = charts ?? [];
+    const idx = daftar.findIndex((c) => c.id === idChart);
+    const tetangga = String(formData.get("arah")) === "naik" ? idx - 1 : idx + 1;
+    if (idx < 0 || tetangga < 0 || tetangga >= daftar.length) return;
 
-    const urutanEfektif = (id: number, bawaan: number) => prefMap.get(id)?.urutan ?? bawaan;
-    const terlihat = (charts ?? [])
-      .filter((c) => !prefMap.get(c.id)?.is_hidden)
-      .map((c) => ({ id: c.id, urutan: urutanEfektif(c.id, c.urutan) }))
-      .sort((a, b) => a.urutan - b.urutan);
-
-    const idx = terlihat.findIndex((c) => c.id === idChart);
-    const tetangga = arah === "naik" ? idx - 1 : idx + 1;
-    if (idx < 0 || tetangga < 0 || tetangga >= terlihat.length) return;
-
-    const a = terlihat[idx];
-    const b = terlihat[tetangga];
-    await klien.from("dashboard_chart_preference").upsert(
-      [
-        { id_akun: akunKini.id, id_chart: a.id, urutan: b.urutan, is_hidden: false },
-        { id_akun: akunKini.id, id_chart: b.id, urutan: a.urutan, is_hidden: false },
-      ],
-      { onConflict: "id_akun,id_chart" },
-    );
+    // urutan values stay distinct (defaults 1–5, new charts max+1, swaps keep
+    // them), so swapping the two values is enough.
+    const a = daftar[idx];
+    const b = daftar[tetangga];
+    await Promise.all([
+      klien.from("dashboard_chart").update({ urutan: b.urutan }).eq("id", a.id),
+      klien.from("dashboard_chart").update({ urutan: a.urutan }).eq("id", b.id),
+    ]);
     revalidatePath("/dashboard");
   }
+
+  const editorGrafik = Object.fromEntries(
+    (tersimpan ?? []).map((g) => [
+      g.id,
+      <GrafikForm key={g.id} action={ubahGrafik} awal={g as NilaiGrafik} labelSimpan="Simpan Perubahan" />,
+    ]),
+  );
 
   // Evaluation analytics. Aggregated here but never detached from the document:
   // every row still carries id_dokumen_kerjasama, which is what makes the
@@ -541,10 +517,15 @@ export default async function Dashboard({
       <div className="mb-6">
         <StudioGrafik
           grafik={grafik}
-          tersembunyi={grafikTersembunyi}
-          onSembunyikan={sembunyikanGrafik}
-          onTampilkan={tampilkanGrafik}
           onPindah={pindahGrafik}
+          onHapus={hapusGrafik}
+          onReset={resetGrafik}
+          editor={editorGrafik}
+          tambah={
+            grafik.length < MAKS_GRAFIK ? (
+              <GrafikForm action={tambahGrafik} labelSimpan="Tambah Grafik" />
+            ) : undefined
+          }
         />
       </div>
 
@@ -590,7 +571,7 @@ export default async function Dashboard({
                         {/* The drill-down: any figure leads to the partnerships
                             behind it (Q8). */}
                         <Link
-                          href="/pembaruan"
+                          href="/kerja-sama?tab=berakhir"
                           className="underline"
                           style={{ color: "var(--text-secondary)" }}
                         >

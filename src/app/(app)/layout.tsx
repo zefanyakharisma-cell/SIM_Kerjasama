@@ -13,7 +13,6 @@ const MENU = [
   { href: "/kerja-sama", label: "Cari Kerja Sama" },
   { href: "/buat", label: "Buat Kerja Sama" },
   { href: "/antrean", label: "Antrean Saya" },
-  { href: "/pembaruan", label: "Pembaruan" },
   { href: "/notifikasi", label: "Notifikasi" },
   { href: "/master-data", label: "Master Data", adminSaja: true },
   // Master data and system settings. Shown to everyone, refused by RLS to

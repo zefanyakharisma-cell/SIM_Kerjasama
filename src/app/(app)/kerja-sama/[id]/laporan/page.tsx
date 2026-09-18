@@ -7,11 +7,14 @@ import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
 import { SubmitButton } from "@/components/submit-button";
 import { EditorDisposisi, PanelApproval, TombolReaktivasi } from "@/components/approval-actions";
+import { PembaruanPanel } from "@/components/pembaruan-panel";
+import { Tabs } from "@/components/tabs";
 
 /**
  * Proposal Kerja Sama — Report (revision V3 §2.a). Reached from the
  * magnifying glass on the Proposal Kerja Sama / Kerja Sama Aktif lists.
- * Exactly four tabs, per spec: Detail, Approval, History, Disposisi.
+ * Tabs: Detail, Approval, History, Disposisi (IO only) and Pembaruan (only
+ * once the document is expiring or a renewal is under way).
  *
  * The workflow mutations that used to live only on `/kerja-sama/[id]`
  * (approval actions, live disposition editing, the initial dispatch) are
@@ -20,7 +23,13 @@ import { EditorDisposisi, PanelApproval, TombolReaktivasi } from "@/components/a
  */
 export const dynamic = "force-dynamic";
 
-const TAB = { detail: "Detail", approval: "Approval", history: "History", disposisi: "Disposisi" } as const;
+const TAB = {
+  detail: "Detail",
+  approval: "Approval",
+  history: "History",
+  disposisi: "Disposisi",
+  pembaruan: "Pembaruan",
+} as const;
 type TabKey = keyof typeof TAB;
 
 const gaya = { borderColor: "var(--border)" };
@@ -55,6 +64,10 @@ const AKSI_LABEL: Record<string, string> = {
   disposition_removed: "menghapus approver",
   activated: "mengaktifkan dokumen",
   archived: "mengarsipkan dokumen",
+  renewal_requested: "mengirim disposisi evaluasi pembaruan",
+  evaluation_submitted: "mengirim evaluasi",
+  renewal_decided: "memutuskan pembaruan",
+  evaluation_reopened: "membuka ulang evaluasi",
 };
 
 function Tanggal({ nilai }: { nilai: string | null | undefined }) {
@@ -121,6 +134,16 @@ export default async function LaporanDokumen({
 
   const dok: any =
     (proposal as any).dokumen_kerja_sama?.[0] ?? (proposal as any).dokumen_kerja_sama;
+
+  // The Pembaruan tab exists once renewal is relevant: the document is
+  // expiring, or a renewal request is already on it.
+  const { count: jumlahPembaruan } = dok?.no
+    ? await supabase
+        .from("v_pembaruan")
+        .select("no_dokumen_kerjasama", { count: "exact", head: true })
+        .eq("no_dokumen_kerjasama", dok.no)
+    : { count: 0 };
+  const adaPembaruan = Boolean(dok?.no) && (dok.status === "Akan Berakhir" || (jumlahPembaruan ?? 0) > 0);
 
   // Primary contact per partner, fetched separately — partner_contact has two
   // possible FK paths to partner, so a nested embed would be ambiguous.
@@ -304,24 +327,15 @@ export default async function LaporanDokumen({
         </p>
       </header>
 
-      <nav className="mb-5 flex flex-wrap gap-1 border-b" style={gaya}>
-        {(Object.keys(TAB) as TabKey[])
-          .filter((k) => k !== "disposisi" || io)
-          .map((k) => (
-            <Link
-              key={k}
-              href={`/kerja-sama/${idProposal}/laporan?tab=${k}` as any}
-              className="border-b-2 px-3 py-2 text-sm"
-              style={{
-                borderColor: k === tab ? "var(--midnight)" : "transparent",
-                color: k === tab ? "var(--midnight)" : "var(--text-secondary)",
-                fontWeight: k === tab ? 600 : 400,
-              }}
-            >
-              {TAB[k]}
-            </Link>
-          ))}
-      </nav>
+      <Tabs
+        basePath={`/kerja-sama/${idProposal}/laporan`}
+        tabs={Object.fromEntries(
+          Object.entries(TAB).filter(
+            ([k]) => (k !== "disposisi" || io) && (k !== "pembaruan" || adaPembaruan),
+          ),
+        )}
+        aktif={tab}
+      />
 
       {tab === "detail" ? (
         <>
@@ -549,20 +563,6 @@ export default async function LaporanDokumen({
                     .
                   </>
                 ) : null}
-                {dok?.no ? (
-                  <>
-                    {" "}
-                    <Link href={`/pembaruan/${dok.no}` as any} className="underline">
-                      Kelola pembaruan &amp; evaluasi →
-                    </Link>
-                  </>
-                ) : null}
-              </p>
-            ) : dok?.no ? (
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                <Link href={`/pembaruan/${dok.no}` as any} className="underline">
-                  Kelola pembaruan &amp; evaluasi →
-                </Link>
               </p>
             ) : null}
           </section>
@@ -657,7 +657,9 @@ export default async function LaporanDokumen({
           <h2 className="mb-3 text-sm font-semibold">History</h2>
           <ul className="space-y-2 text-sm">
             {(riwayat ?? []).map((r: any) => {
-              const jabatanNama = r.akun?.jabatan?.nama ?? "Sistem";
+              // The partner evaluates without an account, so its row has no actor.
+              const jabatanNama =
+                r.akun?.jabatan?.nama ?? (r.aksi === "evaluation_submitted" ? "Mitra" : "Sistem");
               const unitNama = r.akun?.jabatan?.unit?.nama ?? "—";
               const aksiLabel = AKSI_LABEL[r.aksi] ?? r.aksi;
               const namaPartner = daftarMitra.map((p: any) => p.nama).filter(Boolean).join(", ") || "—";
@@ -680,6 +682,8 @@ export default async function LaporanDokumen({
           </ul>
         </section>
       ) : null}
+
+      {tab === "pembaruan" && adaPembaruan ? <PembaruanPanel noDokumen={dok.no} io={io} /> : null}
 
       {tab === "disposisi" && io ? (
         <section className="rounded-xl border bg-white p-4" style={gaya}>
