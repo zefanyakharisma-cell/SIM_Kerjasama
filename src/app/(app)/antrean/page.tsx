@@ -28,7 +28,9 @@ export default async function Antrean() {
          no, pesan_disposisi, jenis_disposisi,
          proposal_dokumen:id_proposal_dokumen (
            id, jenis_kerjasama, status_proposal,
-           partner_pengusul ( partner ( nama ) )
+           partner_pengusul ( partner ( nama ) ),
+           dokumen_kerja_sama ( no_dokumen ),
+           sebelumnya:id_dokumen_sebelumnya ( dokumen_kerja_sama ( no_dokumen ) )
          )
        )`,
     )
@@ -71,6 +73,11 @@ export default async function Antrean() {
           {urut.map((t: any) => {
             const proposal = t.disposisi?.proposal_dokumen;
             const mitra = proposal?.partner_pengusul?.[0]?.partner?.nama;
+            // A proposal has no document number until IO types one at
+            // activation (BR-22), so the proposal id stands in until then.
+            // dokumen_kerja_sama.id_proposal_dokumen is unique: an object, not an array.
+            const noDokumen = proposal?.dokumen_kerja_sama?.no_dokumen;
+            const noSebelumnya = proposal?.sebelumnya?.dokumen_kerja_sama?.no_dokumen;
             return (
               <li key={t.no}>
                 <Link
@@ -81,6 +88,10 @@ export default async function Antrean() {
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium">
                       {mitra ?? `Proposal #${proposal?.id}`}
+                    </span>
+                    <span className="no-dokumen block text-xs" style={{ color: "var(--text-secondary)" }}>
+                      {noDokumen ? `No. Dokumen ${noDokumen}` : `No. Proposal #${proposal?.id}`}
+                      {noSebelumnya ? ` · Perpanjangan dari ${noSebelumnya}` : ""}
                     </span>
                     <span className="block text-xs" style={{ color: "var(--text-secondary)" }}>
                       {proposal?.jenis_kerjasama} · Tier {t.tier}
