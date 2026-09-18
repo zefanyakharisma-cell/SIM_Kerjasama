@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { apiKeyValid, supabaseLayanan } from "@/lib/supabase/service";
+import { STATUS_DOKUMEN_AKTIF } from "@/lib/laporan";
 
 /**
  * GET /api/v1/kerja-sama/{no}/penerus — resolve a renewal successor
@@ -50,7 +51,7 @@ export async function GET(
       no: baris.no_dokumen_kerjasama,
       no_dokumen: baris.no_dokumen,
       status: baris.status,
-      aktif: baris.status === "Aktif",
+      aktif: (STATUS_DOKUMEN_AKTIF as readonly string[]).includes(baris.status),
       alasan_arsip: baris.alasan_arsip,
     },
     // How many renewals sit between the reference held and the current

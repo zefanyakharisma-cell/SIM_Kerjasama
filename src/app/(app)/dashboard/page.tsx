@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { PetaMitra, type Pin } from "@/components/peta-mitra";
 import { StudioGrafik, type Grafik } from "@/components/studio-grafik";
+import { STATUS_DOKUMEN_AKTIF } from "@/lib/laporan";
 
 /**
  * Dashboard — the control panel (PRD §8.1).
@@ -281,7 +282,8 @@ export default async function Dashboard({
   };
 
   const [aktifDok, mitraIntl, mitraDomestik, dalamProses] = await Promise.all([
-    hitung("dokumen_kerja_sama", (q) => q.eq("status", "Aktif")),
+    // 'Akan Berakhir' is still a live agreement, only nearing its end date.
+    hitung("dokumen_kerja_sama", (q) => q.in("status", STATUS_DOKUMEN_AKTIF)),
     // Read from the boolean, never from a country name (DR-07, BR-16).
     hitung("partner", (q) => q.eq("is_international", true).eq("is_active", true)),
     hitung("partner", (q) => q.eq("is_international", false).eq("is_active", true)),
@@ -298,13 +300,17 @@ export default async function Dashboard({
   );
   const batas = new Date();
   batas.setMonth(batas.getMonth() + bulan);
+  // The cutoff is a plain date compared to a DATE column; formatting it in
+  // UTC (toISOString) can land on the wrong side of midnight for Indonesia
+  // (UTC+7), so it is read out in Asia/Jakarta instead.
+  const batasStr = batas.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
 
   const { count: akanBerakhir } = await supabase
     .from("dokumen_kerja_sama")
     .select("*", { count: "exact", head: true })
-    .in("status", ["Aktif", "Akan Berakhir"])
+    .in("status", STATUS_DOKUMEN_AKTIF)
     .not("tanggal_berakhir", "is", null) // Auto Renewed never expires (BR-11)
-    .lte("tanggal_berakhir", batas.toISOString().slice(0, 10));
+    .lte("tanggal_berakhir", batasStr);
 
   const { count: lewatSla } = await supabase
     .from("disposisi_target")

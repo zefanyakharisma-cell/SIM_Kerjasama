@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { apiKeyValid, supabaseLayanan } from "@/lib/supabase/service";
+import { STATUS_DOKUMEN_AKTIF } from "@/lib/laporan";
 
 /**
  * GET /api/v1/kerja-sama/{no} — one agreement's detail (PRD §15, Phase 4).
@@ -59,7 +60,7 @@ export async function GET(
     no_dokumen: d.no_dokumen,
     jenis: d.jenis_kerjasama,
     status: d.status_dokumen,
-    aktif: d.status_dokumen === "Aktif",
+    aktif: (STATUS_DOKUMEN_AKTIF as readonly string[]).includes(d.status_dokumen),
     alasan_arsip: d.alasan_arsip,
     mitra: d.nama_mitra,
     negara: d.negara,

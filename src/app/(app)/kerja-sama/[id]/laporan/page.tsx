@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isIO, akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { kirimDisposisi } from "@/lib/actions/workflow";
@@ -84,11 +84,11 @@ export default async function LaporanDokumen({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; galat?: string }>;
 }) {
   const { id } = await params;
-  const { tab: tabMentah } = await searchParams;
-  const tab: TabKey = (tabMentah as TabKey) in TAB ? (tabMentah as TabKey) : "detail";
+  const { tab: tabMentah, galat } = await searchParams;
+  const tab: TabKey = tabMentah && Object.hasOwn(TAB, tabMentah) ? (tabMentah as TabKey) : "detail";
   const idProposal = Number(id);
   const supabase = await supabaseServer();
   const akun = await akunSaatIni();
@@ -242,8 +242,13 @@ export default async function LaporanDokumen({
   // (§2.a.4.3), whichever the sender picked.
   async function kirimDisposisiAwal(formData: FormData) {
     "use server";
+    const balik = (pesan: string) =>
+      redirect(
+        `/kerja-sama/${idProposal}/laporan?tab=disposisi&galat=${encodeURIComponent(pesan)}`,
+      );
+
     const dipilih = formData.getAll("jabatan").map(Number);
-    if (dipilih.length === 0) return;
+    if (dipilih.length === 0) balik("Pilih minimal satu jabatan.");
 
     const klien = await supabaseServer();
     let lampiran: string | null = null;
@@ -251,16 +256,21 @@ export default async function LaporanDokumen({
     const berkasBaru = formData.get("berkas") as File | null;
 
     if (sumberDokumen === "baru" && berkasBaru && berkasBaru.size > 0) {
-      const path = `disposisi/${idProposal}/${Date.now()}-${berkasBaru.name}`;
+      // Strip path separators and anything but safe filename characters —
+      // this becomes part of a storage path.
+      const namaAman = berkasBaru.name.replace(/[/\\]/g, "_").replace(/[^\w.\-]/g, "_");
+      const path = `disposisi/${idProposal}/${Date.now()}-${namaAman}`;
       const { error } = await klien.storage
         .from("dokumen-kerjasama")
         .upload(path, berkasBaru, { upsert: true });
-      if (!error) lampiran = path;
+      if (error) balik("Gagal mengunggah dokumen.");
+      lampiran = path;
     } else if (sumberDokumen === "draf") {
       lampiran = proposal?.file_draft ?? null;
     }
 
-    await kirimDisposisi(idProposal, dipilih, String(formData.get("pesan") ?? ""), lampiran);
+    const hasil = await kirimDisposisi(idProposal, dipilih, String(formData.get("pesan") ?? ""), lampiran);
+    if (!hasil.ok) balik(hasil.pesan);
     revalidatePath(`/kerja-sama/${idProposal}/laporan`);
   }
 
@@ -673,6 +683,15 @@ export default async function LaporanDokumen({
       {tab === "disposisi" && io ? (
         <section className="rounded-xl border bg-white p-4" style={gaya}>
           <h2 className="mb-1 text-sm font-semibold">Disposisi</h2>
+
+          {galat ? (
+            <p
+              className="mb-3 rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
+            >
+              {galat}
+            </p>
+          ) : null}
 
           {!belumDidisposisi ? (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>

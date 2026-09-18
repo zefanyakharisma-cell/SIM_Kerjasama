@@ -23,7 +23,18 @@ export const TAB = {
 export type TabKey = keyof typeof TAB;
 
 export const adalahTab = (v: string | undefined): v is TabKey =>
-  Boolean(v && v in TAB);
+  Boolean(v && Object.hasOwn(TAB, v));
+
+/**
+ * 'Akan Berakhir' is still a live, in-force agreement — only the daily sweep
+ * moved it out of 'Aktif' because the end date is near. Anything that asks
+ * "is this document still active" reuses this list instead of a bare
+ * `=== "Aktif"` literal.
+ */
+export const STATUS_DOKUMEN_AKTIF = ["Aktif", "Akan Berakhir"] as const;
+
+/** Escapes `%`, `_` and `\` so a user-entered value is literal inside `ilike`. */
+export const lolosIlike = (v: string): string => v.replace(/[\\%_]/g, "\\$&");
 
 const STATUS_PROPOSAL = [
   "Draft",
@@ -105,14 +116,36 @@ export function terapkanFilter(q: any, tab: TabKey, f: Filter) {
   for (const k of KOLOM) {
     const v = f[k.kunci];
     if (!v) continue;
-    q = k.jenis === "pilih" ? q.eq(k.kunci, v) : q.ilike(k.kunci, `%${v}%`);
+    q = k.jenis === "pilih" ? q.eq(k.kunci, v) : q.ilike(k.kunci, `%${lolosIlike(v)}%`);
   }
 
   const patokan = tab === "berakhir" ? "tanggal_berakhir" : "waktu_proposal_dokumen";
   if (f.dari) q = q.gte(patokan, f.dari);
-  if (f.sampai) q = q.lte(patokan, f.sampai);
+  if (f.sampai) {
+    // tanggal_berakhir is a DATE column, so "sampai" as its own midnight is
+    // inclusive as-is. waktu_proposal_dokumen is a timestamptz, where the same
+    // value means midnight *at the start* of that day — lte would silently
+    // drop everything later that day, so it is bounded by the next day instead.
+    if (tab === "berakhir") {
+      q = q.lte(patokan, f.sampai);
+    } else {
+      const besok = tambahHari(f.sampai);
+      if (besok) q = q.lt(patokan, besok);
+    }
+  }
 
   return q;
+}
+
+/** `tgl` + 1 day as 'YYYY-MM-DD', via pure date arithmetic (no timezone drift). Returns null if `tgl` isn't well-formed. */
+function tambahHari(tgl: string): string | null {
+  const cocok = /^(\d{4})-(\d{2})-(\d{2})$/.exec(tgl);
+  if (!cocok) return null;
+  const [, y, m, d] = cocok;
+  const t = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d) + 1));
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    t.getUTCDate(),
+  ).padStart(2, "0")}`;
 }
 
 export const PER_HALAMAN = 25;
@@ -134,7 +167,20 @@ export async function ambilHalaman(
     .range(dari, dari + PER_HALAMAN - 1);
 
   const { data, count, error } = await q;
-  if (error) throw new Error(`Daftar gagal dimuat: ${error.message}`);
+  if (error) {
+    // PGRST103: the page asked for starts past the last row (e.g. ?hal=9999).
+    // That is not a broken query, just an out-of-range one — resolve the real
+    // total instead of crashing the page.
+    if (error.code === "PGRST103") {
+      const { count: total } = await terapkanFilter(
+        supabase.from("v_daftar_dokumen").select("*", { count: "exact", head: true }),
+        tab,
+        f,
+      );
+      return { baris: [], total: total ?? 0 };
+    }
+    throw new Error(`Daftar gagal dimuat: ${error.message}`);
+  }
   return { baris: data ?? [], total: count ?? 0 };
 }
 
@@ -146,8 +192,14 @@ export async function ambilHalaman(
 export function keCsv(baris: Record<string, unknown>[], kolom: string[][]): string {
   const sel = (v: unknown) => {
     if (v === null || v === undefined) return "";
-    const s = String(v);
-    return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    // Partner names etc. are user-entered; a leading = + - @ (or a tab) turns
+    // into a live formula the moment Excel opens the file — even after
+    // leading whitespace, which Excel still treats as a formula prefix. A
+    // leading single quote defuses that without touching genuine numbers
+    // (BR: CSV formula injection).
+    const s =
+      typeof v === "number" ? String(v) : String(v).replace(/^(\s*)([=+\-@\t\r])/, "$1'$2");
+    return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const kepala = kolom.map(([, label]) => sel(label)).join(",");
   const isi = baris.map((r) => kolom.map(([k]) => sel(r[k])).join(","));

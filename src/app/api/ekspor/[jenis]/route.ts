@@ -4,6 +4,7 @@ import {
   adalahTab,
   bacaFilter,
   keCsv,
+  lolosIlike,
   terapkanFilter,
   type TabKey,
 } from "@/lib/laporan";
@@ -93,8 +94,8 @@ export async function GET(
     let q: any = supabase.from("v_sla_dokumen").select("*");
     // The SLA export's own filters: the approval record, narrowed by the same
     // document-level values the list is showing.
-    if (filter.no_dokumen) q = q.ilike("no_dokumen", `%${filter.no_dokumen}%`);
-    if (filter.nama_mitra) q = q.ilike("nama_mitra", `%${filter.nama_mitra}%`);
+    if (filter.no_dokumen) q = q.ilike("no_dokumen", `%${lolosIlike(filter.no_dokumen)}%`);
+    if (filter.nama_mitra) q = q.ilike("nama_mitra", `%${lolosIlike(filter.nama_mitra)}%`);
     const { data, error } = await q
       .order("id_proposal", { ascending: false })
       .order("round_ke")
@@ -138,7 +139,9 @@ export async function GET(
     );
   }
 
-  const tanggal = new Date().toISOString().slice(0, 10);
+  // Asia/Jakarta, not UTC — otherwise the filename date can be a day behind
+  // for downloads made in the evening (UTC+7).
+  const tanggal = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
   return new NextResponse(keCsv(baris, kolom), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

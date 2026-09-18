@@ -656,8 +656,18 @@ begin
   perform set_config('simks.akun_id','1',true);
   perform aksi_approval(v_t,'approve',null);
   perform set_config('simks.akun_id','7',true);
+  -- A signatory is passed here too: the 12-param signature (signatories) and
+  -- the renewal-archiving branch must both run out of the SAME function, not
+  -- two overloads that only one call site ever reaches (the bug this guards).
   select aktivasi_dokumen(v_p2,'UJI/RANTAI/2', current_date, current_date,
-                          current_date+700) into v_no2;
+                          current_date+700,
+                          p_penandatangan_petra => 'Uji Tanda Tangan') into v_no2;
+
+  if not exists (select 1 from penandatangan_petra
+                  where no_dokumen_kerjasama = v_no2 and nama = 'Uji Tanda Tangan') then
+    raise exception 'FAIL rantai-d: signatory not recorded when the 12-param
+      overload also carries the renewal-archiving branch';
+  end if;
 
   -- Activation archived the predecessor with its reason, in the same
   -- transaction that created the successor (BR-12, BR-10).
@@ -686,5 +696,216 @@ begin
   update partner set id_partner_contact = null where id = v_pt;
   delete from partner_contact where id = v_kontak;
   delete from partner where id = v_pt;
+end
+$t$;
+
+-- ===========================================================================
+-- agregasi_grafik's default status filter must include 'Akan Berakhir' — the
+-- daily sweep only relabels an Aktif document, it never ends the agreement
+-- (bug fix 20260918000100).
+-- ===========================================================================
+do $t$
+declare
+  v_pt int; v_kontak int; v_p int; v_no int; v_t int; v_hasil record;
+  v_ditemukan boolean := false;
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into partner (nama, is_international, id_negara) values ('Uji Grafik AB', false, 1)
+    returning id into v_pt;
+  insert into partner_contact (id_partner, nama, email) values (v_pt,'K','k@uji.test')
+    returning id into v_kontak;
+  update partner set id_partner_contact = v_kontak where id = v_pt;
+
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',7) returning id into v_p;
+  insert into partner_pengusul (id_partner, id_proposal_dokumen, is_lead) values (v_pt, v_p, true);
+  insert into pengusul (id_jabatan, id_proposal_dokumen) values (3, v_p);
+  perform ajukan_proposal(v_p);
+  perform kirim_disposisi(v_p, array[1], 'uji grafik');
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p;
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t, 'approve', null);
+  perform set_config('simks.akun_id','7',true);
+  select aktivasi_dokumen(v_p,'UJI/GRAFIK/AB', current_date-10, current_date-10,
+                          current_date+1) into v_no;
+  update dokumen_kerja_sama set status = 'Akan Berakhir' where no = v_no;
+
+  for v_hasil in select * from agregasi_grafik('{"grouping":"status","sumber_data":"dokumen"}'::jsonb) loop
+    if v_hasil.label = 'Akan Berakhir' and v_hasil.nilai >= 1 then
+      v_ditemukan := true;
+    end if;
+  end loop;
+  if not v_ditemukan then
+    raise exception 'FAIL grafik-ab: default status filter excluded an Akan Berakhir document';
+  end if;
+  raise notice 'PASS agregasi_grafik default filter includes Akan Berakhir';
+
+  perform bersihkan_proposal_uji(v_p);
+  update partner set id_partner_contact = null where id = v_pt;
+  delete from partner_contact where id = v_kontak;
+  delete from partner where id = v_pt;
+end
+$t$;
+
+-- ===========================================================================
+-- simpan_anak_proposal: atomic replace of the seven child tables, and the
+-- jenis_kerjasama guard that used to fall through silently to MoA (bug fix
+-- 20260918000100).
+-- ===========================================================================
+do $t$
+declare v_pt int; v_p int; v_ok boolean;
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into partner (nama, is_international, id_negara) values ('Uji Anak Proposal', false, 1)
+    returning id into v_pt;
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',7) returning id into v_p;
+
+  perform simpan_anak_proposal(
+    v_p, jsonb_build_array(jsonb_build_object('id_partner', v_pt, 'is_lead', true)),
+    3, array[1], array[1], array[1], 'MoU',
+    jsonb_build_object('ringkasan_kegiatan','pertama'), null);
+
+  -- A second save must REPLACE, not append (BR-38 applies to every child set,
+  -- not only Lingkup Kerja Sama).
+  perform simpan_anak_proposal(
+    v_p, jsonb_build_array(jsonb_build_object('id_partner', v_pt, 'is_lead', true)),
+    3, array[2], array[2], array[2], 'MoU',
+    jsonb_build_object('ringkasan_kegiatan','kedua'), null);
+
+  if (select count(*) from proposal_dokumen_bidang where id_proposal_dokumen = v_p) <> 1
+     or not exists (select 1 from proposal_dokumen_bidang
+                      where id_proposal_dokumen = v_p and id_bidang_kerjasama = 2) then
+    raise exception 'FAIL anak-a: second save did not replace the first child set';
+  end if;
+
+  -- An unrecognised jenis_kerjasama must refuse, not fall through to MoA.
+  v_ok := false;
+  begin
+    perform simpan_anak_proposal(v_p, '[]'::jsonb, null, array[]::int[], array[]::int[],
+                                 array[]::int[], 'Perpanjangan', null, null);
+  exception when others then v_ok := true;
+  end;
+  if not v_ok then
+    raise exception 'FAIL anak-b: an unrecognised jenis_kerjasama was accepted';
+  end if;
+  raise notice 'PASS simpan_anak_proposal atomic replace and jenis guard';
+
+  delete from proposal_dokumen where id = v_p;
+  delete from partner where id = v_pt;
+end
+$t$;
+
+-- ===========================================================================
+-- set_kontak_utama: only a contact that actually belongs to the partner may
+-- become its primary contact, and (H1 fix, bug fix 20260918000100) only IO or
+-- the proposal's own creator — for a partner actually attached to their own
+-- Draft — may call it at all. akun 7 is io_staff (current_akun_is_io() true),
+-- so it is used for the ownership-of-contact cases below; the non-IO
+-- authorization path is exercised separately with akun 3 (a plain
+-- 'submitter'), using the simks.akun_id test seam (20260916000700_test_seam)
+-- to act as that account.
+-- ===========================================================================
+do $t$
+declare v_pt1 int; v_pt2 int; v_k1 int; v_k2 int; v_ok boolean;
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into partner (nama, is_international, id_negara) values ('Uji Kontak 1', false, 1)
+    returning id into v_pt1;
+  insert into partner (nama, is_international, id_negara) values ('Uji Kontak 2', false, 1)
+    returning id into v_pt2;
+  insert into partner_contact (id_partner, nama, email) values (v_pt1,'K1','k1@uji.test')
+    returning id into v_k1;
+  insert into partner_contact (id_partner, nama, email) values (v_pt2,'K2','k2@uji.test')
+    returning id into v_k2;
+
+  v_ok := false;
+  begin perform set_kontak_utama(v_pt1, v_pt1, v_k2); exception when others then v_ok := true; end;
+  if not v_ok then
+    raise exception 'FAIL kontak-a: a contact from another partner was accepted as primary';
+  end if;
+
+  perform set_kontak_utama(v_pt1, v_pt1, v_k1);
+  if (select id_partner_contact from partner where id = v_pt1) <> v_k1 then
+    raise exception 'FAIL kontak-b: the primary contact was not set';
+  end if;
+  raise notice 'PASS set_kontak_utama ownership-of-contact check';
+
+  update partner set id_partner_contact = null where id in (v_pt1, v_pt2);
+  delete from partner_contact where id in (v_k1, v_k2);
+  delete from partner where id in (v_pt1, v_pt2);
+end
+$t$;
+
+-- ===========================================================================
+-- set_kontak_utama (H1): a non-IO caller may only set the primary contact of a
+-- partner actually attached (via partner_pengusul) to their OWN Draft — not
+-- any partner they merely happen to name. Before this fix, any authenticated
+-- user could hijack the primary contact of ANY partner.
+-- ===========================================================================
+do $t$
+declare v_pt_terkait int; v_pt_asing int; v_k_asing int; v_p int; v_ok boolean;
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into partner (nama, is_international, id_negara) values ('Uji H1 Terkait', false, 1)
+    returning id into v_pt_terkait;
+  insert into partner (nama, is_international, id_negara) values ('Uji H1 Asing', false, 1)
+    returning id into v_pt_asing;
+  insert into partner_contact (id_partner, nama, email) values (v_pt_asing,'K','k@uji.test')
+    returning id into v_k_asing;
+
+  -- akun 3 is a plain submitter (not io_staff/io_admin) owning a Draft that
+  -- only links v_pt_terkait via partner_pengusul.
+  perform set_config('simks.akun_id','3',true);
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',3) returning id into v_p;
+  insert into partner_pengusul (id_partner, id_proposal_dokumen, is_lead)
+  values (v_pt_terkait, v_p, true);
+
+  -- A partner not linked to the caller's own draft must be rejected, even
+  -- though the caller does own the draft it names.
+  v_ok := false;
+  begin
+    perform set_kontak_utama(v_p, v_pt_asing, v_k_asing);
+  exception when others then v_ok := true;
+  end;
+  if not v_ok then
+    raise exception 'FAIL kontak-c: a partner not attached to the caller''s draft was accepted';
+  end if;
+  raise notice 'PASS set_kontak_utama rejects a partner not linked to the caller''s draft (H1)';
+
+  perform set_config('simks.akun_id','7',true);
+  perform bersihkan_proposal_uji(v_p);
+  delete from partner_contact where id = v_k_asing;
+  delete from partner where id in (v_pt_terkait, v_pt_asing);
+end
+$t$;
+
+-- ===========================================================================
+-- riwayat_tulis (RLS): tightened so a client insert can no longer forge
+-- id_akun or write an aksi reserved for the SECURITY DEFINER workflow
+-- functions (bug fix 20260918000100).
+--
+-- This script runs as the table owner (psql against DATABASE_URL), which
+-- bypasses RLS the same way every SECURITY DEFINER function in this schema
+-- does — so, like §9.13 above, the check is against the policy's own
+-- expression rather than a real denied INSERT, which this harness cannot
+-- produce without a role switch it does not have.
+-- ===========================================================================
+do $t$
+declare v_check text;
+begin
+  select with_check into v_check from pg_policies
+   where schemaname = 'public' and tablename = 'riwayat_approval'
+     and policyname = 'riwayat_tulis';
+
+  if v_check is null
+     or v_check !~ 'id_akun\s*=\s*current_akun_id\(\)'
+     or v_check !~ 'aksi\s*=\s*ANY' then
+    raise exception 'FAIL riwayat-tulis: policy no longer pins id_akun to
+      current_akun_id() and a fixed aksi list, got %', coalesce(v_check, '<none>');
+  end if;
+  raise notice 'PASS riwayat_tulis pins id_akun and restricts aksi';
 end
 $t$;

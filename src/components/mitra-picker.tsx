@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SearchSelect } from "@/components/search-select";
 
 const inputKelas = "w-full rounded-lg border px-3 py-2 text-sm";
 const inputGaya = { borderColor: "var(--border)" };
 
-type Baris = { key: number; mode: "existing" | "baru"; kontakMode: "existing" | "baru" };
+type Baris = {
+  key: number;
+  mode: "existing" | "baru";
+  kontakMode: "existing" | "baru";
+  idPartnerAwal: number | null;
+};
 
 /**
  * Data Calon Mitra (Revisi V4 §1.a): each row is either an existing partner
@@ -37,17 +42,24 @@ export function MitraPicker({
 }) {
   const [baris, setBaris] = useState<Baris[]>(
     awal.length
-      ? awal.map((_, i) => ({ key: i, mode: "existing" as const, kontakMode: "existing" as const }))
-      : [{ key: 0, mode: "existing", kontakMode: "existing" }],
+      ? awal.map((p, i) => ({ key: i, mode: "existing" as const, kontakMode: "existing" as const, idPartnerAwal: p }))
+      : [{ key: 0, mode: "existing", kontakMode: "existing", idPartnerAwal: null }],
   );
+  // Keyed by row key (not position), so removing a row can't misattribute a
+  // partner's contacts to the row that slides into its old index.
   const [idPartnerTerpilih, setIdPartnerTerpilih] = useState<Record<number, number | null>>(
     Object.fromEntries(awal.map((p, i) => [i, p])),
   );
-  const [leadIndex, setLeadIndex] = useState(() => {
+  // Lead is tracked by row key too, so removing another row doesn't shift it.
+  const [leadKey, setLeadKey] = useState<number>(() => {
     const i = awal.indexOf(leadAwal ?? -1);
     return i >= 0 ? i : 0;
   });
-  let kunciBerikutnya = baris.length;
+  const kunciBerikutnya = useRef(baris.length);
+  const leadIndex = Math.max(
+    0,
+    baris.findIndex((b) => b.key === leadKey),
+  );
 
   return (
     <div>
@@ -88,8 +100,8 @@ export function MitraPicker({
                 <input
                   type="radio"
                   name="lead_index_radio"
-                  checked={leadIndex === i}
-                  onChange={() => setLeadIndex(i)}
+                  checked={leadKey === b.key}
+                  onChange={() => setLeadKey(b.key)}
                 />
                 Mitra Utama
               </label>
@@ -98,7 +110,13 @@ export function MitraPicker({
               <button
                 type="button"
                 className="text-xs underline"
-                onClick={() => setBaris((s) => s.filter((r) => r.key !== b.key))}
+                onClick={() =>
+                  setBaris((s) => {
+                    const sisa = s.filter((r) => r.key !== b.key);
+                    if (leadKey === b.key) setLeadKey(sisa[0].key);
+                    return sisa;
+                  })
+                }
               >
                 Hapus
               </button>
@@ -110,9 +128,9 @@ export function MitraPicker({
               <SearchSelect
                 name={`id_partner_${i}`}
                 options={partners.map((p) => ({ id: p.id, label: p.nama }))}
-                defaultValue={awal[i] ?? null}
+                defaultValue={b.idPartnerAwal}
                 placeholder="Cari nama mitra..."
-                onValueChange={(idBaru) => setIdPartnerTerpilih((s) => ({ ...s, [i]: idBaru }))}
+                onValueChange={(idBaru) => setIdPartnerTerpilih((s) => ({ ...s, [b.key]: idBaru }))}
               />
 
               <div className="mt-3 border-t pt-2" style={inputGaya}>
@@ -147,7 +165,7 @@ export function MitraPicker({
                   <SearchSelect
                     name={`id_kontak_${i}`}
                     options={contacts
-                      .filter((c) => c.id_partner === idPartnerTerpilih[i])
+                      .filter((c) => c.id_partner === idPartnerTerpilih[b.key])
                       .map((c) => ({ id: c.id, label: c.nama }))}
                     placeholder="Cari nama kontak..."
                   />
@@ -213,7 +231,10 @@ export function MitraPicker({
         className="rounded-lg border px-3 py-1.5 text-xs"
         style={inputGaya}
         onClick={() =>
-          setBaris((s) => [...s, { key: kunciBerikutnya++, mode: "existing", kontakMode: "existing" }])
+          setBaris((s) => [
+            ...s,
+            { key: kunciBerikutnya.current++, mode: "existing", kontakMode: "existing", idPartnerAwal: null },
+          ])
         }
       >
         + Tambah Mitra Lain

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { apiKeyValid, supabaseLayanan } from "@/lib/supabase/service";
+import { STATUS_DOKUMEN_AKTIF, lolosIlike } from "@/lib/laporan";
 
 /**
  * GET /api/v1/kerja-sama — Active MoU/MoA, for the Partnership Realization
@@ -9,7 +10,8 @@ import { apiKeyValid, supabaseLayanan } from "@/lib/supabase/service";
  * sentence: list the Active agreements an Implementation Arrangement may be
  * filed against. So this returns Active documents and the few fields needed to
  * choose between them — not proposals, not archived documents, not the approval
- * trail, not evaluations.
+ * trail, not evaluations. "Active" includes 'Akan Berakhir': that status only
+ * means the end date is near, the agreement is still in force until then.
  *
  * "Active only" is the contract, not a default: an arrangement must never point
  * at an archived document (BR-13), and the cheapest way to keep that true is for
@@ -38,13 +40,13 @@ export async function GET(request: NextRequest) {
         "sifat_periode_kerjasama",
       { count: "exact" },
     )
-    .eq("status_dokumen", "Aktif");
+    .in("status_dokumen", STATUS_DOKUMEN_AKTIF);
 
   const jenis = sp.get("jenis");
   if (jenis === "MoU" || jenis === "MoA") q = q.eq("jenis_kerjasama", jenis);
 
   const unit = sp.get("unit");
-  if (unit) q = q.ilike("unit_pengusul", `%${unit}%`);
+  if (unit) q = q.ilike("unit_pengusul", `%${lolosIlike(unit)}%`);
 
   const { data, count, error } = await q
     .order("no_dokumen_kerjasama", { ascending: true })

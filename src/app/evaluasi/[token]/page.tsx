@@ -133,7 +133,7 @@ export default async function EvaluasiMitra({
     });
     if (error) {
       console.error("[simks] evaluasi mitra ditolak:", error.message);
-      redirect(`/evaluasi/${token}?galat=${encodeURIComponent(error.message)}`);
+      redirect(`/evaluasi/${token}?galat=1`);
     }
     redirect(`/evaluasi/${token}?ok=1`);
   }
@@ -154,7 +154,7 @@ export default async function EvaluasiMitra({
           className="mb-4 rounded-lg border px-3 py-2 text-sm"
           style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
         >
-          {galat}
+          Pengiriman gagal, silakan coba lagi. · Submission failed, please try again.
         </p>
       ) : null}
 

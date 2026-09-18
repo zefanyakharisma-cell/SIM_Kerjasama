@@ -51,6 +51,6 @@ export const config = {
   // 307 and an HTML page. `/api/ekspor` is deliberately NOT excluded: the
   // exports run on the caller's own session so that RLS decides their rows.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|evaluasi/.*|api/v1/.*|.*\.png$).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|evaluasi/.*|api/v1/.*|.*\\.png$).*)",
   ],
 };

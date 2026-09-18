@@ -45,19 +45,9 @@ export async function simpanProposal(formData: FormData) {
       throw new Error(`Draf gagal disimpan: ${error?.message}`);
     }
     id = proposal.id as number;
-
-    // The child rows are the explicit set for this proposal, not an append
-    // log — clearing and reinserting keeps that true on every save, exactly
-    // like the Lingkup Kerja Sama tree already does at read time (BR-38).
-    await Promise.all([
-      supabase.from("partner_pengusul").delete().eq("id_proposal_dokumen", id),
-      supabase.from("pengusul").delete().eq("id_proposal_dokumen", id),
-      supabase.from("proposal_dokumen_bidang").delete().eq("id_proposal_dokumen", id),
-      supabase.from("proposal_dokumen_agenda").delete().eq("id_proposal_dokumen", id),
-      supabase.from("proposal_dokumen_unit").delete().eq("id_proposal_dokumen", id),
-      supabase.from("proposal_dokumen_mou").delete().eq("id_proposal_dokumen", id),
-      supabase.from("proposal_dokumen_moa").delete().eq("id_proposal_dokumen", id),
-    ]);
+    // The child rows are replaced below, together with the create path's own
+    // first write of them, by the single atomic simpan_anak_proposal call —
+    // no more clear-then-reinsert split across two unchecked round trips.
   } else {
     const { data: proposal, error } = await supabase
       .from("proposal_dokumen")
@@ -85,10 +75,17 @@ export async function simpanProposal(formData: FormData) {
   //
   // Each Calon Mitra row is either an existing partner (id resolved client-side
   // by search) or a brand-new partner whose fields are inserted here (Revisi V4
-  // §1.a). Rows are processed in order, so lead_index still lines up with the
-  // resulting partner id list as long as every row resolves to an id.
+  // §1.a). lead_index is the FORM ROW index (0..mitra_count-1), so the id it
+  // picks is looked up per row rather than by position in a list that shifts
+  // whenever a row is skipped via `continue`.
+  // Per-row contact intent is only collected here — set_kontak_utama itself
+  // runs after simpan_anak_proposal below, once partner_pengusul actually
+  // links the partner to this proposal. H1 fix: set_kontak_utama now checks
+  // that link (a submitter may only touch their own Draft's partners), so
+  // calling it before the link exists would always fail.
   const jumlahMitra = Number(formData.get("mitra_count") ?? 0);
-  const partnerIds: number[] = [];
+  const idPerBaris = new Map<number, number>();
+  const kontakPerBaris = new Map<number, number>();
   for (let i = 0; i < jumlahMitra; i++) {
     const mode = formData.get(`mitra_mode_${i}`);
     if (mode === "baru") {
@@ -119,109 +116,116 @@ export async function simpanProposal(formData: FormData) {
         throw new Error(`Mitra baru gagal disimpan: ${errPartnerBaru?.message}`);
       }
       const idPartnerBaru = partnerBaru.id as number;
-      await simpanKontakBaru(supabase, idPartnerBaru, i, formData);
-      partnerIds.push(idPartnerBaru);
+      const idKontakBaru = await simpanKontakBaru(supabase, idPartnerBaru, i, formData);
+      if (idKontakBaru) kontakPerBaris.set(i, idKontakBaru);
+      idPerBaris.set(i, idPartnerBaru);
     } else {
       const idPartner = Number(formData.get(`id_partner_${i}`) ?? 0);
       if (!idPartner) continue;
       // Existing partner: the user either points at an existing
-      // PARTNER_CONTACT (set as primary) or fills in a new one inline.
+      // PARTNER_CONTACT (set as primary) or fills in a new one inline. Only
+      // IO Admin may write `partner` directly (rls.sql master-data loop), so
+      // the primary contact goes through set_kontak_utama rather than a plain
+      // update that RLS would otherwise silently drop.
       if (formData.get(`kontak_mode_${i}`) === "existing") {
         const idKontak = Number(formData.get(`id_kontak_${i}`) ?? 0);
-        if (idKontak) {
-          await supabase.from("partner").update({ id_partner_contact: idKontak }).eq("id", idPartner);
-        }
+        if (idKontak) kontakPerBaris.set(i, idKontak);
       } else {
-        await simpanKontakBaru(supabase, idPartner, i, formData);
+        const idKontakBaru = await simpanKontakBaru(supabase, idPartner, i, formData);
+        if (idKontakBaru) kontakPerBaris.set(i, idKontakBaru);
       }
-      partnerIds.push(idPartner);
+      idPerBaris.set(i, idPartner);
     }
   }
 
-  const unik = [...new Set(partnerIds)];
-  const pilihanLead = partnerIds[Number(formData.get("lead_index") ?? 0)];
-  const lead = unik.includes(pilihanLead) ? pilihanLead : unik[0];
-
-  if (unik.length) {
-    await supabase.from("partner_pengusul").insert(
-      unik.map((p) => ({
-        id_proposal_dokumen: id,
-        id_partner: p,
-        is_lead: p === lead,
-      })),
-    );
-  }
+  const unik = [...new Set(idPerBaris.values())];
+  const pilihanLead = idPerBaris.get(Number(formData.get("lead_index") ?? 0));
+  const lead = pilihanLead !== undefined && unik.includes(pilihanLead) ? pilihanLead : unik[0];
 
   // Section II — the proposing position. Without it a renewal request has
   // nowhere to be routed later, so it is recorded at creation rather than
   // reconstructed (BR-25).
-  const idJabatanPengusul = Number(
-    formData.get("id_jabatan_pengusul") ?? akun.id_jabatan,
-  );
-  if (idJabatanPengusul) {
-    await supabase.from("pengusul").insert({
-      id_proposal_dokumen: id,
-      id_jabatan: idJabatanPengusul,
+  const idJabatanPengusul =
+    Number(formData.get("id_jabatan_pengusul") ?? akun.id_jabatan) || null;
+
+  const jenis = String(formData.get("jenis_kerjasama") ?? "");
+  const { error: errAnak } = await supabase.rpc("simpan_anak_proposal", {
+    p_id: id,
+    p_partner: unik.map((p) => ({ id_partner: p, is_lead: p === lead })),
+    p_id_jabatan: idJabatanPengusul,
+    p_bidang: formData.getAll("bidang").map(Number),
+    p_agenda: formData.getAll("agenda").map(Number),
+    // The Lingkup selection is stored as the explicit set of chosen units; a
+    // parent partial state is derived at read time, never stored (BR-38, DR-09).
+    p_unit: formData.getAll("unit").map(Number),
+    p_jenis: jenis,
+    p_mou:
+      jenis === "MoU"
+        ? { ringkasan_kegiatan: String(formData.get("ringkasan_kegiatan") ?? "") }
+        : null,
+    p_moa:
+      jenis === "MoA"
+        ? {
+            hak_petra: String(formData.get("hak_petra") ?? ""),
+            hak_calon_mitra: String(formData.get("hak_calon_mitra") ?? ""),
+            kewajiban_petra: String(formData.get("kewajiban_petra") ?? ""),
+            kewajiban_calon_mitra: String(formData.get("kewajiban_calon_mitra") ?? ""),
+          }
+        : null,
+  });
+  if (errAnak) {
+    throw new Error(`Rincian proposal gagal disimpan: ${errAnak.message}`);
+  }
+
+  // Primary contact, per row — only now that simpan_anak_proposal has linked
+  // each partner to this proposal via partner_pengusul, which is what
+  // set_kontak_utama's ownership check (H1 fix) requires for a non-IO caller.
+  for (const [i, idKontak] of kontakPerBaris) {
+    const idPartner = idPerBaris.get(i);
+    if (!idPartner) continue;
+    const { error: errKontak } = await supabase.rpc("set_kontak_utama", {
+      p_id_proposal: id,
+      p_id_partner: idPartner,
+      p_id_kontak: idKontak,
     });
-  }
-
-  const bidang = formData.getAll("bidang").map(Number);
-  if (bidang.length) {
-    await supabase
-      .from("proposal_dokumen_bidang")
-      .insert(bidang.map((b) => ({ id_proposal_dokumen: id, id_bidang_kerjasama: b })));
-  }
-
-  const agenda = formData.getAll("agenda").map(Number);
-  if (agenda.length) {
-    await supabase
-      .from("proposal_dokumen_agenda")
-      .insert(agenda.map((a) => ({ id_proposal_dokumen: id, id_agenda: a })));
-  }
-
-  // The Lingkup selection is stored as the explicit set of chosen units; a
-  // parent partial state is derived at read time, never stored (BR-38, DR-09).
-  const unit = formData.getAll("unit").map(Number);
-  if (unit.length) {
-    await supabase
-      .from("proposal_dokumen_unit")
-      .insert(unit.map((u) => ({ id_proposal_dokumen: id, id_unit: u })));
-  }
-
-  const jenis = formData.get("jenis_kerjasama");
-  if (jenis === "MoU") {
-    await supabase.from("proposal_dokumen_mou").insert({
-      id_proposal_dokumen: id,
-      ringkasan_kegiatan: String(formData.get("ringkasan_kegiatan") ?? ""),
-    });
-  } else {
-    await supabase.from("proposal_dokumen_moa").insert({
-      id_proposal_dokumen: id,
-      hak_petra: String(formData.get("hak_petra") ?? ""),
-      hak_calon_mitra: String(formData.get("hak_calon_mitra") ?? ""),
-      kewajiban_petra: String(formData.get("kewajiban_petra") ?? ""),
-      kewajiban_calon_mitra: String(formData.get("kewajiban_calon_mitra") ?? ""),
-    });
+    if (errKontak) throw new Error(`Kontak utama gagal diset: ${errKontak.message}`);
   }
 
   // Upload Dokumen (Revisi V4 §4) — optional, stored in the same bucket the
-  // laporan flow already uses for disposition attachments.
+  // laporan flow already uses for disposition attachments. The name is
+  // sanitised before it becomes part of a storage path (no slashes, no
+  // characters storage.foldername would split on unexpectedly).
   const berkas = formData.get("upload_dokumen") as File | null;
   if (berkas && berkas.size > 0) {
-    const path = `draft/${id}/${Date.now()}-${berkas.name}`;
+    const namaAman = berkas.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const path = `draft/${id}/${Date.now()}-${namaAman}`;
     const { error: errUpload } = await supabase.storage
       .from("dokumen-kerjasama")
       .upload(path, berkas, { upsert: true });
-    if (!errUpload) {
-      await supabase.from("proposal_dokumen").update({ file_draft: path }).eq("id", id);
+    if (errUpload) {
+      throw new Error(`Berkas gagal diunggah: ${errUpload.message}`);
+    }
+    const { error: errFileDraft } = await supabase
+      .from("proposal_dokumen")
+      .update({ file_draft: path })
+      .eq("id", id);
+    if (errFileDraft) {
+      throw new Error(`Path berkas gagal disimpan: ${errFileDraft.message}`);
     }
   }
 
-  await supabase.from("riwayat_approval").insert({
+  // A creation and an edit are different events for the audit log and for
+  // notifications — 'revision_requested' is the APPROVER's action (catat_revisi)
+  // and drives its own notification; reusing it here for a self-edit would
+  // misfire that notification and pollute the Discussion tab's filter on it.
+  const { error: errRiwayat } = await supabase.from("riwayat_approval").insert({
     id_proposal_dokumen: id,
     id_akun: akun.id,
-    aksi: idEdit ? "revision_requested" : "created",
+    aksi: idEdit ? "edited" : "created",
   });
+  if (errRiwayat) {
+    throw new Error(`Riwayat gagal dicatat: ${errRiwayat.message}`);
+  }
 
   if (ajukan) {
     const { error: galat } = await supabase.rpc("ajukan_proposal", {
@@ -237,17 +241,18 @@ export async function simpanProposal(formData: FormData) {
 
 /**
  * Inserts the full PARTNER_CONTACT entity for Calon Mitra row `i` (name
- * required, the rest optional free text) and sets it as the partner's
- * primary contact.
+ * required, the rest optional free text). Returns its id so the caller can
+ * set it as the partner's primary contact once simpan_anak_proposal has
+ * linked the partner to the proposal (set_kontak_utama needs that link).
  */
 async function simpanKontakBaru(
   supabase: Awaited<ReturnType<typeof supabaseServer>>,
   idPartner: number,
   i: number,
   formData: FormData,
-) {
+): Promise<number | null> {
   const namaKontak = String(formData.get(`kontak_nama_${i}`) ?? "").trim();
-  if (!namaKontak) return;
+  if (!namaKontak) return null;
   const { data: kontakBaru, error } = await supabase
     .from("partner_contact")
     .insert({
@@ -259,6 +264,8 @@ async function simpanKontakBaru(
     })
     .select("id")
     .single();
-  if (error || !kontakBaru) return;
-  await supabase.from("partner").update({ id_partner_contact: kontakBaru.id }).eq("id", idPartner);
+  if (error || !kontakBaru) {
+    throw new Error(`Kontak baru gagal disimpan: ${error?.message}`);
+  }
+  return kontakBaru.id as number;
 }

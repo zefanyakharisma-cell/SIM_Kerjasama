@@ -102,6 +102,10 @@ export default async function BuatKerjaSama({
     { data: jenisMitra },
     { data: kontak },
   ] = await Promise.all([
+      // ponytail: client-side list is capped at 500 rows (a search box on the
+      // server side is the real fix); the draft's own partners are patched in
+      // below so editing a draft never silently drops a partner outside that
+      // cap.
       supabase
         .from("partner")
         .select("id, nama, is_international")
@@ -121,8 +125,36 @@ export default async function BuatKerjaSama({
       supabase.from("jabatan").select("id, nama").order("nama"),
       supabase.from("negara").select("id, nama").order("nama"),
       supabase.from("jenis_mitra").select("id, nama").order("nama"),
+      // Supabase's default max-rows (often 1000) already makes a limit(2000)
+      // here mostly aspirational; the draft partners' contacts are fetched
+      // separately below so a draft edit at least never loses those.
       supabase.from("partner_contact").select("id, id_partner, nama").order("nama").limit(2000),
     ]);
+
+  // A draft's own partners may fall outside the 500-row/2000-row caps above
+  // (e.g. sorted after them alphabetically) — fetch them explicitly and merge
+  // so MitraPicker can always prefill the draft's selection.
+  const idPartnerDraf = [...partnerTerpilih] as number[];
+  const { data: partnerDraf } = idPartnerDraf.length
+    ? await supabase
+        .from("partner")
+        .select("id, nama, is_international")
+        .in("id", idPartnerDraf)
+    : { data: [] };
+  const { data: kontakDraf } = idPartnerDraf.length
+    ? await supabase.from("partner_contact").select("id, id_partner, nama").in("id_partner", idPartnerDraf)
+    : { data: [] };
+
+  const partnerGabungan = [...(partner ?? [])];
+  const idPartnerAda = new Set(partnerGabungan.map((p) => p.id));
+  for (const p of partnerDraf ?? []) {
+    if (!idPartnerAda.has(p.id)) partnerGabungan.push(p);
+  }
+  const kontakGabungan = [...(kontak ?? [])];
+  const idKontakAda = new Set(kontakGabungan.map((k) => k.id));
+  for (const k of kontakDraf ?? []) {
+    if (!idKontakAda.has(k.id)) kontakGabungan.push(k);
+  }
 
   return (
     <div className="max-w-3xl">
@@ -144,10 +176,10 @@ export default async function BuatKerjaSama({
           keterangan="Pilih mitra dari master data, atau tambahkan mitra baru. Negara mitra menentukan status dalam negeri atau luar negeri."
         >
           <MitraPicker
-            partners={partner ?? []}
+            partners={partnerGabungan}
             negara={negara ?? []}
             jenisMitra={jenisMitra ?? []}
-            contacts={kontak ?? []}
+            contacts={kontakGabungan}
             awal={[...partnerTerpilih] as number[]}
             leadAwal={partnerLead}
           />
