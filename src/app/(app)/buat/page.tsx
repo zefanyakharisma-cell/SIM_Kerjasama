@@ -114,7 +114,17 @@ export default async function BuatKerjaSama({
         .order("nama")
         .limit(500),
       supabase.from("bidang_kerjasama").select("id, nama").order("id"),
-      supabase.from("agenda").select("id, nama, is_amendment").order("nama"),
+      // Retired agendas drop out of the form, except ones this draft already
+      // picked — otherwise saving the draft would silently lose them.
+      supabase
+        .from("agenda")
+        .select("id, nama, is_amendment")
+        .or(
+          agendaTerpilih.size
+            ? `is_active.eq.true,id.in.(${[...agendaTerpilih].map(Number).join(",")})`
+            : "is_active.eq.true",
+        )
+        .order("nama"),
       supabase
         .from("unit")
         .select("id, nama, id_parent_unit, id_jenis_unit")

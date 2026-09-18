@@ -8,11 +8,28 @@ import { Tabs } from "@/components/tabs";
 
 /**
  * Master Data — the entities the dashboard and workflow depend on (mitra,
- * jabatan, pegawai, unit, negara), one tab each. Settings (`/admin`) holds
- * only system rules (approval tiers, thresholds, growing lists), so nothing
- * is edited in two places.
+ * jabatan, pegawai, unit, negara) and the lookup lists the proposal form picks
+ * from (tujuan, manfaat, bidang, agenda), one tab each. Settings (`/admin`)
+ * holds only system rules (approval tiers, thresholds), so nothing is edited
+ * in two places.
  */
 export const dynamic = "force-dynamic";
+
+/**
+ * The lookup lists, as a whitelist: a form names a key from here, never a
+ * table. `aktif` is whether the table has is_active — bidang_kerjasama does
+ * not, so its values can be renamed but not retired.
+ */
+const DAFTAR = {
+  tujuan: { tabel: "tujuan_kerjasama", kolom: "nilai", label: "Tujuan", aktif: true },
+  manfaat_mitra: { tabel: "manfaat_mitra", kolom: "nilai", label: "Manfaat Mitra", aktif: true },
+  manfaat_petra: { tabel: "manfaat_petra", kolom: "nilai", label: "Manfaat Petra", aktif: true },
+  bidang: { tabel: "bidang_kerjasama", kolom: "nama", label: "Bidang Kerja Sama", aktif: false },
+  agenda: { tabel: "agenda", kolom: "nama", label: "Agenda Kerja Sama", aktif: true },
+} as const;
+type DaftarKey = keyof typeof DAFTAR;
+const daftarDari = (v: FormDataEntryValue | null) =>
+  typeof v === "string" && Object.hasOwn(DAFTAR, v) ? DAFTAR[v as DaftarKey] : null;
 
 const TAB = {
   mitra: "Mitra",
@@ -20,7 +37,8 @@ const TAB = {
   pegawai: "Pegawai",
   unit: "Unit",
   negara: "Negara",
-} as const;
+  ...Object.fromEntries(Object.entries(DAFTAR).map(([k, d]) => [k, d.label])),
+} as Record<"mitra" | "jabatan" | "pegawai" | "unit" | "negara" | DaftarKey, string>;
 type TabKey = keyof typeof TAB;
 
 const gaya = { borderColor: "var(--border)" };
@@ -40,13 +58,15 @@ export default async function MasterData({
 
   const supabase = await supabaseServer();
 
+  // Peta Mitra Global places each country by these; blank clears them and
+  // takes the country off the map rather than pinning it at 0°,0°.
   async function simpanKoordinat(formData: FormData) {
     "use server";
     const klien = await supabaseServer();
-    const lat = String(formData.get("latitude") ?? "");
-    const lon = String(formData.get("longitude") ?? "");
+    const lat = String(formData.get("latitude") ?? "").trim().replace(",", ".");
+    const lon = String(formData.get("longitude") ?? "").trim().replace(",", ".");
     await klien
-      .from("partner")
+      .from("negara")
       .update({
         latitude: lat === "" ? null : Number(lat),
         longitude: lon === "" ? null : Number(lon),
@@ -91,6 +111,47 @@ export default async function MasterData({
     revalidatePath("/master-data");
   }
 
+  // ---- Lookup lists. New values publish at once; cleanup deactivates rather
+  // than deletes while anything still references the value (BR-23).
+  async function tambahNilai(formData: FormData) {
+    "use server";
+    const d = daftarDari(formData.get("daftar"));
+    const nilai = String(formData.get("nilai") ?? "").trim();
+    if (!d || !nilai) return;
+    const klien = await supabaseServer();
+    const baris: Record<string, unknown> = { [d.kolom]: nilai };
+    const { error } = await klien.from(d.tabel).insert(baris as any);
+    if (error) console.error(`[simks] tambah ${d.tabel} ditolak:`, error.message);
+    revalidatePath("/master-data");
+  }
+
+  async function ubahNilai(formData: FormData) {
+    "use server";
+    const d = daftarDari(formData.get("daftar"));
+    const nilai = String(formData.get("nilai") ?? "").trim();
+    if (!d || !nilai) return;
+    const klien = await supabaseServer();
+    const baris: Record<string, unknown> = { [d.kolom]: nilai };
+    // Only the agenda form carries the checkbox; unchecked sends nothing.
+    if (d.tabel === "agenda") baris.is_amendment = formData.get("is_amendment") === "on";
+    const { error } = await klien.from(d.tabel).update(baris).eq("id", Number(formData.get("id")));
+    if (error) console.error(`[simks] ubah ${d.tabel} ditolak:`, error.message);
+    revalidatePath("/master-data");
+  }
+
+  async function aturAktif(formData: FormData) {
+    "use server";
+    const d = daftarDari(formData.get("daftar"));
+    if (!d?.aktif) return;
+    const klien = await supabaseServer();
+    const { error } = await klien
+      .from(d.tabel)
+      .update({ is_active: formData.get("aktif") === "1" })
+      .eq("id", Number(formData.get("id")));
+    if (error) console.error(`[simks] status ${d.tabel} ditolak:`, error.message);
+    revalidatePath("/master-data");
+  }
+
   const nav = <Tabs basePath="/master-data" tabs={TAB} aktif={aktif} />;
 
   const Keterangan = ({ children }: { children: React.ReactNode }) => (
@@ -110,10 +171,97 @@ export default async function MasterData({
     </header>
   );
 
+  if (Object.hasOwn(DAFTAR, aktif)) {
+    const kunci = aktif as DaftarKey;
+    const d = DAFTAR[kunci];
+    const kolomPilih = ["id", d.kolom, d.aktif ? "is_active" : null, kunci === "agenda" ? "is_amendment" : null]
+      .filter(Boolean)
+      .join(", ");
+    const { data } = await supabase.from(d.tabel).select(kolomPilih).order(d.kolom);
+    const baris = (data ?? []) as any[];
+    const input = "min-w-0 flex-1 rounded-lg border px-2 py-1 text-sm";
+
+    return (
+      <div className="max-w-4xl">
+        {judul}
+        {nav}
+        <div className="mb-4 rounded-xl border bg-white p-4" style={gaya}>
+          <Keterangan>
+            Pilihan untuk formulir Buat Kerja Sama.
+            {d.aktif
+              ? " Nilai yang dinonaktifkan hilang dari formulir, tetapi tetap tersimpan pada proposal yang sudah memakainya — tidak pernah dihapus."
+              : " Nilai tidak dapat dihapus karena dirujuk proposal; ubah namanya bila perlu."}
+          </Keterangan>
+          <ul className="divide-y text-sm" style={gaya}>
+            {baris.map((o) => (
+              <li key={o.id} className="flex flex-wrap items-center gap-2 py-2">
+                <form action={ubahNilai} className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <input type="hidden" name="daftar" value={kunci} />
+                  <input type="hidden" name="id" value={o.id} />
+                  <input
+                    name="nilai"
+                    required
+                    aria-label={`${d.label} ${o.id}`}
+                    defaultValue={o[d.kolom]}
+                    className={input}
+                    style={{ ...gaya, color: o.is_active === false ? "var(--text-muted)" : undefined }}
+                  />
+                  {kunci === "agenda" ? (
+                    <label className="flex items-center gap-1 text-xs">
+                      <input type="checkbox" name="is_amendment" defaultChecked={o.is_amendment} />
+                      adendum
+                    </label>
+                  ) : null}
+                  <SubmitButton labelMenunggu="Menyimpan…" className="text-xs underline">
+                    Simpan
+                  </SubmitButton>
+                </form>
+                {d.aktif ? (
+                  <form action={aturAktif}>
+                    <input type="hidden" name="daftar" value={kunci} />
+                    <input type="hidden" name="id" value={o.id} />
+                    <input type="hidden" name="aktif" value={o.is_active ? "0" : "1"} />
+                    <SubmitButton
+                      labelMenunggu="Memproses…"
+                      className="text-xs underline"
+                      style={{ color: o.is_active ? "var(--action-danger)" : "var(--status-active)" }}
+                    >
+                      {o.is_active ? "Nonaktifkan" : "Aktifkan"}
+                    </SubmitButton>
+                  </form>
+                ) : null}
+              </li>
+            ))}
+            {!baris.length ? (
+              <li className="py-6 text-center" style={{ color: "var(--text-muted)" }}>
+                Belum ada nilai tersimpan.
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border bg-white p-4" style={gaya}>
+          <h2 className="mb-3 text-sm font-semibold">Tambah {d.label}</h2>
+          <form action={tambahNilai} className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="daftar" value={kunci} />
+            <input name="nilai" required aria-label={`${d.label} baru`} className={input} style={gaya} />
+            <SubmitButton
+              labelMenunggu="Menyimpan…"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+              style={{ background: "var(--midnight)" }}
+            >
+              Tambah
+            </SubmitButton>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (aktif === "mitra") {
     let query = supabase
       .from("partner")
-      .select("id, nama, is_international, kota, latitude, longitude")
+      .select("id, nama, is_international, kota")
       .eq("is_active", true)
       .order("nama")
       .limit(500);
@@ -150,43 +298,18 @@ export default async function MasterData({
         </div>
 
         <div className="mb-4 rounded-xl border bg-white p-4" style={gaya}>
-          <h2 className="text-sm font-semibold">Koordinat Mitra</h2>
+          <h2 className="text-sm font-semibold">Daftar Mitra</h2>
           <Keterangan>
-            Dibutuhkan Peta Mitra Global. Mitra tanpa koordinat tidak muncul di peta — lebih
-            baik absen daripada disematkan di titik nol.
+            Peta Mitra Global menempatkan mitra menurut negaranya; koordinat negara diatur di
+            tab Negara.
           </Keterangan>
           <ul className="divide-y" style={gaya}>
             {(partner ?? []).map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center gap-2 py-2">
-                <span className="min-w-0 flex-1 text-sm">
-                  {p.nama}
-                  <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                    {p.is_international ? "Internasional" : "Domestik"} ·{" "}
-                    {p.kota ?? "kota belum diisi"}
-                  </span>
+              <li key={p.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+                <span className="min-w-0 flex-1">{p.nama}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {p.is_international ? "Internasional" : "Domestik"} · {p.kota ?? "kota belum diisi"}
                 </span>
-                <form action={simpanKoordinat} className="flex items-center gap-1">
-                  <input type="hidden" name="id" value={p.id} />
-                  <input
-                    name="latitude"
-                    aria-label={`Latitude ${p.nama}`}
-                    defaultValue={p.latitude ?? ""}
-                    placeholder="lat"
-                    className="w-24 rounded-lg border px-2 py-1 text-xs"
-                    style={gaya}
-                  />
-                  <input
-                    name="longitude"
-                    aria-label={`Longitude ${p.nama}`}
-                    defaultValue={p.longitude ?? ""}
-                    placeholder="lon"
-                    className="w-24 rounded-lg border px-2 py-1 text-xs"
-                    style={gaya}
-                  />
-                  <SubmitButton labelMenunggu="Menyimpan…" className="text-xs underline">
-                    Simpan
-                  </SubmitButton>
-                </form>
               </li>
             ))}
             {!partner?.length ? (
@@ -392,7 +515,7 @@ export default async function MasterData({
   // negara
   const { data: negara } = await supabase
     .from("negara")
-    .select("id, kode, nama, is_domestic")
+    .select("id, kode, nama, is_domestic, latitude, longitude")
     .order("nama");
   return (
     <div className="max-w-4xl">
@@ -401,11 +524,12 @@ export default async function MasterData({
       <div className="rounded-xl border bg-white p-4" style={gaya}>
         <Keterangan>
           Satu-satunya sumber status dalam negeri / luar negeri. KPI mitra membaca boolean
-          ini, tidak pernah membandingkan nama negara.
+          ini, tidak pernah membandingkan nama negara. Koordinat menempatkan negara di Peta
+          Mitra Global; negara tanpa koordinat tidak tampil di peta.
         </Keterangan>
-        <ul className="grid gap-1 text-sm sm:grid-cols-2">
+        <ul className="divide-y text-sm" style={gaya}>
           {(negara ?? []).map((n) => (
-            <li key={n.id} className="flex items-center justify-between gap-2 py-0.5">
+            <li key={n.id} className="flex flex-wrap items-center justify-between gap-2 py-1">
               <span>
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {n.kode}
@@ -420,6 +544,28 @@ export default async function MasterData({
               >
                 {n.is_domestic ? "Dalam Negeri" : "Luar Negeri"}
               </span>
+              <form action={simpanKoordinat} className="flex items-center gap-1">
+                <input type="hidden" name="id" value={n.id} />
+                <input
+                  name="latitude"
+                  aria-label={`Latitude ${n.nama}`}
+                  defaultValue={n.latitude ?? ""}
+                  placeholder="lat"
+                  className="w-24 rounded-lg border px-2 py-1 text-xs"
+                  style={gaya}
+                />
+                <input
+                  name="longitude"
+                  aria-label={`Longitude ${n.nama}`}
+                  defaultValue={n.longitude ?? ""}
+                  placeholder="lon"
+                  className="w-24 rounded-lg border px-2 py-1 text-xs"
+                  style={gaya}
+                />
+                <SubmitButton labelMenunggu="Menyimpan…" className="text-xs underline">
+                  Simpan
+                </SubmitButton>
+              </form>
             </li>
           ))}
         </ul>
