@@ -10,6 +10,8 @@ import {
   KOLOM,
   PER_HALAMAN,
   TAB,
+  URUTAN,
+  type Filter,
   adalahTab,
   ambilHalaman,
   bacaFilter,
@@ -68,6 +70,95 @@ function IkonEdit() {
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
+  );
+}
+
+/**
+ * Filter + sort for every tab. A plain GET form above the table rather than a
+ * header row inside it, because the tabs have different spec-fixed columns;
+ * the state lands in the URL, so paging and the exports carry it.
+ */
+function BarFilter({ tab, filter }: { tab: TabKey; filter: Filter }) {
+  const gaya = { borderColor: "var(--border)" };
+  return (
+    <form
+      method="get"
+      action="/kerja-sama"
+      className="mb-3 grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-3 lg:grid-cols-5"
+      style={gaya}
+    >
+      <input type="hidden" name="tab" value={tab} />
+      {KOLOM.map((k) => (
+        <label key={k.kunci} className="block text-xs">
+          <span className="mb-0.5 block" style={{ color: "var(--text-secondary)" }}>
+            {k.label}
+          </span>
+          {k.jenis === "pilih" ? (
+            <select name={`f_${k.kunci}`} defaultValue={filter[k.kunci] ?? ""} className={inputKelas} style={gaya}>
+              <option value="">Semua</option>
+              {k.opsi.map((o: string) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              name={`f_${k.kunci}`}
+              defaultValue={filter[k.kunci] ?? ""}
+              placeholder="Saring…"
+              className={inputKelas}
+              style={gaya}
+            />
+          )}
+        </label>
+      ))}
+      <label className="block text-xs">
+        <span className="mb-0.5 block" style={{ color: "var(--text-secondary)" }}>
+          {tab === "berakhir" ? "Berakhir dari / sampai" : "Diajukan dari / sampai"}
+        </span>
+        <span className="flex gap-1">
+          <input type="date" name="f_dari" aria-label="Dari tanggal" defaultValue={filter.dari ?? ""} className={inputKelas} style={gaya} />
+          <input type="date" name="f_sampai" aria-label="Sampai tanggal" defaultValue={filter.sampai ?? ""} className={inputKelas} style={gaya} />
+        </span>
+      </label>
+      <label className="block text-xs">
+        <span className="mb-0.5 block" style={{ color: "var(--text-secondary)" }}>
+          Urutkan
+        </span>
+        <span className="flex gap-1">
+          <select name="f_urut" aria-label="Urutkan menurut" defaultValue={filter.urut ?? ""} className={inputKelas} style={gaya}>
+            <option value="">Terbaru dibuat</option>
+            {Object.entries(URUTAN)
+              .filter(([k]) => k !== "id_proposal")
+              .map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+          </select>
+          <select name="f_arah" aria-label="Arah urutan" defaultValue={filter.arah ?? ""} className={inputKelas} style={gaya}>
+            <option value="">Otomatis</option>
+            <option value="asc">A→Z / Lama→Baru</option>
+            <option value="desc">Z→A / Baru→Lama</option>
+          </select>
+        </span>
+      </label>
+      <span className="flex items-end gap-1">
+        <button
+          type="submit"
+          className="rounded px-3 py-1 text-xs font-medium text-white"
+          style={{ background: "var(--midnight)" }}
+        >
+          Saring
+        </button>
+        {Object.keys(filter).length > 0 ? (
+          <Link href={`/kerja-sama?tab=${tab}`} className="rounded border px-3 py-1 text-xs" style={gaya}>
+            Reset
+          </Link>
+        ) : null}
+      </span>
+    </form>
   );
 }
 
@@ -420,6 +511,8 @@ export default async function CariKerjaSama({
         </span>
       </div>
 
+      <BarFilter tab={tab} filter={filter} />
+
       {tab === "proposal" ? (
         <TabelProposal
           baris={baris}
@@ -445,8 +538,6 @@ export default async function CariKerjaSama({
       ) : tab === "berakhir" ? (
         <TabelDokumen baris={baris} halaman={halaman} pembaruan={{ gerbang, io, minta }} />
       ) : (
-      <form method="get" action="/kerja-sama">
-        <input type="hidden" name="tab" value={tab} />
         <div
           className="overflow-x-auto rounded-xl border bg-white"
           style={{ borderColor: "var(--border)" }}
@@ -454,90 +545,20 @@ export default async function CariKerjaSama({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
-                {KOLOM.map((k) => (
-                  <th key={k.kunci} className="px-3 py-2 font-medium">
-                    {k.label}
-                  </th>
-                ))}
-                <th className="px-3 py-2 font-medium">Diajukan</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-              {/* Every field gets a column filter control (Design §4.5). */}
-              <tr className="border-b" style={{ borderColor: "var(--border)" }}>
-                {KOLOM.map((k) => (
-                  <th key={k.kunci} className="px-3 pb-2">
-                    {k.jenis === "pilih" ? (
-                      <select
-                        name={`f_${k.kunci}`}
-                        defaultValue={filter[k.kunci] ?? ""}
-                        className={inputKelas}
-                        style={{ borderColor: "var(--border)" }}
-                      >
-                        <option value="">Semua</option>
-                        {"opsi" in k
-                          ? k.opsi.map((o: string) => (
-                              <option key={o} value={o}>
-                                {o}
-                              </option>
-                            ))
-                          : null}
-                      </select>
-                    ) : (
-                      <input
-                        name={`f_${k.kunci}`}
-                        defaultValue={filter[k.kunci] ?? ""}
-                        placeholder="Saring…"
-                        className={inputKelas}
-                        style={{ borderColor: "var(--border)" }}
-                      />
-                    )}
-                  </th>
-                ))}
-                <th className="px-3 pb-2">
-                  <span className="flex gap-1">
-                    <input
-                      type="date"
-                      name="f_dari"
-                      defaultValue={filter.dari ?? ""}
-                      className={inputKelas}
-                      style={{ borderColor: "var(--border)" }}
-                    />
-                    <input
-                      type="date"
-                      name="f_sampai"
-                      defaultValue={filter.sampai ?? ""}
-                      className={inputKelas}
-                      style={{ borderColor: "var(--border)" }}
-                    />
-                  </span>
-                </th>
-                <th className="px-3 pb-2">
-                  <span className="flex gap-1">
-                    <button
-                      type="submit"
-                      className="rounded px-2 py-1 text-xs font-medium text-white"
-                      style={{ background: "var(--midnight)" }}
-                    >
-                      Saring
-                    </button>
-                    {adaFilter ? (
-                      <Link
-                        href={`/kerja-sama?tab=${tab}`}
-                        className="rounded border px-2 py-1 text-xs"
-                        style={{ borderColor: "var(--border)" }}
-                      >
-                        Reset
-                      </Link>
-                    ) : null}
-                  </span>
-                </th>
+                {["No. Dokumen", "Mitra", "Jenis", "Status", "Unit Pengusul", "Negara", "Diajukan"].map(
+                  (label) => (
+                    <th key={label} className="px-3 py-2 font-medium">
+                      {label}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
               {baris.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={KOLOM.length + 2}
+                    colSpan={7}
                     className="px-4 py-10 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >
@@ -589,14 +610,12 @@ export default async function CariKerjaSama({
                     <td className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>
                       <Tanggal nilai={b.waktu_proposal_dokumen} />
                     </td>
-                    <td className="px-3 py-2" />
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
-      </form>
       )}
 
       {halamanTerakhir > 1 ? (

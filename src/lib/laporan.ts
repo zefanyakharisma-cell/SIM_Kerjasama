@@ -57,8 +57,32 @@ export const KOLOM = [
   { kunci: "jenis_kerjasama", label: "Jenis", jenis: "pilih", opsi: ["MoU", "MoA"] },
   { kunci: "status_tampil", label: "Status", jenis: "teks" },
   { kunci: "unit_pengusul", label: "Unit Pengusul", jenis: "teks" },
+  { kunci: "jabatan_pengusul", label: "Pengusul", jenis: "teks" },
+  { kunci: "agenda", label: "Agenda Kerja Sama", jenis: "teks" },
+  { kunci: "lingkup", label: "Lingkup", jenis: "teks" },
   { kunci: "negara", label: "Negara", jenis: "teks" },
 ] as const;
+
+/** Sortable columns — a whitelist, so a URL value never names an arbitrary column. */
+export const URUTAN = {
+  id_proposal: "Terbaru dibuat",
+  nama_mitra: "Nama Mitra",
+  jenis_kerjasama: "Jenis",
+  status_tampil: "Status",
+  waktu_proposal_dokumen: "Tanggal Diajukan",
+  tanggal_mulai: "Tanggal Mulai",
+  tanggal_berakhir: "Tanggal Berakhir",
+  sisa_hari: "Sisa Hari",
+} as const;
+
+/** The chosen sort, or newest-first when none (or an unknown one) is given. */
+export function terapkanUrutan(q: any, f: Filter) {
+  const kolom = f.urut && Object.hasOwn(URUTAN, f.urut) ? f.urut : "id_proposal";
+  const naik = f.arah ? f.arah === "asc" : kolom !== "id_proposal";
+  q = q.order(kolom, { ascending: naik, nullsFirst: false });
+  // Stable paging when many rows share the sort value.
+  return kolom === "id_proposal" ? q : q.order("id_proposal", { ascending: false });
+}
 
 export type Filter = Record<string, string>;
 
@@ -69,7 +93,7 @@ export function bacaFilter(sp: Record<string, string | string[] | undefined>): F
     const v = sp[`f_${k.kunci}`];
     if (typeof v === "string" && v.trim()) f[k.kunci] = v.trim();
   }
-  for (const k of ["dari", "sampai"]) {
+  for (const k of ["dari", "sampai", "urut", "arah"]) {
     const v = sp[`f_${k}`];
     if (typeof v === "string" && v.trim()) f[k] = v.trim();
   }
@@ -158,13 +182,10 @@ export async function ambilHalaman(
   halaman: number,
 ) {
   const dari = (halaman - 1) * PER_HALAMAN;
-  const q = terapkanFilter(
-    supabase.from("v_daftar_dokumen").select("*", { count: "exact" }),
-    tab,
+  const q = terapkanUrutan(
+    terapkanFilter(supabase.from("v_daftar_dokumen").select("*", { count: "exact" }), tab, f),
     f,
-  )
-    .order("id_proposal", { ascending: false })
-    .range(dari, dari + PER_HALAMAN - 1);
+  ).range(dari, dari + PER_HALAMAN - 1);
 
   const { data, count, error } = await q;
   if (error) {
@@ -184,24 +205,59 @@ export async function ambilHalaman(
   return { baris: data ?? [], total: count ?? 0 };
 }
 
+const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
+const WAKTU = /^\d{4}-\d{2}-\d{2}T/;
+// Asia/Jakarta is UTC+7 with no DST. Excel cells carry no timezone, so a
+// timestamp is written as Jakarta wall-clock time.
+const WIB_MS = 7 * 60 * 60 * 1000;
+
+/** One cell's value, typed so Excel sorts and filters it properly. */
+function selXlsx(v: unknown): { nilai: unknown; format?: string; lebar: number } {
+  if (v === null || v === undefined) return { nilai: null, lebar: 0 };
+  if (typeof v === "boolean") return { nilai: v ? "Ya" : "Tidak", lebar: 5 };
+  if (typeof v === "number") return { nilai: v, lebar: String(v).length };
+  const s = String(v);
+  if (TANGGAL.test(s)) return { nilai: new Date(`${s}T00:00:00Z`), format: "dd/mm/yyyy", lebar: 10 };
+  if (WAKTU.test(s) && !Number.isNaN(Date.parse(s))) {
+    return { nilai: new Date(Date.parse(s) + WIB_MS), format: "dd/mm/yyyy hh:mm", lebar: 16 };
+  }
+  // Longest line, since wrapped text is measured per line.
+  return { nilai: s, lebar: Math.max(...s.split("\n").map((l) => l.length)) };
+}
+
 /**
- * CSV rather than a binary workbook, deliberately: Excel opens this natively,
- * and the alternative is a zip-and-XML dependency for the same columns. The BOM
- * is what stops Excel mangling "Universität" on a Windows machine.
+ * A real .xlsx: frozen bold header with filters, columns sized to their
+ * content, dates as dates. exceljs writes strings as string cells, never as
+ * formulas, so user-entered text starting with "=" cannot execute.
  */
-export function keCsv(baris: Record<string, unknown>[], kolom: string[][]): string {
-  const sel = (v: unknown) => {
-    if (v === null || v === undefined) return "";
-    // Partner names etc. are user-entered; a leading = + - @ (or a tab) turns
-    // into a live formula the moment Excel opens the file — even after
-    // leading whitespace, which Excel still treats as a formula prefix. A
-    // leading single quote defuses that without touching genuine numbers
-    // (BR: CSV formula injection).
-    const s =
-      typeof v === "number" ? String(v) : String(v).replace(/^(\s*)([=+\-@\t\r])/, "$1'$2");
-    return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const kepala = kolom.map(([, label]) => sel(label)).join(",");
-  const isi = baris.map((r) => kolom.map(([k]) => sel(r[k])).join(","));
-  return "﻿" + [kepala, ...isi].join("\r\n");
+export async function keXlsx(
+  baris: Record<string, unknown>[],
+  kolom: string[][],
+  namaSheet: string,
+): Promise<Buffer> {
+  const ExcelJS = (await import("exceljs")).default;
+  const buku = new ExcelJS.Workbook();
+  const lembar = buku.addWorksheet(namaSheet.slice(0, 31), {
+    views: [{ state: "frozen", ySplit: 1 }],
+  });
+
+  const lebar = kolom.map(([, label]) => label.length);
+  lembar.addRow(kolom.map(([, label]) => label)).font = { bold: true };
+
+  for (const r of baris) {
+    const sel = kolom.map(([k]) => selXlsx(r[k]));
+    const row = lembar.addRow(sel.map((s) => s.nilai));
+    sel.forEach((s, i) => {
+      if (s.format) row.getCell(i + 1).numFmt = s.format;
+      lebar[i] = Math.max(lebar[i], s.lebar);
+    });
+  }
+
+  lembar.columns.forEach((c, i) => {
+    c.width = Math.min(60, lebar[i] + 2);
+    c.alignment = { vertical: "top", wrapText: true };
+  });
+  lembar.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: kolom.length } };
+
+  return Buffer.from(await buku.xlsx.writeBuffer());
 }

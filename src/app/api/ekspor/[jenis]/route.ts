@@ -3,9 +3,10 @@ import { supabaseServer } from "@/lib/supabase/server";
 import {
   adalahTab,
   bacaFilter,
-  keCsv,
+  keXlsx,
   lolosIlike,
   terapkanFilter,
+  terapkanUrutan,
   type TabKey,
 } from "@/lib/laporan";
 
@@ -106,14 +107,13 @@ export async function GET(
     kolom = KOLOM_SLA;
     nama = "sla-per-dokumen";
   } else if (jenis === "proses") {
-    const { data, error } = await terapkanFilter(
+    const q = terapkanFilter(
       supabase.from("v_daftar_dokumen").select("*"),
       "proposal",
       filter,
     )
-      .in("status_proposal", PROSES)
-      .order("id_proposal", { ascending: false })
-      .limit(10000);
+      .in("status_proposal", PROSES);
+    const { data, error } = await terapkanUrutan(q, filter).limit(10000);
     if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
     baris = data ?? [];
     kolom = KOLOM_DOKUMEN;
@@ -121,13 +121,10 @@ export async function GET(
   } else if (jenis === "aktif") {
     // Export 1 is the active list; the tab the user is on is respected, so the
     // button next to the filters exports what the screen shows.
-    const { data, error } = await terapkanFilter(
-      supabase.from("v_daftar_dokumen").select("*"),
-      tab,
+    const { data, error } = await terapkanUrutan(
+      terapkanFilter(supabase.from("v_daftar_dokumen").select("*"), tab, filter),
       filter,
-    )
-      .order("id_proposal", { ascending: false })
-      .limit(10000);
+    ).limit(10000);
     if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
     baris = data ?? [];
     kolom = KOLOM_DOKUMEN;
@@ -142,10 +139,11 @@ export async function GET(
   // Asia/Jakarta, not UTC — otherwise the filename date can be a day behind
   // for downloads made in the evening (UTC+7).
   const tanggal = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
-  return new NextResponse(keCsv(baris, kolom), {
+  const berkas = await keXlsx(baris, kolom, nama);
+  return new NextResponse(new Uint8Array(berkas), {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="simks-${nama}-${tanggal}.csv"`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="simks-${nama}-${tanggal}.xlsx"`,
     },
   });
 }
