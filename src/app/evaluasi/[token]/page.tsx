@@ -134,7 +134,7 @@ export default async function EvaluasiMitra({
     });
     if (error) {
       console.error("[simks] evaluasi mitra ditolak:", error.message);
-      redirect(`/evaluasi/${token}?galat=1`);
+      redirect(`/evaluasi/${token}?galat=${encodeURIComponent(error.message)}`);
     }
     redirect(`/evaluasi/${token}?ok=1`);
   }
@@ -156,6 +156,7 @@ export default async function EvaluasiMitra({
           style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
         >
           Pengiriman gagal, silakan coba lagi. · Submission failed, please try again.
+          <span className="mt-1 block text-xs">{galat}</span>
         </p>
       ) : null}
 
@@ -207,9 +208,9 @@ export default async function EvaluasiMitra({
         />
         <BlokRekomendasi dwibahasa />
 
-        {/* Name and email are the accountability record for a form with no
-            login, so they are required — and the database requires them too,
-            not only this markup (PRD §9.3). */}
+        {/* Name, position, email and phone are the accountability record for
+            a form with no login, so they are required — and the database
+            requires them too, not only this markup (PRD §9.3). */}
         <fieldset
           className="mb-5 rounded-xl border bg-white p-4"
           style={{ borderColor: "var(--border)" }}
@@ -229,12 +230,33 @@ export default async function EvaluasiMitra({
               />
             </label>
             <label className="block text-sm">
+              <span className="mb-1 block font-medium">Jabatan · Position (*)</span>
+              <input
+                name="respondent_jabatan"
+                required
+                defaultValue={ev.jabatan_kontak ?? ""}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </label>
+            <label className="block text-sm">
               <span className="mb-1 block font-medium">Email (*)</span>
               <input
                 name="respondent_email"
                 type="email"
                 required
                 defaultValue={ev.email_kontak ?? ""}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">No. HP · Phone (*)</span>
+              <input
+                name="respondent_hp"
+                type="tel"
+                required
+                defaultValue={ev.hp_kontak ?? ""}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)" }}
               />

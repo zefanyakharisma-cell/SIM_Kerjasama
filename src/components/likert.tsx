@@ -185,6 +185,8 @@ export function bacaJawaban(formData: FormData): Record<string, unknown> {
     catatan_evaluasi: formData.get("catatan_evaluasi") ?? "",
     respondent_nama: formData.get("respondent_nama") ?? "",
     respondent_email: formData.get("respondent_email") ?? "",
+    respondent_jabatan: formData.get("respondent_jabatan") ?? "",
+    respondent_hp: formData.get("respondent_hp") ?? "",
   };
   for (const d of DIMENSI) {
     jawaban[`exp_${d.kunci}`] = Number(formData.get(`exp_${d.kunci}`));

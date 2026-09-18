@@ -78,6 +78,13 @@ export async function bukaUlangEvaluasi(noEvaluasi: number): Promise<Hasil> {
   return hasil;
 }
 
+/** KUI activates the partner's link; again, it replaces the old one. */
+export async function buatTautanEvaluasiMitra(noDokumen: number): Promise<Hasil> {
+  const hasil = await panggil("buat_tautan_evaluasi_mitra", { p_no_dokumen: noDokumen });
+  revalidatePath("/kerja-sama", "layout");
+  return hasil;
+}
+
 /** The gate must already be open; the database is what decides that. */
 export async function buatProposalPerpanjangan(
   noDokumen: number,

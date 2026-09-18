@@ -472,7 +472,22 @@ begin
 
   select no into v_fak from evaluasi where id_dokumen_kerjasama = v_no and respondent_type='faculty';
   select no into v_mitra from evaluasi where id_dokumen_kerjasama = v_no and respondent_type='partner';
-  select token into v_token from partner_eval_token where id_evaluasi = v_mitra;
+  -- The link is not issued with the request; KUI activates it.
+  if exists (select 1 from partner_eval_token where id_evaluasi = v_mitra) then
+    raise exception 'FAIL 9.11e: a partner token was issued before KUI activated it';
+  end if;
+  perform set_config('simks.akun_id','3',true);
+  v_ok := false;
+  begin perform buat_tautan_evaluasi_mitra(v_no); exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL 9.11f: a non-KUI account generated a partner link'; end if;
+  perform set_config('simks.akun_id','7',true);
+  v_token := buat_tautan_evaluasi_mitra(v_no);
+  v_token2 := buat_tautan_evaluasi_mitra(v_no);
+  if resolusi_token_evaluasi(v_token) is not null or resolusi_token_evaluasi(v_token2) is null then
+    raise exception 'FAIL 9.11g: regenerating did not replace the old link';
+  end if;
+  v_token := v_token2;
+  v_token2 := null;
 
   -- A token that does not exist reveals nothing at all (AR-07).
   if resolusi_token_evaluasi(repeat('0',64)) is not null then
@@ -492,10 +507,22 @@ begin
     raise exception 'FAIL 9.9c: one evaluation is not both, got %', status_gerbang_pembaruan(v_no);
   end if;
 
+  -- Identity is required: no phone, no submission.
+  v_ok := false;
+  begin
+    perform kirim_evaluasi_partner(v_token, jsonb_build_object('rekomendasi','continue',
+      'respondent_nama','x','respondent_jabatan','x','respondent_email','x@x.test'));
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL 9.11h: a partner answer without no. HP was accepted'; end if;
+
   perform kirim_evaluasi_partner(v_token, jsonb_build_object(
     'exp_quality',4,'exp_relevance',4,'exp_productivity',4,'exp_sustainability',4,'exp_communication',4,
     'sat_quality',2,'sat_relevance',2,'sat_productivity',2,'sat_sustainability',2,'sat_communication',2,
-    'rekomendasi','terminate','respondent_nama','Dr Partner','respondent_email','p@uji.test'));
+    'rekomendasi','terminate','respondent_nama','Dr Partner','respondent_email','p@uji.test',
+    'respondent_jabatan','Director','respondent_hp','+62 811 000'));
+  if (select respondent_hp from evaluasi where no = v_mitra) <> '+62 811 000' then
+    raise exception 'FAIL 9.11i: partner phone was not recorded';
+  end if;
 
   if status_gerbang_pembaruan(v_no) <> 'split' then
     raise exception 'FAIL 9.9d: disagreement should flag split, got %', status_gerbang_pembaruan(v_no);
@@ -569,7 +596,8 @@ begin
   perform kirim_evaluasi_partner(v_token2, jsonb_build_object(
     'exp_quality',4,'exp_relevance',4,'exp_productivity',4,'exp_sustainability',4,'exp_communication',4,
     'sat_quality',4,'sat_relevance',4,'sat_productivity',4,'sat_sustainability',4,'sat_communication',4,
-    'rekomendasi','continue','respondent_nama','Dr Partner','respondent_email','p@uji.test'));
+    'rekomendasi','continue','respondent_nama','Dr Partner','respondent_email','p@uji.test',
+    'respondent_jabatan','Director','respondent_hp','+62 811 000'));
 
   if status_gerbang_pembaruan(v_no) <> 'terbuka' then
     raise exception 'FAIL 9.10f: the gate read a superseded answer, got %',
@@ -673,7 +701,8 @@ declare
   v_jwb jsonb := jsonb_build_object(
     'exp_quality',4,'exp_relevance',4,'exp_productivity',4,'exp_sustainability',4,'exp_communication',4,
     'sat_quality',4,'sat_relevance',4,'sat_productivity',4,'sat_sustainability',4,'sat_communication',4,
-    'rekomendasi','continue','respondent_nama','P','respondent_email','p@uji.test');
+    'rekomendasi','continue','respondent_nama','P','respondent_email','p@uji.test',
+    'respondent_jabatan','Dir','respondent_hp','0811');
 begin
   perform set_config('simks.akun_id','7',true);
   insert into partner (nama, is_international, id_negara) values ('Uji Rantai', false, 1)
@@ -700,7 +729,7 @@ begin
   perform kirim_permintaan_pembaruan(v_no1, 'perbarui');
   select no into v_fak from evaluasi where id_dokumen_kerjasama=v_no1 and respondent_type='faculty';
   select no into v_mitra from evaluasi where id_dokumen_kerjasama=v_no1 and respondent_type='partner';
-  select token into v_tok from partner_eval_token where id_evaluasi=v_mitra;
+  v_tok := buat_tautan_evaluasi_mitra(v_no1);
   perform set_config('simks.akun_id','3',true);
   perform kirim_evaluasi_fakultas(v_fak, v_jwb);
   perform kirim_evaluasi_partner(v_tok, v_jwb);
@@ -1031,8 +1060,7 @@ begin
   if v_fak_dekan is null or v_fak_kui is null then
     raise exception 'FAIL V7.5b: not one PETRA evaluation per head';
   end if;
-  select t.token into v_token from partner_eval_token t join evaluasi e on e.no = t.id_evaluasi
-   where e.id_dokumen_kerjasama = v_no;
+  v_token := buat_tautan_evaluasi_mitra(v_no);
 
   -- A head answers only their own row.
   perform set_config('simks.akun_id','3',true);
@@ -1044,7 +1072,7 @@ begin
 
   perform kirim_evaluasi_fakultas(v_fak_dekan, v_nilai || '{"rekomendasi":"continue"}');
   perform kirim_evaluasi_partner(v_token, v_nilai ||
-    '{"rekomendasi":"continue","respondent_nama":"Dr Mitra","respondent_email":"m@uji.test"}');
+    '{"rekomendasi":"continue","respondent_nama":"Dr Mitra","respondent_email":"m@uji.test","respondent_jabatan":"Dir","respondent_hp":"0811"}');
   if status_gerbang_pembaruan(v_no) <> 'menunggu' then
     raise exception 'FAIL V7.8a: one head still pending, gate is %', status_gerbang_pembaruan(v_no);
   end if;

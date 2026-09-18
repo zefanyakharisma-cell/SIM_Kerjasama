@@ -13,6 +13,7 @@ import {
   arsipkanDokumen,
   bukaUlangEvaluasi,
   buatProposalPerpanjangan,
+  buatTautanEvaluasiMitra,
   kirimEvaluasiFakultas,
   kirimPermintaanPembaruan,
   putuskanPembaruan,
@@ -33,7 +34,7 @@ import { unggahBerkas, TERIMA_PDF_WORD } from "@/lib/unggah";
 
 const KOLOM_EVAL =
   "no, respondent_type, status, id_jabatan_pengusul, jabatan ( nama ), rekomendasi, continuation_mode, catatan_evaluasi, " +
-  "respondent_nama, respondent_email, waktu_evaluasi, form_revision, id_supersedes, " +
+  "respondent_nama, respondent_jabatan, respondent_email, respondent_hp, waktu_evaluasi, form_revision, id_supersedes, " +
   "exp_quality, exp_relevance, exp_productivity, exp_sustainability, exp_communication, " +
   "sat_quality, sat_relevance, sat_productivity, sat_sustainability, sat_communication";
 
@@ -86,7 +87,9 @@ function RingkasEvaluasi({ e }: { e: any }) {
     <div className="text-sm">
       <p className="mb-2" style={{ color: "var(--text-secondary)" }}>
         {e.respondent_nama ?? "—"}
-        {e.respondent_email ? ` · ${e.respondent_email}` : ""} ·{" "}
+        {e.respondent_jabatan ? ` · ${e.respondent_jabatan}` : ""}
+        {e.respondent_email ? ` · ${e.respondent_email}` : ""}
+        {e.respondent_hp ? ` · ${e.respondent_hp}` : ""} ·{" "}
         {e.waktu_evaluasi
           ? new Date(e.waktu_evaluasi).toLocaleDateString("id-ID", { dateStyle: "medium" })
           : "—"}{" "}
@@ -267,6 +270,11 @@ export async function PembaruanPanel({
   async function arsipkan() {
     "use server";
     cek(await arsipkanDokumen(noDokumen, "not_renewed", r.id_proposal));
+  }
+
+  async function buatTautan() {
+    "use server";
+    cek(await buatTautanEvaluasiMitra(noDokumen));
   }
 
   async function bukaUlang(formData: FormData) {
@@ -460,26 +468,52 @@ export async function PembaruanPanel({
 
         {mitra?.status === "submitted" ? (
           <RingkasEvaluasi e={mitra} />
-        ) : tautanMitra ? (
-          <>
-            <p className="mb-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-              Kirim tautan ini ke narahubung mitra. Mitra tidak perlu akun; tautan
-              berlaku sampai diisi, lalu tertutup.
-            </p>
-            {/* Selectable text, not a link to click: the unit needs to copy it
-                into an email, not open it themselves — opening it is how a
-                token gets spent by accident. */}
-            <input
-              readOnly
-              defaultValue={tautanMitra}
-              className="w-full rounded-lg border px-3 py-2 text-xs"
-              style={{ borderColor: "var(--border)", background: "var(--surface-sunk)" }}
-            />
-          </>
-        ) : (
+        ) : !mitra ? (
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Belum ada tautan evaluasi mitra yang aktif.
+            Belum ada evaluasi mitra untuk dokumen ini.
           </p>
+        ) : !io ? (
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Menunggu jawaban mitra. Tautan evaluasi mitra dikirim oleh KUI.
+          </p>
+        ) : (
+          <>
+            {tautanMitra ? (
+              <>
+                <p className="mb-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  Kirim tautan ini ke narahubung mitra. Mitra tidak perlu akun; cukup
+                  buka tautan, isi identitas dan formulir, lalu kirim. Tautan berlaku
+                  sampai diisi, lalu tertutup.
+                </p>
+                {/* Selectable text, not a link to click: opening it is not
+                    harmful, but KUI needs to copy it into an email. */}
+                <input
+                  readOnly
+                  defaultValue={tautanMitra}
+                  className="w-full rounded-lg border px-3 py-2 text-xs"
+                  style={{ borderColor: "var(--border)", background: "var(--surface-sunk)" }}
+                />
+              </>
+            ) : (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Tautan evaluasi mitra belum diaktifkan.
+              </p>
+            )}
+            <form action={buatTautan} className="mt-3 flex flex-wrap items-center gap-2">
+              <SubmitButton
+                labelMenunggu="Memproses…"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-white"
+                style={{ background: "var(--midnight)" }}
+              >
+                {tautanMitra ? "Buat ulang tautan" : "Aktifkan & buat tautan"}
+              </SubmitButton>
+              {tautanMitra ? (
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Tautan lama tidak berlaku lagi setelah dibuat ulang.
+                </span>
+              ) : null}
+            </form>
+          </>
         )}
       </section>
 
