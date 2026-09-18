@@ -100,6 +100,43 @@ begin
   select status_proposal into v_st from proposal_dokumen where id = v_p;
   if v_st <> 'Disposisi - Tier 2' then raise exception 'FAIL 9.4d: got %', v_st; end if;
 
+  -- The revision loop: Approve (and a second request) wait for the upload.
+  begin
+    perform aksi_approval(v_t2, 'approve');
+    raise exception 'FAIL 9.4e: approved while a revision was open';
+  exception when others then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+  begin
+    perform aksi_approval(v_t2, 'revision', 'lagi');
+    raise exception 'FAIL 9.4f: a second revision opened while one was open';
+  exception when others then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+  -- Told to the submitter only, once.
+  select count(*) into v_n from notifikasi
+   where id_proposal_dokumen = v_p and jenis_notifikasi = 'revision_requested';
+  if v_n <> 1 then raise exception 'FAIL 9.4g: % revision_requested notices, expected 1', v_n; end if;
+
+  -- The submitter answers; the approver who asked is told and may approve.
+  perform set_config('simks.akun_id','7',true);
+  perform catat_revisi(v_p, 'revisi/uji.pdf', 'sudah diperbaiki', v_t2);
+  if revisi_terbuka(v_t2) then raise exception 'FAIL 9.4h: upload did not close the request'; end if;
+  if not exists (select 1 from notifikasi
+                  where id_proposal_dokumen = v_p and jenis_notifikasi = 'revision_submitted'
+                    and id_jabatan_penerima = (select id_jabatan from akun where id = 3)) then
+    raise exception 'FAIL 9.4i: requesting approver was not told of the upload';
+  end if;
+  perform set_config('simks.akun_id','3',true);
+  begin
+    perform aksi_approval(v_t2, 'approve');
+    raise exception 'ROLLBACK_OK';  -- undo, the block below needs v_t2 open
+  exception when others then
+    if sqlerrm <> 'ROLLBACK_OK' then
+      raise exception 'FAIL 9.4j: approve after upload refused: %', sqlerrm;
+    end if;
+  end;
+
   -- §9.2 — pending is the heavyweight one: freeze, then full reset.
   perform aksi_approval(v_t2, 'pending', 'ada yang mendasar keliru');
   select status_proposal into v_st from proposal_dokumen where id = v_p;
@@ -149,6 +186,7 @@ begin
   raise notice 'PASS 9.3 SLA pause/resume (open % days, frozen-adjusted % days)', a, b;
 
   delete from pending_periods where id_proposal_dokumen in (v_p, v_pb);
+  delete from revisi_proposal where id_proposal_dokumen = v_p;
   delete from riwayat_approval where id_proposal_dokumen = v_p;
   delete from disposisi_target where no_disposisi in (select no from disposisi where id_proposal_dokumen = v_p);
   delete from disposisi where id_proposal_dokumen = v_p;

@@ -43,9 +43,12 @@ const LABEL: Record<Aksi, string> = {
 export function PanelApproval({
   noTarget,
   idProposal,
+  menungguRevisi = false,
 }: {
   noTarget: number;
   idProposal: number;
+  /** An open revision request: Approve waits for the submitter's upload. */
+  menungguRevisi?: boolean;
 }) {
   const [catatan, setCatatan] = useState("");
   const [galat, setGalat] = useState<string | null>(null);
@@ -77,6 +80,16 @@ export function PanelApproval({
     <div className="rounded-xl border bg-white p-4" style={{ borderColor: "var(--border)" }}>
       <h3 className="mb-3 text-sm font-semibold">Tindakan Anda</h3>
 
+      {menungguRevisi ? (
+        <p
+          className="mb-3 rounded-lg border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--status-pending)", color: "var(--status-pending-text)" }}
+        >
+          Menunggu revisi dari pengusul. Anda dapat menyetujui setelah revisi
+          diunggah — Anda akan menerima notifikasi.
+        </p>
+      ) : null}
+
       <label className="block">
         <span className="mb-1 block text-xs" style={{ color: "var(--text-secondary)" }}>
           Catatan (sebaiknya diisi bila meminta revisi atau menangguhkan)
@@ -93,7 +106,7 @@ export function PanelApproval({
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={menunggu}
+          disabled={menunggu || menungguRevisi}
           onClick={() => jalankan("approve")}
           className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           style={{ background: "var(--midnight)" }}
@@ -104,7 +117,7 @@ export function PanelApproval({
         {/* Lightweight: the document stays exactly where it is (BR-07). */}
         <button
           type="button"
-          disabled={menunggu}
+          disabled={menunggu || menungguRevisi}
           onClick={() => jalankan("revision")}
           className="rounded-lg border px-4 py-2 text-sm disabled:opacity-60"
           style={{ borderColor: "var(--border)" }}

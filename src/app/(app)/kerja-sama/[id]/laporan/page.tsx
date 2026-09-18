@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isIO, akunSaatIni, supabaseServer } from "@/lib/supabase/server";
-import { kirimDisposisi } from "@/lib/actions/workflow";
+import { kirimDisposisi, unggahRevisi } from "@/lib/actions/workflow";
 import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
 import { SubmitButton } from "@/components/submit-button";
@@ -59,6 +59,7 @@ const AKSI_LABEL: Record<string, string> = {
   reject: "menolak",
   pending: "menangguhkan",
   revision_requested: "meminta revisi",
+  revision_submitted: "mengunggah revisi",
   reactivated: "mengaktifkan kembali",
   disposition_added: "menambah approver",
   disposition_removed: "menghapus approver",
@@ -112,7 +113,7 @@ export default async function LaporanDokumen({
     .from("proposal_dokumen")
     .select(
       `id, jenis_kerjasama, status_proposal, tujuan_kerjasama, manfaat_bagi_petra,
-       manfaat_bagi_mitra, id_dokumen_sebelumnya, file_draft,
+       manfaat_bagi_mitra, id_dokumen_sebelumnya, file_draft, id_akun_pembuat,
        partner_pengusul ( partner ( id, nama, kota, alamat, homepage,
          afiliasi_group, jenis_bisnis, is_international, id_partner_contact,
          negara ( nama ) ) ),
@@ -200,10 +201,14 @@ export default async function LaporanDokumen({
   // Approval progress — same shape the workflow page reads (revision V3 §2.a.2).
   const { data: disposisi } = await supabase
     .from("disposisi")
-    .select("no, round_ke, pesan_disposisi, waktu_disposisi, jenis_disposisi")
+    .select(
+      `no, round_ke, pesan_disposisi, waktu_disposisi, jenis_disposisi, lampiran,
+       akun:id_akun_pengirim ( jabatan ( nama ) )`,
+    )
     .eq("id_proposal_dokumen", idProposal)
     .eq("jenis_disposisi", "approval")
-    .order("round_ke", { ascending: false });
+    .order("round_ke", { ascending: false })
+    .order("waktu_disposisi", { ascending: false });
 
   const ronde = disposisi?.[0]?.round_ke ?? null;
   const noDisposisiRonde = (disposisi ?? [])
@@ -238,6 +243,69 @@ export default async function LaporanDokumen({
   const targetSaya = (target ?? []).find(
     (t: any) => t.jabatan?.id === akun?.id_jabatan && t.status === "pending_action",
   );
+
+  const { data: menungguRevisi } = targetSaya
+    ? await supabase.rpc("revisi_terbuka", { p_no_target: targetSaya.no })
+    : { data: false };
+
+  // The Disposisi tab is where a disposition's message is read and where the
+  // revision loop runs, so it is open to IO, to the approvers, and to the
+  // submitter (who answers revision requests there).
+  const pengusulSaya = Boolean(akun) && proposal.id_akun_pembuat === akun?.id;
+  const approverSaya = (target ?? []).some((t: any) => t.jabatan?.id === akun?.id_jabatan);
+  const bolehDisposisi = io || pengusulSaya || approverSaya;
+
+  // Signed links for each disposition's attached document.
+  const pathLampiran = (disposisi ?? []).map((d: any) => d.lampiran).filter(Boolean);
+  const { data: lampiranSigned } = pathLampiran.length
+    ? await supabase.storage.from("dokumen-kerjasama").createSignedUrls(pathLampiran, 3600)
+    : { data: [] };
+  const urlLampiran = new Map(
+    (lampiranSigned ?? []).map((s: any) => [s.path, s.signedUrl as string | null]),
+  );
+
+  // Revision requests, each paired with the upload that answered it. Requests
+  // and uploads alternate per target (the database refuses a second open
+  // request), so walking them in order pairs them.
+  const { data: riwayatRevisi } = await supabase
+    .from("riwayat_approval")
+    .select(
+      `id, aksi, catatan, tanggal, waktu, id_disposisi_target,
+       disposisi_target ( status, jabatan ( nama ) )`,
+    )
+    .eq("id_proposal_dokumen", idProposal)
+    .in("aksi", ["revision_requested", "revision_submitted"])
+    .order("tanggal")
+    .order("waktu")
+    .order("id");
+
+  type PermintaanRevisi = { minta: any; jawab: any | null };
+  const permintaanRevisi: PermintaanRevisi[] = [];
+  const terbukaPerTarget = new Map<number, PermintaanRevisi>();
+  for (const r of (riwayatRevisi ?? []) as any[]) {
+    if (r.aksi === "revision_requested") {
+      const p = { minta: r, jawab: null };
+      permintaanRevisi.push(p);
+      terbukaPerTarget.set(r.id_disposisi_target, p);
+    } else {
+      const p = terbukaPerTarget.get(r.id_disposisi_target);
+      if (p) {
+        p.jawab = r;
+        terbukaPerTarget.delete(r.id_disposisi_target);
+      }
+    }
+  }
+  permintaanRevisi.reverse(); // newest first
+
+  async function kirimRevisi(formData: FormData) {
+    "use server";
+    const hasil = await unggahRevisi(idProposal, Number(formData.get("no_target")), formData);
+    if (!hasil.ok) {
+      redirect(
+        `/kerja-sama/${idProposal}/laporan?tab=disposisi&galat=${encodeURIComponent(hasil.pesan)}`,
+      );
+    }
+  }
 
   const { data: jabatanApprover } = await supabase
     .from("jabatan")
@@ -331,7 +399,7 @@ export default async function LaporanDokumen({
         basePath={`/kerja-sama/${idProposal}/laporan`}
         tabs={Object.fromEntries(
           Object.entries(TAB).filter(
-            ([k]) => (k !== "disposisi" || io) && (k !== "pembaruan" || adaPembaruan),
+            ([k]) => (k !== "disposisi" || bolehDisposisi) && (k !== "pembaruan" || adaPembaruan),
           ),
         )}
         aktif={tab}
@@ -636,7 +704,13 @@ export default async function LaporanDokumen({
             )}
           </section>
 
-          {targetSaya ? <PanelApproval noTarget={targetSaya.no} idProposal={idProposal} /> : null}
+          {targetSaya ? (
+            <PanelApproval
+              noTarget={targetSaya.no}
+              idProposal={idProposal}
+              menungguRevisi={Boolean(menungguRevisi)}
+            />
+          ) : null}
 
           {io && dalamDisposisi ? (
             <EditorDisposisi
@@ -685,18 +759,125 @@ export default async function LaporanDokumen({
 
       {tab === "pembaruan" && adaPembaruan ? <PembaruanPanel noDokumen={dok.no} io={io} /> : null}
 
-      {tab === "disposisi" && io ? (
-        <section className="rounded-xl border bg-white p-4" style={gaya}>
-          <h2 className="mb-1 text-sm font-semibold">Disposisi</h2>
-
+      {tab === "disposisi" && bolehDisposisi ? (
+        <div className="space-y-6">
           {galat ? (
             <p
-              className="mb-3 rounded-lg border px-3 py-2 text-sm"
+              className="rounded-lg border px-3 py-2 text-sm"
               style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
             >
               {galat}
             </p>
           ) : null}
+
+          <section className="rounded-xl border bg-white p-4" style={gaya}>
+            <h2 className="mb-3 text-sm font-semibold">Pesan Disposisi</h2>
+            {(disposisi ?? []).length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Belum ada disposisi untuk dokumen ini.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {(disposisi ?? []).map((d: any) => (
+                  <li key={d.no} className="border-l-2 pl-3" style={gaya}>
+                    <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {d.akun?.jabatan?.nama ?? "KUI"} ·{" "}
+                      {new Date(d.waktu_disposisi).toLocaleString("id-ID", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                      {d.round_ke > 1 ? ` · Ronde ke-${d.round_ke}` : ""}
+                    </div>
+                    <p className="mt-0.5 whitespace-pre-line text-sm">
+                      {d.pesan_disposisi || (
+                        <span style={{ color: "var(--text-muted)" }}>(tanpa pesan)</span>
+                      )}
+                    </p>
+                    {d.lampiran && urlLampiran.get(d.lampiran) ? (
+                      <a
+                        href={urlLampiran.get(d.lampiran)!}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs underline"
+                      >
+                        Lihat dokumen terlampir
+                      </a>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {permintaanRevisi.length > 0 ? (
+            <section className="rounded-xl border bg-white p-4" style={gaya}>
+              <h2 className="mb-3 text-sm font-semibold">Revisi</h2>
+              <ul className="space-y-4">
+                {permintaanRevisi.map(({ minta, jawab }) => (
+                  <li key={minta.id} className="rounded-lg border p-3" style={gaya}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-sm font-medium">
+                        {minta.disposisi_target?.jabatan?.nama ?? "Approver"} meminta revisi
+                      </span>
+                      <span
+                        className="text-xs"
+                        style={{
+                          color: jawab ? "var(--status-approved)" : "var(--status-pending-text)",
+                        }}
+                      >
+                        {jawab ? "Revisi diunggah" : "Menunggu revisi"}
+                      </span>
+                    </div>
+                    <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {new Date(minta.tanggal).toLocaleDateString("id-ID", { dateStyle: "medium" })},{" "}
+                      {String(minta.waktu).slice(0, 5)}
+                    </div>
+                    {minta.catatan ? (
+                      <p className="mt-1 whitespace-pre-line text-sm">{minta.catatan}</p>
+                    ) : null}
+
+                    {jawab ? (
+                      <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                        Diunggah{" "}
+                        {new Date(jawab.tanggal).toLocaleDateString("id-ID", { dateStyle: "medium" })},{" "}
+                        {String(jawab.waktu).slice(0, 5)}
+                        {jawab.catatan ? ` — ${jawab.catatan}` : ""}. Berkas terbaru tampil di tab
+                        Detail.
+                      </p>
+                    ) : pengusulSaya && dalamDisposisi ? (
+                      <form action={kirimRevisi} className="mt-3 space-y-2">
+                        <input type="hidden" name="no_target" value={minta.id_disposisi_target} />
+                        <input
+                          type="file"
+                          name="berkas"
+                          accept="application/pdf"
+                          required
+                          className="block text-xs"
+                        />
+                        <input
+                          name="catatan"
+                          placeholder="Catatan revisi (opsional)"
+                          className="w-full rounded-lg border px-3 py-2 text-sm"
+                          style={gaya}
+                        />
+                        <SubmitButton
+                          labelMenunggu="Mengunggah…"
+                          className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                          style={{ background: "var(--midnight)" }}
+                        >
+                          Unggah Revisi
+                        </SubmitButton>
+                      </form>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {io ? (
+        <section className="rounded-xl border bg-white p-4" style={gaya}>
+          <h2 className="mb-1 text-sm font-semibold">Kirim Disposisi</h2>
 
           {!belumDidisposisi ? (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -796,6 +977,8 @@ export default async function LaporanDokumen({
             </>
           )}
         </section>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

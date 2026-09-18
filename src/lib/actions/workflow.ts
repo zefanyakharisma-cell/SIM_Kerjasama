@@ -75,6 +75,41 @@ export async function aksiApproval(
   return hasil;
 }
 
+/**
+ * The submitter answers one open revision request with a new file. The draft
+ * is replaced in place; catat_revisi logs it and tells the approver who asked.
+ */
+export async function unggahRevisi(
+  idProposal: number,
+  noTarget: number,
+  formData: FormData,
+): Promise<Hasil> {
+  const berkas = formData.get("berkas") as File | null;
+  if (!berkas || berkas.size === 0) return { ok: false, pesan: "Pilih berkas revisi." };
+
+  const supabase = await supabaseServer();
+  // Sanitised before it becomes part of a storage path.
+  const namaAman = berkas.name.replace(/[/\\]/g, "_").replace(/[^\w.\-]/g, "_");
+  const path = `revisi/${idProposal}/${Date.now()}-${namaAman}`;
+  const { error } = await supabase.storage
+    .from("dokumen-kerjasama")
+    .upload(path, berkas, { upsert: true });
+  if (error) {
+    console.error("[simks] unggah revisi gagal:", error.message);
+    return { ok: false, pesan: "Gagal mengunggah berkas revisi." };
+  }
+
+  const hasil = await panggil("catat_revisi", {
+    p_id_proposal: idProposal,
+    p_file: path,
+    p_catatan: String(formData.get("catatan") ?? "") || null,
+    p_no_target_peminta: noTarget,
+  });
+  revalidatePath(`/kerja-sama/${idProposal}`);
+  revalidatePath(`/kerja-sama/${idProposal}/laporan`);
+  return hasil;
+}
+
 /** Reactivating a frozen document restarts the whole approval at tier 1 (BR-06). */
 export async function reaktivasiPending(idProposal: number): Promise<Hasil> {
   const hasil = await panggil("reaktivasi_pending", { p_id_proposal: idProposal });

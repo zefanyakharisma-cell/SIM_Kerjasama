@@ -123,6 +123,10 @@ export default async function DetailDokumen({
     (t: any) => t.jabatan?.id === akun?.id_jabatan && t.status === "pending_action",
   );
 
+  const { data: menungguRevisi } = targetSaya
+    ? await supabase.rpc("revisi_terbuka", { p_no_target: targetSaya.no })
+    : { data: false };
+
   const { data: jabatanApprover } = await supabase
     .from("jabatan")
     .select("id, nama, tier_disposisi")
@@ -372,7 +376,11 @@ export default async function DetailDokumen({
 
           {targetSaya ? (
             <section className="mb-6">
-              <PanelApproval noTarget={targetSaya.no} idProposal={idProposal} />
+              <PanelApproval
+                noTarget={targetSaya.no}
+                idProposal={idProposal}
+                menungguRevisi={Boolean(menungguRevisi)}
+              />
             </section>
           ) : null}
 

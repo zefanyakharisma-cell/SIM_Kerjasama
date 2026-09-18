@@ -24,6 +24,7 @@ const JUDUL: Record<string, string> = {
   rejected: "Ditolak",
   pending: "Dokumen ditangguhkan",
   revision_requested: "Permintaan revisi",
+  revision_submitted: "Revisi diunggah — silakan tinjau",
   reactivated: "Diaktifkan kembali — approval diulang dari Tier 1",
   expiring_soon: "Dokumen akan berakhir",
   sla_yellow: "Melewati batas SLA",
@@ -33,6 +34,12 @@ const JUDUL: Record<string, string> = {
   evaluation_submitted: "Evaluasi masuk",
   split_decision: "Evaluasi berbeda — perlu keputusan",
 };
+
+const KE_DISPOSISI = new Set([
+  "disposition_assigned",
+  "revision_requested",
+  "revision_submitted",
+]);
 
 // Colour carries no meaning alone; each of these also reads as a word above.
 const WARNA: Record<string, string> = {
@@ -62,12 +69,16 @@ async function tandaiTerbaca() {
 }
 
 export default async function Notifikasi() {
+  const akun = await akunSaatIni();
   const supabase = await supabaseServer();
+  // RLS lets IO read every position's inbox (for oversight), so without this
+  // filter IO would see each event once per recipient. The inbox is its own.
   const { data } = await supabase
     .from("notifikasi")
     .select(
       "id, jenis_notifikasi, isi, waktu_kirim, waktu_dibaca, id_proposal_dokumen, no_dokumen_kerjasama",
     )
+    .eq("id_jabatan_penerima", akun?.id_jabatan ?? -1)
     .order("waktu_kirim", { ascending: false })
     .limit(100);
 
@@ -159,8 +170,12 @@ export default async function Notifikasi() {
                     href={
                       // Renewal notices carry only the document number;
                       // /pembaruan/[no] redirects to its Pembaruan tab.
+                      // Disposition and revision notices open the Disposisi
+                      // tab, where the message and the revision upload live.
                       (n.id_proposal_dokumen
-                        ? `/kerja-sama/${n.id_proposal_dokumen}`
+                        ? KE_DISPOSISI.has(n.jenis_notifikasi)
+                          ? `/kerja-sama/${n.id_proposal_dokumen}/laporan?tab=disposisi`
+                          : `/kerja-sama/${n.id_proposal_dokumen}`
                         : `/pembaruan/${n.no_dokumen_kerjasama}`) as any
                     }
                     className={kelas}
