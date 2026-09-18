@@ -5,6 +5,7 @@ import {
   bacaFilter,
   keXlsx,
   lolosIlike,
+  termCari,
   terapkanFilter,
   terapkanUrutan,
   type TabKey,
@@ -77,6 +78,36 @@ const PROSES = [
   "Ditolak",
 ];
 
+type Unit = { id: number; nama: string; id_parent_unit: number | null; is_active: boolean };
+
+/**
+ * Units in tree order — each faculty followed by its prodi and programs —
+ * so the Lingkup columns read as the tree does. A name shared by two units
+ * (e.g. the same program under two faculties) carries its parent's name.
+ */
+function urutPohon(unit: Unit[]): (Unit & { label: string })[] {
+  const anak = new Map<number | null, Unit[]>();
+  for (const u of unit) anak.set(u.id_parent_unit, [...(anak.get(u.id_parent_unit) ?? []), u]);
+  const byId = new Map(unit.map((u) => [u.id, u]));
+  const jumlahNama = new Map<string, number>();
+  for (const u of unit) jumlahNama.set(u.nama, (jumlahNama.get(u.nama) ?? 0) + 1);
+
+  const hasil: (Unit & { label: string })[] = [];
+  const kunjungi = (induk: number | null, jalur: Set<number>) => {
+    for (const u of anak.get(induk) ?? []) {
+      if (jalur.has(u.id)) continue; // a cycle in bad data must not hang the export
+      const induknya = u.id_parent_unit ? byId.get(u.id_parent_unit)?.nama : null;
+      hasil.push({
+        ...u,
+        label: (jumlahNama.get(u.nama) ?? 0) > 1 && induknya ? `${u.nama} (${induknya})` : u.nama,
+      });
+      kunjungi(u.id, new Set(jalur).add(u.id));
+    }
+  };
+  kunjungi(null, new Set());
+  return hasil;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ jenis: string }> },
@@ -90,6 +121,7 @@ export async function GET(
   let baris: Record<string, unknown>[] = [];
   let kolom: string[][];
   let nama: string;
+  let centang = new Set<string>();
 
   if (jenis === "sla") {
     let q: any = supabase.from("v_sla_dokumen").select("*");
@@ -97,6 +129,8 @@ export async function GET(
     // document-level values the list is showing.
     if (filter.no_dokumen) q = q.ilike("no_dokumen", `%${lolosIlike(filter.no_dokumen)}%`);
     if (filter.nama_mitra) q = q.ilike("nama_mitra", `%${lolosIlike(filter.nama_mitra)}%`);
+    const cari = termCari(filter.q ?? "");
+    if (cari) q = q.or(`no_dokumen.ilike.*${cari}*,nama_mitra.ilike.*${cari}*`);
     const { data, error } = await q
       .order("id_proposal", { ascending: false })
       .order("round_ke")
@@ -119,16 +153,58 @@ export async function GET(
     kolom = KOLOM_DOKUMEN;
     nama = "dokumen-berjalan-dan-diproses";
   } else if (jenis === "aktif") {
-    // Export 1 is the active list; the tab the user is on is respected, so the
-    // button next to the filters exports what the screen shows.
-    const { data, error } = await terapkanUrutan(
-      terapkanFilter(supabase.from("v_daftar_dokumen").select("*"), tab, filter),
-      filter,
-    ).limit(10000);
+    // Unduh Laporan (Revisi V6 §4). The tab the user is on is respected, so
+    // the button next to the filters exports what the screen shows.
+    const [{ data, error }, { data: bidang }, { data: unit }] = await Promise.all([
+      terapkanUrutan(
+        terapkanFilter(supabase.from("v_laporan_dokumen").select("*"), tab, filter),
+        filter,
+      ).limit(10000),
+      supabase.from("bidang_kerjasama").select("id, nama, is_active").order("id"),
+      supabase.from("unit").select("id, nama, id_parent_unit, is_active").order("nama"),
+    ]);
     if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
-    baris = data ?? [];
-    kolom = KOLOM_DOKUMEN;
-    nama = `daftar-${tab}`;
+    const dokumen = (data ?? []) as any[];
+
+    // Every current option gets a column; a retired one only while some
+    // exported document still carries it, so no TRUE is ever dropped.
+    const dipakai = (k: string) => new Set(dokumen.flatMap((d) => d[k] ?? []));
+    const bidangDipakai = dipakai("bidang_ids");
+    const unitDipakai = dipakai("unit_ids");
+    const kolomBidang = (bidang ?? [])
+      .filter((b) => b.is_active || bidangDipakai.has(b.id))
+      .map((b) => [`bidang:${b.id}`, `Bidang: ${b.nama}`]);
+    const kolomUnit = urutPohon(unit ?? [])
+      .filter((u) => u.is_active || unitDipakai.has(u.id))
+      .map((u) => [`unit:${u.id}`, `Lingkup: ${u.label}`]);
+
+    baris = dokumen.map((d) => {
+      const r: Record<string, unknown> = { ...d };
+      for (const id of d.bidang_ids ?? []) r[`bidang:${id}`] = true;
+      for (const id of d.unit_ids ?? []) r[`unit:${id}`] = true;
+      return r;
+    });
+    kolom = [
+      ["no_dokumen", "No Dokumen"],
+      ["jenis_kerjasama", "Jenis Dokumen"],
+      ["nama_mitra", "Mitra"],
+      ["negara", "Negara"],
+      ["alamat", "Alamat"],
+      ["jenis_mitra", "Jenis Mitra"],
+      ["agenda", "Agenda Kerja Sama"],
+      ...kolomBidang,
+      ["tanggal_mulai", "Tanggal Mulai"],
+      ["tanggal_berakhir", "Tanggal Selesai"],
+      ["status_tampil", "Status"],
+      ["unit_pengusul", "Unit Pengusul"],
+      ...kolomUnit,
+      ["penandatangan_petra", "Penandatangan PETRA"],
+      ["penandatangan_mitra", "Penandatangan MITRA"],
+      ["kontak_pengusul", "Kontak Pengusul"],
+      ["kontak_mitra", "Kontak Mitra"],
+    ];
+    centang = new Set([...kolomBidang, ...kolomUnit].map(([k]) => k));
+    nama = `laporan-${tab}`;
   } else {
     return NextResponse.json(
       { pesan: "Ekspor tidak dikenal; gunakan aktif, sla atau proses." },
@@ -139,7 +215,7 @@ export async function GET(
   // Asia/Jakarta, not UTC — otherwise the filename date can be a day behind
   // for downloads made in the evening (UTC+7).
   const tanggal = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
-  const berkas = await keXlsx(baris, kolom, nama);
+  const berkas = await keXlsx(baris, kolom, nama, centang);
   return new NextResponse(new Uint8Array(berkas), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

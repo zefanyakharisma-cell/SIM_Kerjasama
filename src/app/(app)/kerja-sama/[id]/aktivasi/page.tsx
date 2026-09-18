@@ -58,6 +58,8 @@ export default async function AktivasiDokumen({
       noBerkasDikti: String(formData.get("no_berkas_dikti") ?? "") || null,
       penandatanganPetra: String(formData.get("penandatangan_petra") ?? "") || null,
       penandatanganMitra: String(formData.get("penandatangan_mitra") ?? "") || null,
+      jabatanPetra: String(formData.get("jabatan_petra") ?? "") || null,
+      jabatanMitra: String(formData.get("jabatan_mitra") ?? "") || null,
     });
     if (!hasil.ok) throw new Error(hasil.pesan);
     redirect(`/kerja-sama/${idProposal}/laporan` as any);
@@ -103,6 +105,16 @@ export default async function AktivasiDokumen({
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Penandatangan Mitra</span>
           <input name="penandatangan_mitra" className={inputKelas} style={gaya} />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Jabatan Penandatangan PETRA</span>
+          <input name="jabatan_petra" className={inputKelas} style={gaya} />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Jabatan Penandatangan Mitra</span>
+          <input name="jabatan_mitra" className={inputKelas} style={gaya} />
         </label>
 
         <div className="sm:col-span-2">

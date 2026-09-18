@@ -10,12 +10,16 @@ import {
   KOLOM,
   PER_HALAMAN,
   TAB,
+  TAB_DOKUMEN,
   URUTAN,
   type Filter,
+  type Kolom,
   adalahTab,
   ambilHalaman,
   bacaFilter,
+  kolomBerlaku,
   kueriDariFilter,
+  opsiKolom,
   type TabKey,
 } from "@/lib/laporan";
 
@@ -73,91 +77,166 @@ function IkonEdit() {
   );
 }
 
+/** What a status reads as on screen — same wording as the status pill. */
+const LABEL_STATUS: Record<string, string> = { Pending: "Ditangguhkan", Kedaluarsa: "Kedaluwarsa" };
+
 /**
- * Filter + sort for every tab. A plain GET form above the table rather than a
- * header row inside it, because the tabs have different spec-fixed columns;
- * the state lands in the URL, so paging and the exports carry it.
+ * Filter + sort for every tab (Revisi V6 §1): one search box, the few filters
+ * people reach for first always in view, everything else folded under
+ * "Filter lanjutan", and each active filter as a chip that removes just
+ * itself. Still a plain GET form: the state lands in the URL, so paging and
+ * the exports carry it.
  */
 function BarFilter({ tab, filter }: { tab: TabKey; filter: Filter }) {
   const gaya = { borderColor: "var(--border)" };
-  return (
-    <form
-      method="get"
-      action="/kerja-sama"
-      className="mb-3 grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-3 lg:grid-cols-5"
-      style={gaya}
-    >
-      <input type="hidden" name="tab" value={tab} />
-      {KOLOM.map((k) => (
+  const label = (teks: string) => (
+    <span className="mb-0.5 block" style={{ color: "var(--text-secondary)" }}>
+      {teks}
+    </span>
+  );
+  const kolom = KOLOM.filter((k) => kolomBerlaku(k, tab));
+  const kontrol = (k: Kolom) => {
+    if (k.jenis === "pilih") {
+      const opsi = opsiKolom(k, tab);
+      if (opsi.length === 0) return null;
+      return (
         <label key={k.kunci} className="block text-xs">
-          <span className="mb-0.5 block" style={{ color: "var(--text-secondary)" }}>
-            {k.label}
-          </span>
-          {k.jenis === "pilih" ? (
-            <select name={`f_${k.kunci}`} defaultValue={filter[k.kunci] ?? ""} className={inputKelas} style={gaya}>
-              <option value="">Semua</option>
-              {k.opsi.map((o: string) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          ) : (
+          {label(k.label)}
+          <select name={`f_${k.kunci}`} defaultValue={filter[k.kunci] ?? ""} className={inputKelas} style={gaya}>
+            <option value="">Semua</option>
+            {opsi.map((o) => (
+              <option key={o} value={o}>
+                {LABEL_STATUS[o] ?? o}
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+    return (
+      <label key={k.kunci} className="block text-xs">
+        {label(k.label)}
+        <input name={`f_${k.kunci}`} defaultValue={filter[k.kunci] ?? ""} className={inputKelas} style={gaya} />
+      </label>
+    );
+  };
+  const lanjutan = kolom.filter((k) => k.lanjutan);
+  const lanjutanAktif = lanjutan.some((k) => filter[k.kunci]) || Boolean(filter.urut || filter.arah);
+
+  // Chips: each links to the same view minus that one filter.
+  const namaChip: Record<string, string> = {
+    q: "Cari",
+    dari: "Dari",
+    sampai: "Sampai",
+    urut: "Urut",
+    arah: "Arah",
+    ...Object.fromEntries(KOLOM.map((k) => [k.kunci, k.label])),
+  };
+  const nilaiChip = (k: string, v: string) =>
+    k === "urut"
+      ? (URUTAN[v as keyof typeof URUTAN] ?? v)
+      : k === "arah"
+        ? v === "asc"
+          ? "naik"
+          : "turun"
+        : (LABEL_STATUS[v] ?? v);
+  const tanpa = (kunci: string) => {
+    const kueri = kueriDariFilter(Object.fromEntries(Object.entries(filter).filter(([k]) => k !== kunci)));
+    return `/kerja-sama?tab=${tab}${kueri ? `&${kueri}` : ""}`;
+  };
+
+  return (
+    <form method="get" action="/kerja-sama" className="mb-3 rounded-xl border bg-white p-3" style={gaya}>
+      <input type="hidden" name="tab" value={tab} />
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="block min-w-[14rem] flex-1 text-xs">
+          {label("Cari")}
+          <span className="relative block">
+            <span
+              className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <IkonCari />
+            </span>
             <input
-              name={`f_${k.kunci}`}
-              defaultValue={filter[k.kunci] ?? ""}
-              placeholder="Saring…"
-              className={inputKelas}
+              type="search"
+              name="f_q"
+              defaultValue={filter.q ?? ""}
+              placeholder={
+                TAB_DOKUMEN.includes(tab)
+                  ? "No. dokumen, mitra, negara, agenda, unit…"
+                  : "Mitra, negara, agenda, unit, pengusul…"
+              }
+              className="w-full rounded border py-1.5 pl-8 pr-2 text-sm"
               style={gaya}
             />
-          )}
+          </span>
         </label>
-      ))}
-      <label className="block text-xs">
-        <span className="mb-0.5 block" style={{ color: "var(--text-secondary)" }}>
-          {tab === "berakhir" ? "Berakhir dari / sampai" : "Diajukan dari / sampai"}
-        </span>
-        <span className="flex gap-1">
-          <input type="date" name="f_dari" aria-label="Dari tanggal" defaultValue={filter.dari ?? ""} className={inputKelas} style={gaya} />
-          <input type="date" name="f_sampai" aria-label="Sampai tanggal" defaultValue={filter.sampai ?? ""} className={inputKelas} style={gaya} />
-        </span>
-      </label>
-      <label className="block text-xs">
-        <span className="mb-0.5 block" style={{ color: "var(--text-secondary)" }}>
-          Urutkan
-        </span>
-        <span className="flex gap-1">
-          <select name="f_urut" aria-label="Urutkan menurut" defaultValue={filter.urut ?? ""} className={inputKelas} style={gaya}>
-            <option value="">Terbaru dibuat</option>
-            {Object.entries(URUTAN)
-              .filter(([k]) => k !== "id_proposal")
-              .map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-          </select>
-          <select name="f_arah" aria-label="Arah urutan" defaultValue={filter.arah ?? ""} className={inputKelas} style={gaya}>
-            <option value="">Otomatis</option>
-            <option value="asc">A→Z / Lama→Baru</option>
-            <option value="desc">Z→A / Baru→Lama</option>
-          </select>
-        </span>
-      </label>
-      <span className="flex items-end gap-1">
+        {kolom.filter((k) => !k.lanjutan).map(kontrol)}
+        <label className="block text-xs">
+          {label(tab === "berakhir" ? "Berakhir dari – sampai" : "Diajukan dari – sampai")}
+          <span className="flex gap-1">
+            <input type="date" name="f_dari" aria-label="Dari tanggal" defaultValue={filter.dari ?? ""} className={inputKelas} style={gaya} />
+            <input type="date" name="f_sampai" aria-label="Sampai tanggal" defaultValue={filter.sampai ?? ""} className={inputKelas} style={gaya} />
+          </span>
+        </label>
         <button
           type="submit"
-          className="rounded px-3 py-1 text-xs font-medium text-white"
+          className="rounded px-4 py-1.5 text-sm font-medium text-white"
           style={{ background: "var(--midnight)" }}
         >
           Saring
         </button>
-        {Object.keys(filter).length > 0 ? (
-          <Link href={`/kerja-sama?tab=${tab}`} className="rounded border px-3 py-1 text-xs" style={gaya}>
-            Reset
+      </div>
+
+      <details open={lanjutanAktif} className="mt-2">
+        <summary className="cursor-pointer text-xs font-medium" style={{ color: "var(--midnight)" }}>
+          Filter lanjutan
+        </summary>
+        <div className="mt-2 grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {lanjutan.map(kontrol)}
+          <label className="block text-xs">
+            {label("Urutkan")}
+            <span className="flex gap-1">
+              <select name="f_urut" aria-label="Urutkan menurut" defaultValue={filter.urut ?? ""} className={inputKelas} style={gaya}>
+                <option value="">Terbaru dibuat</option>
+                {Object.entries(URUTAN)
+                  .filter(([k]) => k !== "id_proposal")
+                  .map(([k, teks]) => (
+                    <option key={k} value={k}>
+                      {teks}
+                    </option>
+                  ))}
+              </select>
+              <select name="f_arah" aria-label="Arah urutan" defaultValue={filter.arah ?? ""} className={inputKelas} style={gaya}>
+                <option value="">Otomatis</option>
+                <option value="asc">A→Z / Lama→Baru</option>
+                <option value="desc">Z→A / Baru→Lama</option>
+              </select>
+            </span>
+          </label>
+        </div>
+      </details>
+
+      {Object.keys(filter).length > 0 ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t pt-2 text-xs" style={gaya}>
+          {Object.entries(filter).map(([k, v]) => (
+            <Link
+              key={k}
+              href={tanpa(k) as any}
+              aria-label={`Hapus filter ${namaChip[k] ?? k}`}
+              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 hover:bg-black/5"
+              style={gaya}
+            >
+              <span style={{ color: "var(--text-secondary)" }}>{namaChip[k] ?? k}:</span> {nilaiChip(k, v)}
+              <span aria-hidden>×</span>
+            </Link>
+          ))}
+          <Link href={`/kerja-sama?tab=${tab}`} className="ml-1 underline" style={{ color: "var(--text-secondary)" }}>
+            Reset semua
           </Link>
-        ) : null}
-      </span>
+        </div>
+      ) : null}
     </form>
   );
 }

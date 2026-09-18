@@ -5,6 +5,7 @@ import { MitraPicker } from "@/components/mitra-picker";
 import { SearchSelect } from "@/components/search-select";
 import { KerjaSamaFields } from "@/components/kerja-sama-fields";
 import { SubmitButton } from "@/components/submit-button";
+import { uraiPeriode } from "@/lib/periode";
 
 /**
  * Buat Kerja Sama — the Proposal Form (PRD §7.2, Design §5.5).
@@ -45,6 +46,10 @@ function Bagian({
     </section>
   );
 }
+
+/** PostgREST `or`: active rows, plus the ids a draft already holds. */
+const aktifAtau = (ids: unknown[]) =>
+  ids.length ? `is_active.eq.true,id.in.(${ids.map(Number).join(",")})` : "is_active.eq.true";
 
 const inputKelas = "w-full rounded-lg border px-3 py-2 text-sm";
 const inputGaya = { borderColor: "var(--border)" };
@@ -89,6 +94,7 @@ export default async function BuatKerjaSama({
   const mouDraf = (draf as any)?.proposal_dokumen_mou?.[0] ?? (draf as any)?.proposal_dokumen_mou;
   const moaDraf = (draf as any)?.proposal_dokumen_moa?.[0] ?? (draf as any)?.proposal_dokumen_moa;
   const jabatanPengusulDraf = (draf as any)?.pengusul?.[0]?.id_jabatan ?? null;
+  const periodeDraf = uraiPeriode((draf as any)?.periode_kerjasama);
 
   const [
     { data: partner },
@@ -113,17 +119,19 @@ export default async function BuatKerjaSama({
         .eq("is_active", true)
         .order("nama")
         .limit(500),
-      supabase.from("bidang_kerjasama").select("id, nama").order("id"),
+      // Retired values leave the form unless this draft already picked them
+      // (same rule as agenda below).
+      supabase
+        .from("bidang_kerjasama")
+        .select("id, nama")
+        .or(aktifAtau([...bidangTerpilih]))
+        .order("id"),
       // Retired agendas drop out of the form, except ones this draft already
       // picked — otherwise saving the draft would silently lose them.
       supabase
         .from("agenda")
         .select("id, nama, is_amendment")
-        .or(
-          agendaTerpilih.size
-            ? `is_active.eq.true,id.in.(${[...agendaTerpilih].map(Number).join(",")})`
-            : "is_active.eq.true",
-        )
+        .or(aktifAtau([...agendaTerpilih]))
         .order("nama"),
       supabase
         .from("unit")
@@ -133,9 +141,14 @@ export default async function BuatKerjaSama({
       supabase.from("tujuan_kerjasama").select("nilai").eq("is_active", true).order("nilai"),
       supabase.from("manfaat_petra").select("nilai").eq("is_active", true).order("nilai"),
       supabase.from("manfaat_mitra").select("nilai").eq("is_active", true).order("nilai"),
-      supabase.from("jabatan").select("id, nama").order("nama"),
-      supabase.from("negara").select("id, nama").order("nama"),
-      supabase.from("jenis_mitra").select("id, nama").order("nama"),
+      supabase
+        .from("jabatan")
+        .select("id, nama")
+        .or(aktifAtau(jabatanPengusulDraf ? [jabatanPengusulDraf] : []))
+        .order("nama"),
+      // Only the new-partner dropdowns read these, so retired values just go.
+      supabase.from("negara").select("id, nama").eq("is_active", true).order("nama"),
+      supabase.from("jenis_mitra").select("id, nama").eq("is_active", true).order("nama"),
       // Supabase's default max-rows (often 1000) already makes a limit(2000)
       // here mostly aspirational; the draft partners' contacts are fetched
       // separately below so a draft edit at least never loses those.
@@ -213,16 +226,35 @@ export default async function BuatKerjaSama({
 
         <Bagian judul="III. Kerja Sama yang Diusulkan">
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Periode</span>
-              <input
-                name="periode_kerjasama"
-                defaultValue={(draf as any)?.periode_kerjasama ?? ""}
-                placeholder="5 Tahun"
-                className={inputKelas}
-                style={inputGaya}
-              />
-            </label>
+            <fieldset className="block sm:col-span-2">
+              <legend className="mb-1 block text-sm font-medium">Periode Kerja Sama</legend>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <input
+                  type="number"
+                  name="periode_tahun"
+                  min={0}
+                  max={99}
+                  inputMode="numeric"
+                  aria-label="Periode (tahun)"
+                  defaultValue={periodeDraf.tahun}
+                  className="w-20 rounded-lg border px-3 py-2 text-sm"
+                  style={inputGaya}
+                />
+                <span>Tahun</span>
+                <input
+                  type="number"
+                  name="periode_bulan"
+                  min={0}
+                  max={11}
+                  inputMode="numeric"
+                  aria-label="Periode (bulan)"
+                  defaultValue={periodeDraf.bulan}
+                  className="ml-2 w-20 rounded-lg border px-3 py-2 text-sm"
+                  style={inputGaya}
+                />
+                <span>Bulan</span>
+              </div>
+            </fieldset>
 
             <label className="block sm:col-span-2">
               <span className="mb-1 block text-sm font-medium">Sifat Periode</span>

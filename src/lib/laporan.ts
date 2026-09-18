@@ -47,21 +47,71 @@ const STATUS_PROPOSAL = [
 ];
 
 /**
- * Every field gets a column filter control (Design §4.5). Keeping them in one
- * table means the header row, the query and the export header all iterate the
- * same list and cannot drift apart.
+ * Status values a tab can actually show, for its Status dropdown (Revisi V6
+ * §1) — a free-text status box let users type values the tab never holds.
+ * Disetujui has one status only, so it gets no dropdown.
+ */
+const STATUS_DOKUMEN_TAMPIL = ["Aktif", "Akan Berakhir", "Disposisi Evaluasi", "Kedaluarsa", "Diarsipkan"];
+export const STATUS_PER_TAB: Record<TabKey, string[]> = {
+  aktif: ["Aktif", "Disposisi Evaluasi"],
+  proposal: STATUS_PROPOSAL,
+  disetujui: [],
+  berakhir: ["Akan Berakhir", "Disposisi Evaluasi"],
+  pembaruan: [...STATUS_PROPOSAL, "Disetujui", "Ditolak", ...STATUS_DOKUMEN_TAMPIL],
+  arsip: ["Kedaluarsa", "Diarsipkan"],
+};
+
+/** Tabs that hold documents with a No. Dokumen (it is typed at activation). */
+export const TAB_DOKUMEN: TabKey[] =["aktif", "berakhir", "pembaruan", "arsip"];
+
+/**
+ * The column filters (Design §4.5), in one table so the filter bar and the
+ * query iterate the same list and cannot drift apart. `lanjutan` ones sit
+ * under "Filter lanjutan" — the search box already covers them loosely;
+ * `tab` limits a filter to the tabs where the field exists.
  */
 export const KOLOM = [
-  { kunci: "no_dokumen", label: "No. Dokumen", jenis: "teks" },
-  { kunci: "nama_mitra", label: "Mitra", jenis: "teks" },
-  { kunci: "jenis_kerjasama", label: "Jenis", jenis: "pilih", opsi: ["MoU", "MoA"] },
-  { kunci: "status_tampil", label: "Status", jenis: "teks" },
-  { kunci: "unit_pengusul", label: "Unit Pengusul", jenis: "teks" },
-  { kunci: "jabatan_pengusul", label: "Pengusul", jenis: "teks" },
-  { kunci: "agenda", label: "Agenda Kerja Sama", jenis: "teks" },
-  { kunci: "lingkup", label: "Lingkup", jenis: "teks" },
-  { kunci: "negara", label: "Negara", jenis: "teks" },
+  { kunci: "jenis_kerjasama", label: "Jenis", jenis: "pilih", lanjutan: false },
+  { kunci: "status_tampil", label: "Status", jenis: "pilih", lanjutan: false },
+  { kunci: "no_dokumen", label: "No. Dokumen", jenis: "teks", lanjutan: true, tab: TAB_DOKUMEN },
+  { kunci: "nama_mitra", label: "Mitra", jenis: "teks", lanjutan: true },
+  { kunci: "negara", label: "Negara", jenis: "teks", lanjutan: true },
+  { kunci: "agenda", label: "Agenda Kerja Sama", jenis: "teks", lanjutan: true },
+  { kunci: "unit_pengusul", label: "Unit Pengusul", jenis: "teks", lanjutan: true },
+  { kunci: "jabatan_pengusul", label: "Pengusul", jenis: "teks", lanjutan: true },
+  { kunci: "lingkup", label: "Lingkup", jenis: "teks", lanjutan: true },
 ] as const;
+
+export type Kolom = (typeof KOLOM)[number];
+
+/** The dropdown options for a "pilih" column on this tab. */
+export function opsiKolom(k: Kolom, tab: TabKey): string[] {
+  if (k.kunci === "jenis_kerjasama") return ["MoU", "MoA"];
+  if (k.kunci === "status_tampil") return STATUS_PER_TAB[tab];
+  return [];
+}
+
+/** Whether a filter applies on this tab at all. */
+export const kolomBerlaku = (k: Kolom, tab: TabKey) =>
+  !("tab" in k) || (k.tab as TabKey[]).includes(tab);
+
+/** Fields the search box (`f_q`) looks through. */
+const KOLOM_CARI = [
+  "no_dokumen",
+  "nama_mitra",
+  "negara",
+  "agenda",
+  "unit_pengusul",
+  "jabatan_pengusul",
+  "lingkup",
+];
+
+/**
+ * A search term made safe for PostgREST's `or=(...)` syntax, where commas,
+ * parentheses, quotes and backslashes are structural and `*`, `%`, `_` are
+ * wildcards. Those become spaces; searching needs none of them.
+ */
+export const termCari = (v: string): string => v.replace(/[,()"\\*%_]/g, " ").trim();
 
 /** Sortable columns — a whitelist, so a URL value never names an arbitrary column. */
 export const URUTAN = {
@@ -93,7 +143,7 @@ export function bacaFilter(sp: Record<string, string | string[] | undefined>): F
     const v = sp[`f_${k.kunci}`];
     if (typeof v === "string" && v.trim()) f[k.kunci] = v.trim();
   }
-  for (const k of ["dari", "sampai", "urut", "arah"]) {
+  for (const k of ["q", "dari", "sampai", "urut", "arah"]) {
     const v = sp[`f_${k}`];
     if (typeof v === "string" && v.trim()) f[k] = v.trim();
   }
@@ -136,6 +186,9 @@ export function terapkanFilter(q: any, tab: TabKey, f: Filter) {
       q = q.in("status_dokumen", ["Diarsipkan", "Kedaluarsa"]);
       break;
   }
+
+  const cari = termCari(f.q ?? "");
+  if (cari) q = q.or(KOLOM_CARI.map((k) => `${k}.ilike.*${cari}*`).join(","));
 
   for (const k of KOLOM) {
     const v = f[k.kunci];
@@ -229,11 +282,15 @@ function selXlsx(v: unknown): { nilai: unknown; format?: string; lebar: number }
  * A real .xlsx: frozen bold header with filters, columns sized to their
  * content, dates as dates. exceljs writes strings as string cells, never as
  * formulas, so user-entered text starting with "=" cannot execute.
+ *
+ * Keys in `centang` are check-mark columns: `true` becomes a native Excel
+ * TRUE, anything else a blank cell.
  */
 export async function keXlsx(
   baris: Record<string, unknown>[],
   kolom: string[][],
   namaSheet: string,
+  centang: Set<string> = new Set(),
 ): Promise<Buffer> {
   const ExcelJS = (await import("exceljs")).default;
   const buku = new ExcelJS.Workbook();
@@ -245,7 +302,9 @@ export async function keXlsx(
   lembar.addRow(kolom.map(([, label]) => label)).font = { bold: true };
 
   for (const r of baris) {
-    const sel = kolom.map(([k]) => selXlsx(r[k]));
+    const sel = kolom.map(([k]) =>
+      centang.has(k) ? { nilai: r[k] === true ? true : null, lebar: 4 } : selXlsx(r[k]),
+    );
     const row = lembar.addRow(sel.map((s) => s.nilai));
     sel.forEach((s, i) => {
       if (s.format) row.getCell(i + 1).numFmt = s.format;
