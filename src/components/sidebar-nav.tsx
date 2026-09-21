@@ -206,7 +206,9 @@ export function SidebarNav({
 
       <nav className="flex flex-col gap-1" aria-label="Menu utama">
         {menu.map((m) => {
-          const aktif = pathname === m.href || pathname.startsWith(`${m.href}/`);
+          // /catat is the second way into Buat Kerja Sama, not its own menu.
+          const jalur = pathname.startsWith("/catat") ? "/buat" : pathname;
+          const aktif = jalur === m.href || jalur.startsWith(`${m.href}/`);
           const lencana = m.href === "/notifikasi" && belumDibaca > 0;
           return (
             <Link

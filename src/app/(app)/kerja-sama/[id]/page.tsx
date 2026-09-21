@@ -49,22 +49,72 @@ export default async function DetailDokumen({
   const { id } = await params;
   const idProposal = Number(id);
   const supabase = await supabaseServer();
-  const akun = await akunSaatIni();
 
-  const { data: proposal } = await supabase
-    .from("proposal_dokumen")
-    .select(
-      `id, jenis_kerjasama, status_proposal, is_pencatatan_langsung, periode_kerjasama,
-       sifat_periode_kerjasama, tujuan_kerjasama, manfaat_bagi_petra,
-       manfaat_bagi_mitra, informasi_tambahan, waktu_proposal_dokumen,
-       waktu_disetujui, waktu_aktif, id_dokumen_sebelumnya, file_draft,
-       partner_pengusul ( is_lead, partner ( nama, kota, is_international ) ),
-       proposal_dokumen_unit ( unit ( id, nama ) ),
-       dokumen_kerja_sama ( no, no_dokumen, status, alasan_arsip,
-                            tanggal_mulai, tanggal_berakhir )`,
-    )
-    .eq("id", idProposal)
-    .maybeSingle();
+  // Queries run in waves: everything in a wave depends only on earlier waves,
+  // so each wave costs one round trip instead of one per query.
+  const [
+    akun,
+    { data: proposal },
+    { data: disposisi },
+    { data: beku },
+    { data: riwayat },
+    { data: jabatanApprover },
+    { data: prefill },
+    { data: penerus },
+  ] = await Promise.all([
+    akunSaatIni(),
+    supabase
+      .from("proposal_dokumen")
+      .select(
+        `id, jenis_kerjasama, status_proposal, is_pencatatan_langsung, periode_kerjasama,
+         sifat_periode_kerjasama, tujuan_kerjasama, manfaat_bagi_petra,
+         manfaat_bagi_mitra, informasi_tambahan, waktu_proposal_dokumen,
+         waktu_disetujui, waktu_aktif, id_dokumen_sebelumnya, file_draft,
+         partner_pengusul ( is_lead, partner ( nama, kota, is_international ) ),
+         proposal_dokumen_unit ( unit ( id, nama ) ),
+         dokumen_kerja_sama ( no, no_dokumen, status, alasan_arsip,
+                              tanggal_mulai, tanggal_berakhir )`,
+      )
+      .eq("id", idProposal)
+      .maybeSingle(),
+    // The live round is the highest one; earlier rounds are history left behind
+    // by a Pending reset (BR-06).
+    supabase
+      .from("disposisi")
+      .select("no, round_ke, pesan_disposisi, waktu_disposisi, jenis_disposisi")
+      .eq("id_proposal_dokumen", idProposal)
+      .eq("jenis_disposisi", "approval")
+      .order("round_ke", { ascending: false }),
+    supabase
+      .from("pending_periods")
+      .select("id, mulai")
+      .eq("id_proposal_dokumen", idProposal)
+      .is("selesai", null)
+      .maybeSingle(),
+    supabase
+      .from("riwayat_approval")
+      .select("id, aksi, catatan, tanggal, waktu")
+      .eq("id_proposal_dokumen", idProposal)
+      .order("tanggal", { ascending: false })
+      .order("waktu", { ascending: false })
+      .limit(50),
+    supabase
+      .from("jabatan")
+      .select("id, nama, tier_disposisi")
+      .not("tier_disposisi", "is", null)
+      .order("tier_disposisi"),
+    // On a Perpanjangan the approver list starts prefilled from the positions
+    // that approved the predecessor — editable, and empty for a legacy document
+    // with no approval history to prefill from (PRD §9.6).
+    supabase.rpc("jabatan_prefill_perpanjangan", { p_id_proposal: idProposal }),
+    // Renewal chain, linked both ways so a document's history is reachable from
+    // either end (Design §5.8).
+    supabase
+      .from("v_daftar_dokumen")
+      .select("id_proposal, no_dokumen")
+      .eq("id_dokumen_sebelumnya", idProposal)
+      .maybeSingle(),
+  ]);
 
   // RLS already decided this: a row the account may not read simply is not
   // here, so there is nothing extra to check (AR-03).
@@ -73,43 +123,28 @@ export default async function DetailDokumen({
   const dok: any =
     (proposal as any).dokumen_kerja_sama?.[0] ?? (proposal as any).dokumen_kerja_sama;
 
-  // The live round is the highest one; earlier rounds are history left behind
-  // by a Pending reset (BR-06).
-  const { data: disposisi } = await supabase
-    .from("disposisi")
-    .select("no, round_ke, pesan_disposisi, waktu_disposisi, jenis_disposisi")
-    .eq("id_proposal_dokumen", idProposal)
-    .eq("jenis_disposisi", "approval")
-    .order("round_ke", { ascending: false });
-
   const ronde = disposisi?.[0]?.round_ke ?? null;
   const noDisposisiRonde = (disposisi ?? [])
     .filter((d) => d.round_ke === ronde)
     .map((d) => d.no);
 
-  const { data: target } = await supabase
-    .from("disposisi_target")
-    .select(
-      `no, tier, status, waktu_unlock, waktu_resolusi, durasi_hari_kerja,
-       status_sla, no_disposisi, jabatan ( id, nama )`,
-    )
-    .in("no_disposisi", noDisposisiRonde.length ? noDisposisiRonde : [-1])
-    .order("tier");
-
-  const { data: beku } = await supabase
-    .from("pending_periods")
-    .select("id, mulai")
-    .eq("id_proposal_dokumen", idProposal)
-    .is("selesai", null)
-    .maybeSingle();
-
-  const { data: riwayat } = await supabase
-    .from("riwayat_approval")
-    .select("id, aksi, catatan, tanggal, waktu")
-    .eq("id_proposal_dokumen", idProposal)
-    .order("tanggal", { ascending: false })
-    .order("waktu", { ascending: false })
-    .limit(50);
+  const [{ data: target }, { data: pendahulu }] = await Promise.all([
+    supabase
+      .from("disposisi_target")
+      .select(
+        `no, tier, status, waktu_unlock, waktu_resolusi, durasi_hari_kerja,
+         status_sla, no_disposisi, jabatan ( id, nama )`,
+      )
+      .in("no_disposisi", noDisposisiRonde.length ? noDisposisiRonde : [-1])
+      .order("tier"),
+    proposal.id_dokumen_sebelumnya
+      ? supabase
+          .from("v_daftar_dokumen")
+          .select("id_proposal, no_dokumen")
+          .eq("id_proposal", proposal.id_dokumen_sebelumnya)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   const io = isIO(akun);
   // A directly-recorded document has no approval chain at all (Revisi V8 §1).
@@ -136,41 +171,13 @@ export default async function DetailDokumen({
     ? await supabase.rpc("revisi_terbuka", { p_no_target: targetSaya.no })
     : { data: false };
 
-  const { data: jabatanApprover } = await supabase
-    .from("jabatan")
-    .select("id, nama, tier_disposisi")
-    .not("tier_disposisi", "is", null)
-    .order("tier_disposisi");
-
   const sudahJadiTarget = new Set((target ?? []).map((t: any) => t.jabatan?.id));
 
-  // On a Perpanjangan the approver list starts prefilled from the positions
-  // that approved the predecessor — editable, and empty for a legacy document
-  // with no approval history to prefill from (PRD §9.6).
-  const { data: prefill } = await supabase.rpc("jabatan_prefill_perpanjangan", {
-    p_id_proposal: idProposal,
-  });
   const prefillSet = new Set(
     ((prefill ?? []) as { jabatan_prefill_perpanjangan: number }[] | number[]).map((x: any) =>
       typeof x === "number" ? x : x.jabatan_prefill_perpanjangan,
     ),
   );
-
-  // Renewal chain, linked both ways so a document's history is reachable from
-  // either end (Design §5.8).
-  const { data: pendahulu } = proposal.id_dokumen_sebelumnya
-    ? await supabase
-        .from("v_daftar_dokumen")
-        .select("id_proposal, no_dokumen")
-        .eq("id_proposal", proposal.id_dokumen_sebelumnya)
-        .maybeSingle()
-    : { data: null };
-
-  const { data: penerus } = await supabase
-    .from("v_daftar_dokumen")
-    .select("id_proposal, no_dokumen")
-    .eq("id_dokumen_sebelumnya", idProposal)
-    .maybeSingle();
 
   const belumDidisposisi =
     io && ["Diajukan", "Diproses"].includes(proposal.status_proposal as string);

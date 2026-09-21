@@ -515,8 +515,15 @@ export default async function CariKerjaSama({
   const halaman = Math.max(1, Number(sp.hal ?? 1) || 1);
 
   const supabase = await supabaseServer();
-  const { baris, total } = await ambilHalaman(supabase, tab, filter, halaman);
-  const io = isIO(await akunSaatIni());
+  // Independent reads, one round trip. Sisa Hari turns red inside the same
+  // window the dashboard counts, which is expiring_soon_months in settings and
+  // not a hardcoded 60 (DR-04).
+  const [{ baris, total }, akun, batas] = await Promise.all([
+    ambilHalaman(supabase, tab, filter, halaman),
+    akunSaatIni(),
+    batasAkanBerakhir(supabase),
+  ]);
+  const io = isIO(akun);
 
   // Renewal state for the rows on this page of Akan Berakhir; no row = not sent.
   const nomor = baris.map((b: any) => b.no_dokumen_kerjasama).filter(Boolean);
@@ -531,9 +538,6 @@ export default async function CariKerjaSama({
     (jalan ?? []).map((r: any) => [r.no_dokumen_kerjasama, r.gerbang]),
   );
 
-  // Sisa Hari turns red inside the same window the dashboard counts, which is
-  // expiring_soon_months in settings and not a hardcoded 60 (DR-04).
-  const batas = await batasAkanBerakhir(supabase);
   const ambangHari = Math.round((batas.getTime() - Date.now()) / 86_400_000);
 
   async function minta(formData: FormData) {

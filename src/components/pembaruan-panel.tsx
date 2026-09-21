@@ -155,6 +155,13 @@ function RingkasEvaluasi({ e }: { e: any }) {
 
 const kartu = "mb-6 rounded-xl border bg-white p-4";
 
+// Module scope on purpose: an inline "use server" action may only close over
+// serializable values. A local helper captured by the actions below made every
+// submit on this tab throw before it reached the database.
+function cek(halaman: string, hasil: Hasil) {
+  if (!hasil.ok) redirect(`${halaman}&galat=${encodeURIComponent(hasil.pesan)}` as any);
+}
+
 export async function PembaruanPanel({
   noDokumen,
   io,
@@ -207,11 +214,21 @@ export async function PembaruanPanel({
     );
   }
 
-  const { data: evaluasi } = await supabase
-    .from("evaluasi")
-    .select(KOLOM_EVAL)
-    .eq("id_dokumen_kerjasama", noDokumen)
-    .order("no");
+  // The files §8.1 hands to the unit: the signed PDF and the last revision
+  // from disposition (catat_revisi keeps file_draft current).
+  const [{ data: evaluasi }, { data: berkas }, h] = await Promise.all([
+    supabase
+      .from("evaluasi")
+      .select(KOLOM_EVAL)
+      .eq("id_dokumen_kerjasama", noDokumen)
+      .order("no"),
+    supabase
+      .from("dokumen_kerja_sama")
+      .select("upload_dokumen, proposal_dokumen ( file_draft )")
+      .eq("no", noDokumen)
+      .maybeSingle(),
+    headers(),
+  ]);
 
   const hidup = (evaluasi ?? []).filter((e: any) => e.status !== "superseded");
   // One PETRA answer per lingkup head (Revisi V7 §5).
@@ -222,19 +239,11 @@ export async function PembaruanPanel({
   const g = GERBANG[r.gerbang] ?? GERBANG.menunggu;
 
   // The partner's link, as the unit will actually paste it into an email.
-  const h = await headers();
   const asal =
     process.env.NEXT_PUBLIC_APP_URL ??
     `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host") ?? "localhost:3000"}`;
   const tautanMitra = r.token_partner ? `${asal}/evaluasi/${r.token_partner}` : null;
 
-  // The files §8.1 hands to the unit: the signed PDF and the last revision
-  // from disposition (catat_revisi keeps file_draft current).
-  const { data: berkas } = await supabase
-    .from("dokumen_kerja_sama")
-    .select("upload_dokumen, proposal_dokumen ( file_draft )")
-    .eq("no", noDokumen)
-    .maybeSingle();
   const pathBerkas = [
     { label: "Dokumen bertanda tangan", path: (berkas as any)?.upload_dokumen },
     { label: "Revisi terakhir dari disposisi", path: (berkas as any)?.proposal_dokumen?.file_draft },
@@ -247,18 +256,15 @@ export async function PembaruanPanel({
 
   // A refused action comes back to this tab with the database's own reason.
   const halaman = `/kerja-sama/${r.id_proposal}/laporan?tab=pembaruan`;
-  const cek = (hasil: Hasil) => {
-    if (!hasil.ok) redirect(`${halaman}&galat=${encodeURIComponent(hasil.pesan)}` as any);
-  };
-
   async function isiEvaluasiFakultas(formData: FormData) {
     "use server";
-    cek(await kirimEvaluasiFakultas(Number(formData.get("no_evaluasi")), bacaJawaban(formData)));
+    cek(halaman, await kirimEvaluasiFakultas(Number(formData.get("no_evaluasi")), bacaJawaban(formData)));
   }
 
   async function putuskan(formData: FormData) {
     "use server";
     cek(
+      halaman,
       await putuskanPembaruan(
         noDokumen,
         formData.get("keputusan") as "continue" | "terminate",
@@ -269,26 +275,26 @@ export async function PembaruanPanel({
 
   async function arsipkan() {
     "use server";
-    cek(await arsipkanDokumen(noDokumen, "not_renewed", r.id_proposal));
+    cek(halaman, await arsipkanDokumen(noDokumen, "not_renewed", r.id_proposal));
   }
 
   async function buatTautan() {
     "use server";
-    cek(await buatTautanEvaluasiMitra(noDokumen));
+    cek(halaman, await buatTautanEvaluasiMitra(noDokumen));
   }
 
   async function bukaUlang(formData: FormData) {
     "use server";
-    cek(await bukaUlangEvaluasi(Number(formData.get("no_evaluasi"))));
+    cek(halaman, await bukaUlangEvaluasi(Number(formData.get("no_evaluasi"))));
   }
 
   async function unggahDokumen(formData: FormData) {
     "use server";
     const file = formData.get("berkas") as File | null;
-    if (!file || file.size === 0) return cek({ ok: false, pesan: "Pilih dokumen perpanjangan." });
+    if (!file || file.size === 0) return cek(halaman, { ok: false, pesan: "Pilih dokumen perpanjangan." });
     const unggah = await unggahBerkas(await supabaseServer(), `perpanjangan/${r.id_proposal}`, file);
-    if ("pesan" in unggah) return cek({ ok: false, pesan: unggah.pesan });
-    cek(await buatProposalPerpanjangan(noDokumen, unggah.path));
+    if ("pesan" in unggah) return cek(halaman, { ok: false, pesan: unggah.pesan });
+    cek(halaman, await buatProposalPerpanjangan(noDokumen, unggah.path));
   }
 
   return (

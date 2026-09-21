@@ -380,18 +380,50 @@ export default async function Dashboard({
     return count ?? 0;
   };
 
-  const [aktifDok, mitraIntl, mitraDomestik, dalamProses] = await Promise.all([
+  // Every independent read in one wave: one round trip instead of one each.
+  const [
+    aktifDok,
+    mitraIntl,
+    mitraDomestik,
+    dalamProses,
+    batas,
+    { count: lewatSla },
+    { data: selesai },
+    { data: pin },
+    akun,
+    { data: gap },
+  ] = await Promise.all([
     // 'Akan Berakhir' is still a live agreement, only nearing its end date.
     hitung("dokumen_kerja_sama", (q) => q.in("status", STATUS_DOKUMEN_AKTIF)),
     // Read from the boolean, never from a country name (DR-07, BR-16).
     hitung("partner", (q) => q.eq("is_international", true).eq("is_active", true)),
     hitung("partner", (q) => q.eq("is_international", false).eq("is_active", true)),
     hitung("proposal_dokumen", (q) => q.in("status_proposal", DALAM_PROSES)),
+    // The expiring-soon window comes from settings, never a hardcoded 6 (DR-04);
+    // shared with Cari Kerja Sama so both mean the same thing.
+    batasAkanBerakhir(supabase),
+    supabase
+      .from("disposisi_target")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending_action")
+      .in("status_sla", ["yellow", "red"]),
+    // KPI 2 — submission to final approval, deliberately excluding the offline
+    // signing gap, which is outside the team's control (Q2, DR-05).
+    supabase
+      .from("proposal_dokumen")
+      .select("waktu_proposal_dokumen, waktu_disetujui")
+      .not("waktu_disetujui", "is", null)
+      .not("waktu_proposal_dokumen", "is", null),
+    supabase.from("v_peta_mitra").select("*").limit(2000),
+    akunSaatIni(),
+    // Evaluation analytics. Aggregated below but never detached from the
+    // document: every row still carries id_dokumen_kerjasama, which is what
+    // makes the drill-down possible (Q8).
+    supabase
+      .from("v_evaluasi_gap")
+      .select("dimensi, harapan, kepuasan, gap, id_dokumen_kerjasama, respondent_type")
+      .limit(5000),
   ]);
-
-  // The expiring-soon window comes from settings, never a hardcoded 6 (DR-04);
-  // shared with Cari Kerja Sama so both mean the same thing.
-  const batas = await batasAkanBerakhir(supabase);
   // The card caption names the same window, read back off the cutoff so the
   // setting is fetched once.
   const kini = new Date();
@@ -402,27 +434,6 @@ export default async function Dashboard({
   // (UTC+7), so it is read out in Asia/Jakarta instead.
   const batasStr = batas.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
 
-  const { count: akanBerakhir } = await supabase
-    .from("dokumen_kerja_sama")
-    .select("*", { count: "exact", head: true })
-    .in("status", STATUS_DOKUMEN_AKTIF)
-    .not("tanggal_berakhir", "is", null) // Auto Renewed never expires (BR-11)
-    .lte("tanggal_berakhir", batasStr);
-
-  const { count: lewatSla } = await supabase
-    .from("disposisi_target")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "pending_action")
-    .in("status_sla", ["yellow", "red"]);
-
-  // KPI 2 — submission to final approval, deliberately excluding the offline
-  // signing gap, which is outside the team's control (Q2, DR-05).
-  const { data: selesai } = await supabase
-    .from("proposal_dokumen")
-    .select("waktu_proposal_dokumen, waktu_disetujui")
-    .not("waktu_disetujui", "is", null)
-    .not("waktu_proposal_dokumen", "is", null);
-
   const total = selesai?.length ?? 0;
   const dibawahSebulan =
     selesai?.filter((d) => {
@@ -432,43 +443,52 @@ export default async function Dashboard({
     }).length ?? 0;
   const persen = total ? Math.round((dibawahSebulan / total) * 100) : null;
 
-  const { data: pin } = await supabase.from("v_peta_mitra").select("*").limit(2000);
-
-  const akun = await akunSaatIni();
-
   // The account's own charts (RLS scopes dashboard_chart to its owner). On
   // the first visit the account gets its own copy of the five defaults; the
   // flag keeps a deliberately emptied Studio empty.
-  if (akun) {
-    const { data: status } = await supabase
-      .from("akun")
-      .select("grafik_default_disalin")
-      .eq("id", akun.id)
-      .maybeSingle();
-    if (status && !status.grafik_default_disalin) {
-      await supabase.rpc("salin_grafik_default");
+  const muatGrafik = async () => {
+    if (akun) {
+      const { data: status } = await supabase
+        .from("akun")
+        .select("grafik_default_disalin")
+        .eq("id", akun.id)
+        .maybeSingle();
+      if (status && !status.grafik_default_disalin) {
+        await supabase.rpc("salin_grafik_default");
+      }
     }
-  }
 
-  const { data: tersimpan } = await supabase
-    .from("dashboard_chart")
-    .select("id, judul, jenis_grafik, config, urutan")
-    .order("urutan")
-    .order("id");
+    const { data: tersimpan } = await supabase
+      .from("dashboard_chart")
+      .select("id, judul, jenis_grafik, config, urutan")
+      .order("urutan")
+      .order("id");
 
-  // Each chart aggregated by the database function that owns the whitelist of
-  // groupings (see the charts migration) — in parallel, not one after another.
-  const grafik: Grafik[] = await Promise.all(
-    (tersimpan ?? []).map(async (g) => {
-      const { data: deret } = await supabase.rpc("agregasi_grafik", { p_config: g.config });
-      return {
-        id: g.id,
-        judul: g.judul,
-        jenis_grafik: g.jenis_grafik,
-        deret: (deret ?? []) as { label: string; nilai: number }[],
-      };
-    }),
-  );
+    // Each chart aggregated by the database function that owns the whitelist of
+    // groupings (see the charts migration) — in parallel, not one after another.
+    const grafik: Grafik[] = await Promise.all(
+      (tersimpan ?? []).map(async (g) => {
+        const { data: deret } = await supabase.rpc("agregasi_grafik", { p_config: g.config });
+        return {
+          id: g.id,
+          judul: g.judul,
+          jenis_grafik: g.jenis_grafik,
+          deret: (deret ?? []) as { label: string; nilai: number }[],
+        };
+      }),
+    );
+    return { tersimpan, grafik };
+  };
+
+  const [{ count: akanBerakhir }, { tersimpan, grafik }] = await Promise.all([
+    supabase
+      .from("dokumen_kerja_sama")
+      .select("*", { count: "exact", head: true })
+      .in("status", STATUS_DOKUMEN_AKTIF)
+      .not("tanggal_berakhir", "is", null) // Auto Renewed never expires (BR-11)
+      .lte("tanggal_berakhir", batasStr),
+    muatGrafik(),
+  ]);
 
   const MAKS_GRAFIK = 12; // mirrors the batasi_grafik trigger
 
@@ -546,14 +566,6 @@ export default async function Dashboard({
       <GrafikForm key={g.id} action={ubahGrafik} awal={g as NilaiGrafik} labelSimpan="Simpan Perubahan" />,
     ]),
   );
-
-  // Evaluation analytics. Aggregated here but never detached from the document:
-  // every row still carries id_dokumen_kerjasama, which is what makes the
-  // drill-down possible (Q8).
-  const { data: gap } = await supabase
-    .from("v_evaluasi_gap")
-    .select("dimensi, harapan, kepuasan, gap, id_dokumen_kerjasama, respondent_type")
-    .limit(5000);
 
   const ringkasGap = Object.values(
     (gap ?? []).reduce(

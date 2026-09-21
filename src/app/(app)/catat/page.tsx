@@ -7,6 +7,7 @@ import { SearchSelect } from "@/components/search-select";
 import { KerjaSamaFields } from "@/components/kerja-sama-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { Bagian } from "@/components/bagian";
+import { PilihanBuat } from "@/components/pilihan-buat";
 import { uraiPeriode } from "@/lib/periode";
 import { TERIMA_PDF } from "@/lib/unggah";
 
@@ -154,6 +155,7 @@ export default async function CatatDokumen({
 
   return (
     <div className="max-w-3xl">
+      {!idEdit ? <PilihanBuat aktif="/catat" /> : null}
       <header className="mb-5">
         <h1 className="text-xl font-semibold" style={{ color: "var(--midnight)" }}>
           {idEdit ? "Ubah Pencatatan Dokumen" : "Catat Dokumen"}

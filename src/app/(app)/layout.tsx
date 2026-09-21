@@ -11,11 +11,9 @@ import { SidebarNav } from "@/components/sidebar-nav";
 const MENU = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/kerja-sama", label: "Cari Kerja Sama" },
+  // One entry for both ways in: KUI picks "ajukan" or "catat langsung"
+  // (Pencatatan Langsung, Revisi V8 §1) at the top of the page itself.
   { href: "/buat", label: "Buat Kerja Sama" },
-  // Pencatatan Langsung (Revisi V8 §1) — KUI only, both staff and admin,
-  // because recording an already-signed document is IO's routine work rather
-  // than a system-settings change.
-  { href: "/catat", label: "Catat Dokumen", ioSaja: true },
   { href: "/antrean", label: "Antrean Saya" },
   { href: "/notifikasi", label: "Notifikasi" },
   { href: "/master-data", label: "Master Data", adminSaja: true },
@@ -52,27 +50,23 @@ export default async function AppLayout({
 
   const supabase = await supabaseServer();
 
-  const { data: jabatan } = await supabase
-    .from("jabatan")
-    .select("nama")
-    .eq("id", akun.id_jabatan)
-    .maybeSingle();
-
   // Unread count on the nav item itself. RLS scopes notifikasi to this
   // account's position already, so there is nothing to filter here.
-  const { count: belumDibaca } = await supabase
-    .from("notifikasi")
-    .select("*", { count: "exact", head: true })
-    .eq("id_jabatan_penerima", akun.id_jabatan)
-    .is("waktu_dibaca", null);
+  const [{ data: jabatan }, { count: belumDibaca }] = await Promise.all([
+    supabase.from("jabatan").select("nama").eq("id", akun.id_jabatan).maybeSingle(),
+    supabase
+      .from("notifikasi")
+      .select("*", { count: "exact", head: true })
+      .eq("id_jabatan_penerima", akun.id_jabatan)
+      .is("waktu_dibaca", null),
+  ]);
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <SidebarNav
         menu={MENU.filter(
           (m) =>
-            (!("adminSaja" in m) || akun.role === "io_admin") &&
-            (!("ioSaja" in m) || akun.role === "io_admin" || akun.role === "io_staff"),
+            !("adminSaja" in m) || akun.role === "io_admin",
         )}
         belumDibaca={belumDibaca ?? 0}
         jabatan={jabatan?.nama ?? "Jabatan"}

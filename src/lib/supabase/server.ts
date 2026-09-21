@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 /**
  * Server-side Supabase client, bound to the request's auth cookies.
@@ -39,7 +40,9 @@ export type Akun = {
 };
 
 /** The signed-in account, or null. The account IS a position (DR-06). */
-export async function akunSaatIni(): Promise<Akun | null> {
+// cache(): the layout and the page both ask, and each ask was two round trips
+// to Supabase (auth + akun). Once per request is enough.
+export const akunSaatIni = cache(async (): Promise<Akun | null> => {
   const supabase = await supabaseServer();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return null;
@@ -51,7 +54,7 @@ export async function akunSaatIni(): Promise<Akun | null> {
     .eq("is_active", true)
     .maybeSingle();
   return (data as Akun) ?? null;
-}
+});
 
 export const isIO = (a: Akun | null) =>
   a?.role === "io_staff" || a?.role === "io_admin";

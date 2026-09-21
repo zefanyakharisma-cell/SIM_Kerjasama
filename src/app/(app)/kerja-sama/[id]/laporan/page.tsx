@@ -109,30 +109,34 @@ export default async function LaporanDokumen({
   const tab: TabKey = tabMentah && Object.hasOwn(TAB, tabMentah) ? (tabMentah as TabKey) : "detail";
   const idProposal = Number(id);
   const supabase = await supabaseServer();
-  const akun = await akunSaatIni();
-  const io = isIO(akun);
 
-  const { data: proposal } = await supabase
-    .from("proposal_dokumen")
-    .select(
-      `id, jenis_kerjasama, status_proposal, is_pencatatan_langsung,
-       tujuan_kerjasama, manfaat_bagi_petra,
-       manfaat_bagi_mitra, id_dokumen_sebelumnya, file_draft, id_akun_pembuat,
-       partner_pengusul ( partner ( id, nama, kota, alamat, homepage,
-         afiliasi_group, jenis_bisnis, is_international, id_partner_contact,
-         negara ( nama ) ) ),
-       proposal_dokumen_unit ( unit ( id, nama ) ),
-       proposal_dokumen_agenda ( agenda ( nama ) ),
-       proposal_dokumen_bidang ( bidang_kerjasama ( nama ) ),
-       proposal_dokumen_sdg ( sdg ( nomor, nama ) ),
-       proposal_dokumen_mou ( ringkasan_kegiatan ),
-       proposal_dokumen_moa ( hak_petra, hak_calon_mitra, kewajiban_petra, kewajiban_calon_mitra ),
-       pengusul ( jabatan ( id, nama, unit ( nama ), id_pegawai, pegawai ( nama, email, no_hp ) ) ),
-       dokumen_kerja_sama ( no, no_dokumen, status, alasan_arsip,
-                            tanggal_mulai, tanggal_berakhir, upload_dokumen, link_gdrive )`,
-    )
-    .eq("id", idProposal)
-    .maybeSingle();
+  // Queries run in waves: everything in a wave depends only on earlier waves,
+  // so each wave costs one round trip instead of one per query.
+  const [akun, { data: proposal }] = await Promise.all([
+    akunSaatIni(),
+    supabase
+      .from("proposal_dokumen")
+      .select(
+        `id, jenis_kerjasama, status_proposal, is_pencatatan_langsung,
+         tujuan_kerjasama, manfaat_bagi_petra,
+         manfaat_bagi_mitra, id_dokumen_sebelumnya, file_draft, id_akun_pembuat,
+         partner_pengusul ( partner ( id, nama, kota, alamat, homepage,
+           afiliasi_group, jenis_bisnis, is_international, id_partner_contact,
+           negara ( nama ) ) ),
+         proposal_dokumen_unit ( unit ( id, nama ) ),
+         proposal_dokumen_agenda ( agenda ( nama ) ),
+         proposal_dokumen_bidang ( bidang_kerjasama ( nama ) ),
+         proposal_dokumen_sdg ( sdg ( nomor, nama ) ),
+         proposal_dokumen_mou ( ringkasan_kegiatan ),
+         proposal_dokumen_moa ( hak_petra, hak_calon_mitra, kewajiban_petra, kewajiban_calon_mitra ),
+         pengusul ( jabatan ( id, nama, unit ( nama ), id_pegawai, pegawai ( nama, email, no_hp ) ) ),
+         dokumen_kerja_sama ( no, no_dokumen, status, alasan_arsip,
+                              tanggal_mulai, tanggal_berakhir, upload_dokumen, link_gdrive )`,
+      )
+      .eq("id", idProposal)
+      .maybeSingle(),
+  ]);
+  const io = isIO(akun);
 
   // RLS already decided this: a row the account may not read simply is not
   // here, so there is nothing extra to check (AR-03).
@@ -141,110 +145,145 @@ export default async function LaporanDokumen({
   const dok: any =
     (proposal as any).dokumen_kerja_sama?.[0] ?? (proposal as any).dokumen_kerja_sama;
 
-  // The Pembaruan tab exists once renewal is relevant: the document is
-  // expiring, or a renewal request is already on it.
-  const { count: jumlahPembaruan } = dok?.no
-    ? await supabase
-        .from("v_pembaruan")
-        .select("no_dokumen_kerjasama", { count: "exact", head: true })
-        .eq("no_dokumen_kerjasama", dok.no)
-    : { count: 0 };
-  const adaPembaruan = Boolean(dok?.no) && (dok.status === "Akan Berakhir" || (jumlahPembaruan ?? 0) > 0);
-
-  // Implementation Arrangement / Report (Revisi V8 §2). Read-only here — the
-  // Realization Form project is what writes these rows.
-  const { data: implementasi } = dok?.no
-    ? await supabase
-        .from("implementasi_dokumen")
-        .select("no, jenis, judul, deskripsi, tanggal, berkas, status")
-        .eq("no_dokumen_kerjasama", dok.no)
-        .order("tanggal", { ascending: false })
-    : { data: [] };
-
   // Primary contact per partner, fetched separately — partner_contact has two
   // possible FK paths to partner, so a nested embed would be ambiguous.
   const daftarMitra = ((proposal as any).partner_pengusul ?? [])
     .map((pp: any) => pp.partner)
     .filter(Boolean);
   const idKontak = daftarMitra.map((p: any) => p.id_partner_contact).filter(Boolean);
-  const { data: kontakMitra } = idKontak.length
-    ? await supabase
-        .from("partner_contact")
-        .select("id, nama, jabatan, email, no_telp")
-        .in("id", idKontak)
-    : { data: [] };
-  const kontakById = new Map((kontakMitra ?? []).map((k) => [k.id, k]));
 
   // Signed URL for whatever file stands for "the document" right now: the
   // signed partnership file once one exists, otherwise the draft still under
   // review — that IS "Download Draft" (revision V3 §2.a.1.3).
   const pathBerkas = dok?.upload_dokumen || proposal.file_draft || null;
-  let previewUrl: string | null = null;
-  if (pathBerkas) {
-    const { data: signed } = await supabase.storage
-      .from("dokumen-kerjasama")
-      .createSignedUrl(pathBerkas, 3600);
-    previewUrl = signed?.signedUrl ?? null;
-  }
+
+  const [
+    { count: jumlahPembaruan },
+    { data: implementasi },
+    { data: kontakMitra },
+    { data: signed },
+    { data: riwayat },
+    { data: pendahulu },
+    { data: penerus },
+    { data: disposisi },
+    { data: beku },
+    { data: riwayatRevisi },
+  ] = await Promise.all([
+    // The Pembaruan tab exists once renewal is relevant: the document is
+    // expiring, or a renewal request is already on it.
+    dok?.no
+      ? supabase
+          .from("v_pembaruan")
+          .select("no_dokumen_kerjasama", { count: "exact", head: true })
+          .eq("no_dokumen_kerjasama", dok.no)
+      : Promise.resolve({ count: 0 }),
+    // Implementation Arrangement / Report (Revisi V8 §2). Read-only here — the
+    // Realization Form project is what writes these rows.
+    dok?.no
+      ? supabase
+          .from("implementasi_dokumen")
+          .select("no, jenis, judul, deskripsi, tanggal, berkas, status")
+          .eq("no_dokumen_kerjasama", dok.no)
+          .order("tanggal", { ascending: false })
+      : Promise.resolve({ data: [] as any[] }),
+    idKontak.length
+      ? supabase
+          .from("partner_contact")
+          .select("id, nama, jabatan, email, no_telp")
+          .in("id", idKontak)
+      : Promise.resolve({ data: [] as any[] }),
+    pathBerkas
+      ? supabase.storage.from("dokumen-kerjasama").createSignedUrl(pathBerkas, 3600)
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("riwayat_approval")
+      .select(
+        `id, aksi, catatan, tanggal, waktu,
+         akun ( jabatan ( nama, unit ( nama ) ) )`,
+      )
+      .eq("id_proposal_dokumen", idProposal)
+      .order("tanggal", { ascending: false })
+      .order("waktu", { ascending: false })
+      .limit(50),
+    proposal.id_dokumen_sebelumnya
+      ? supabase
+          .from("v_daftar_dokumen")
+          .select("id_proposal, no_dokumen")
+          .eq("id_proposal", proposal.id_dokumen_sebelumnya)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("v_daftar_dokumen")
+      .select("id_proposal, no_dokumen")
+      .eq("id_dokumen_sebelumnya", idProposal)
+      .maybeSingle(),
+    // Approval progress — same shape the workflow page reads (revision V3 §2.a.2).
+    supabase
+      .from("disposisi")
+      .select(
+        `no, round_ke, pesan_disposisi, waktu_disposisi, jenis_disposisi, lampiran,
+         akun:id_akun_pengirim ( jabatan ( nama ) )`,
+      )
+      .eq("id_proposal_dokumen", idProposal)
+      .eq("jenis_disposisi", "approval")
+      .order("round_ke", { ascending: false })
+      .order("waktu_disposisi", { ascending: false }),
+    supabase
+      .from("pending_periods")
+      .select("id, mulai")
+      .eq("id_proposal_dokumen", idProposal)
+      .is("selesai", null)
+      .maybeSingle(),
+    // Revision requests, each paired with the upload that answered it. Requests
+    // and uploads alternate per target (the database refuses a second open
+    // request), so walking them in order pairs them.
+    supabase
+      .from("riwayat_approval")
+      .select(
+        `id, aksi, catatan, tanggal, waktu, id_disposisi_target,
+         disposisi_target ( status, jabatan ( nama ) )`,
+      )
+      .eq("id_proposal_dokumen", idProposal)
+      .in("aksi", ["revision_requested", "revision_submitted"])
+      .order("tanggal")
+      .order("waktu")
+      .order("id"),
+  ]);
+
+  const adaPembaruan = Boolean(dok?.no) && (dok.status === "Akan Berakhir" || (jumlahPembaruan ?? 0) > 0);
+  const kontakById = new Map((kontakMitra ?? []).map((k: any) => [k.id, k]));
+  const previewUrl: string | null = signed?.signedUrl ?? null;
   const labelUnduh = dok?.upload_dokumen ? "Unduh Dokumen" : "Download Draft";
-
-  const { data: riwayat } = await supabase
-    .from("riwayat_approval")
-    .select(
-      `id, aksi, catatan, tanggal, waktu,
-       akun ( jabatan ( nama, unit ( nama ) ) )`,
-    )
-    .eq("id_proposal_dokumen", idProposal)
-    .order("tanggal", { ascending: false })
-    .order("waktu", { ascending: false })
-    .limit(50);
-
-  const { data: pendahulu } = proposal.id_dokumen_sebelumnya
-    ? await supabase
-        .from("v_daftar_dokumen")
-        .select("id_proposal, no_dokumen")
-        .eq("id_proposal", proposal.id_dokumen_sebelumnya)
-        .maybeSingle()
-    : { data: null };
-
-  const { data: penerus } = await supabase
-    .from("v_daftar_dokumen")
-    .select("id_proposal, no_dokumen")
-    .eq("id_dokumen_sebelumnya", idProposal)
-    .maybeSingle();
-
-  // Approval progress — same shape the workflow page reads (revision V3 §2.a.2).
-  const { data: disposisi } = await supabase
-    .from("disposisi")
-    .select(
-      `no, round_ke, pesan_disposisi, waktu_disposisi, jenis_disposisi, lampiran,
-       akun:id_akun_pengirim ( jabatan ( nama ) )`,
-    )
-    .eq("id_proposal_dokumen", idProposal)
-    .eq("jenis_disposisi", "approval")
-    .order("round_ke", { ascending: false })
-    .order("waktu_disposisi", { ascending: false });
 
   const ronde = disposisi?.[0]?.round_ke ?? null;
   const noDisposisiRonde = (disposisi ?? [])
-    .filter((d) => d.round_ke === ronde)
-    .map((d) => d.no);
+    .filter((d: any) => d.round_ke === ronde)
+    .map((d: any) => d.no);
 
-  const { data: target } = await supabase
-    .from("disposisi_target")
-    .select(
-      `no, tier, status, waktu_unlock, waktu_resolusi, durasi_hari_kerja,
-       status_sla, no_disposisi, jabatan ( id, nama )`,
-    )
-    .in("no_disposisi", noDisposisiRonde.length ? noDisposisiRonde : [-1])
-    .order("tier");
+  // Signed links for each disposition's attached document.
+  // One signing round trip for both kinds of attachment: the disposition
+  // files and the implementation documents share the bucket and the map.
+  const pathLampiran = [
+    ...(disposisi ?? []).map((d: any) => d.lampiran),
+    ...(implementasi ?? []).map((i: any) => i.berkas),
+  ].filter(Boolean);
 
-  const { data: beku } = await supabase
-    .from("pending_periods")
-    .select("id, mulai")
-    .eq("id_proposal_dokumen", idProposal)
-    .is("selesai", null)
-    .maybeSingle();
+  const [{ data: target }, { data: lampiranSigned }] = await Promise.all([
+    supabase
+      .from("disposisi_target")
+      .select(
+        `no, tier, status, waktu_unlock, waktu_resolusi, durasi_hari_kerja,
+         status_sla, no_disposisi, jabatan ( id, nama )`,
+      )
+      .in("no_disposisi", noDisposisiRonde.length ? noDisposisiRonde : [-1])
+      .order("tier"),
+    pathLampiran.length
+      ? supabase.storage.from("dokumen-kerjasama").createSignedUrls(pathLampiran, 3600)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const urlLampiran = new Map(
+    (lampiranSigned ?? []).map((s: any) => [s.path, s.signedUrl as string | null]),
+  );
 
   const dalamDisposisi = [
     "Diproses",
@@ -272,35 +311,6 @@ export default async function LaporanDokumen({
   // and Disposisi tabs would only ever show an empty one (Revisi V8 §1).
   const langsung = Boolean((proposal as any).is_pencatatan_langsung);
   const bolehDisposisi = !langsung && (io || pengusulSaya || approverSaya);
-
-  // Signed links for each disposition's attached document.
-  // One signing round trip for both kinds of attachment: the disposition
-  // files and the implementation documents share the bucket and the map.
-  const pathLampiran = [
-    ...(disposisi ?? []).map((d: any) => d.lampiran),
-    ...(implementasi ?? []).map((i: any) => i.berkas),
-  ].filter(Boolean);
-  const { data: lampiranSigned } = pathLampiran.length
-    ? await supabase.storage.from("dokumen-kerjasama").createSignedUrls(pathLampiran, 3600)
-    : { data: [] };
-  const urlLampiran = new Map(
-    (lampiranSigned ?? []).map((s: any) => [s.path, s.signedUrl as string | null]),
-  );
-
-  // Revision requests, each paired with the upload that answered it. Requests
-  // and uploads alternate per target (the database refuses a second open
-  // request), so walking them in order pairs them.
-  const { data: riwayatRevisi } = await supabase
-    .from("riwayat_approval")
-    .select(
-      `id, aksi, catatan, tanggal, waktu, id_disposisi_target,
-       disposisi_target ( status, jabatan ( nama ) )`,
-    )
-    .eq("id_proposal_dokumen", idProposal)
-    .in("aksi", ["revision_requested", "revision_submitted"])
-    .order("tanggal")
-    .order("waktu")
-    .order("id");
 
   type PermintaanRevisi = { minta: any; jawab: any | null };
   const permintaanRevisi: PermintaanRevisi[] = [];

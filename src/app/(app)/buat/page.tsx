@@ -1,4 +1,5 @@
-import { supabaseServer } from "@/lib/supabase/server";
+import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
+import { PilihanBuat } from "@/components/pilihan-buat";
 import { simpanProposal } from "@/lib/actions/proposal";
 import { PohonLingkup } from "@/components/lingkup-tree";
 import { MitraPicker } from "@/components/mitra-picker";
@@ -160,8 +161,12 @@ export default async function BuatKerjaSama({
     if (!idKontakAda.has(k.id)) kontakGabungan.push(k);
   }
 
+  // Cached per request: the layout already resolved the account.
+  const io = isIO(await akunSaatIni());
+
   return (
     <div className="max-w-3xl">
+      {io && !idEdit ? <PilihanBuat aktif="/buat" /> : null}
       <header className="mb-5">
         <h1 className="text-xl font-semibold" style={{ color: "var(--midnight)" }}>
           {idEdit ? "Edit Draf Kerja Sama" : "Buat Kerja Sama"}
