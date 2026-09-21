@@ -177,6 +177,9 @@ export async function simpanProposal(formData: FormData) {
     // The Lingkup selection is stored as the explicit set of chosen units; a
     // parent partial state is derived at read time, never stored (BR-38, DR-09).
     p_unit: formData.getAll("unit").map(Number),
+    // Optional (Revisi V8 §3) — an empty array clears the set, same as the
+    // other child lists.
+    p_sdg: formData.getAll("sdg").map(Number),
     p_jenis: jenis,
     p_mou:
       jenis === "MoU"

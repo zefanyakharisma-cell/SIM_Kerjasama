@@ -884,6 +884,53 @@ end
 $t$;
 
 -- ===========================================================================
+-- Revisi V8 §3 — SDGs ride along on simpan_anak_proposal's atomic replace, and
+-- the 9-argument positional callers above must still resolve now that the
+-- function has a tenth parameter with a default.
+-- ===========================================================================
+do $t$
+declare v_p int;
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',7) returning id into v_p;
+
+  perform simpan_anak_proposal(v_p, '[]'::jsonb, null, array[]::int[], array[]::int[],
+                               array[]::int[], 'MoU',
+                               jsonb_build_object('ringkasan_kegiatan','x'), null,
+                               array[4,17]);
+  if (select count(*) from proposal_dokumen_sdg where id_proposal_dokumen = v_p) <> 2 then
+    raise exception 'FAIL sdg-a: SDGs were not stored';
+  end if;
+
+  -- Replace, not append -- the same rule every other child set follows.
+  perform simpan_anak_proposal(v_p, '[]'::jsonb, null, array[]::int[], array[]::int[],
+                               array[]::int[], 'MoU',
+                               jsonb_build_object('ringkasan_kegiatan','x'), null,
+                               array[4]);
+  if (select count(*) from proposal_dokumen_sdg where id_proposal_dokumen = v_p) <> 1 then
+    raise exception 'FAIL sdg-b: a second save appended instead of replacing';
+  end if;
+
+  -- The old 9-argument call still resolves through p_sdg's default, and
+  -- clearing is what an empty set means.
+  perform simpan_anak_proposal(v_p, '[]'::jsonb, null, array[]::int[], array[]::int[],
+                               array[]::int[], 'MoU',
+                               jsonb_build_object('ringkasan_kegiatan','x'), null);
+  if (select count(*) from proposal_dokumen_sdg where id_proposal_dokumen = v_p) <> 0 then
+    raise exception 'FAIL sdg-c: the 9-argument call did not clear the set';
+  end if;
+
+  if (select count(*) from sdg) <> 17 then
+    raise exception 'FAIL sdg-d: the goal list is not the UN''s 17';
+  end if;
+  raise notice 'PASS sdg child set and simpan_anak_proposal arity';
+
+  delete from proposal_dokumen where id = v_p;
+end
+$t$;
+
+-- ===========================================================================
 -- set_kontak_utama: only a contact that actually belongs to the partner may
 -- become its primary contact, and (H1 fix, bug fix 20260918000100) only IO or
 -- the proposal's own creator — for a partner actually attached to their own

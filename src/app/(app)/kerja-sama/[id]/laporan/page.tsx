@@ -122,6 +122,7 @@ export default async function LaporanDokumen({
        proposal_dokumen_unit ( unit ( id, nama ) ),
        proposal_dokumen_agenda ( agenda ( nama ) ),
        proposal_dokumen_bidang ( bidang_kerjasama ( nama ) ),
+       proposal_dokumen_sdg ( sdg ( nomor, nama ) ),
        proposal_dokumen_mou ( ringkasan_kegiatan ),
        proposal_dokumen_moa ( hak_petra, hak_calon_mitra, kewajiban_petra, kewajiban_calon_mitra ),
        pengusul ( jabatan ( id, nama, unit ( nama ), id_pegawai, pegawai ( nama, email, no_hp ) ) ),
@@ -464,6 +465,15 @@ export default async function LaporanDokumen({
                   nilai={
                     ((proposal as any).proposal_dokumen_bidang ?? [])
                       .map((b: any) => b.bidang_kerjasama?.nama)
+                      .filter(Boolean)
+                      .join(", ") || null
+                  }
+                />
+                <Baris
+                  label="SDGs"
+                  nilai={
+                    ((proposal as any).proposal_dokumen_sdg ?? [])
+                      .map((s: any) => (s.sdg ? `${s.sdg.nomor}. ${s.sdg.nama}` : null))
                       .filter(Boolean)
                       .join(", ") || null
                   }

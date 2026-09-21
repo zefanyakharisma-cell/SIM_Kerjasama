@@ -79,6 +79,7 @@ export default async function BuatKerjaSama({
            proposal_dokumen_bidang ( id_bidang_kerjasama ),
            proposal_dokumen_agenda ( id_agenda ),
            proposal_dokumen_unit ( id_unit ),
+           proposal_dokumen_sdg ( nomor_sdg ),
            proposal_dokumen_mou ( ringkasan_kegiatan ),
            proposal_dokumen_moa ( hak_petra, hak_calon_mitra, kewajiban_petra, kewajiban_calon_mitra )`,
         )
@@ -92,6 +93,7 @@ export default async function BuatKerjaSama({
   const bidangTerpilih = new Set((draf as any)?.proposal_dokumen_bidang?.map((b: any) => b.id_bidang_kerjasama) ?? []);
   const agendaTerpilih = new Set((draf as any)?.proposal_dokumen_agenda?.map((a: any) => a.id_agenda) ?? []);
   const unitTerpilih: number[] = (draf as any)?.proposal_dokumen_unit?.map((u: any) => u.id_unit) ?? [];
+  const sdgTerpilih = new Set((draf as any)?.proposal_dokumen_sdg?.map((s: any) => s.nomor_sdg) ?? []);
   const mouDraf = (draf as any)?.proposal_dokumen_mou?.[0] ?? (draf as any)?.proposal_dokumen_mou;
   const moaDraf = (draf as any)?.proposal_dokumen_moa?.[0] ?? (draf as any)?.proposal_dokumen_moa;
   const jabatanPengusulDraf = (draf as any)?.pengusul?.[0]?.id_jabatan ?? null;
@@ -109,6 +111,7 @@ export default async function BuatKerjaSama({
     { data: negara },
     { data: jenisMitra },
     { data: kontak },
+    { data: sdgOpsi },
   ] = await Promise.all([
       // ponytail: client-side list is capped at 500 rows (a search box on the
       // server side is the real fix); the draft's own partners are patched in
@@ -154,6 +157,8 @@ export default async function BuatKerjaSama({
       // here mostly aspirational; the draft partners' contacts are fetched
       // separately below so a draft edit at least never loses those.
       supabase.from("partner_contact").select("id, id_partner, nama").order("nama").limit(2000),
+      // No aktifAtau here: the 17 goals are the UN's and are never retired.
+      supabase.from("sdg").select("nomor, nama, warna").order("nomor"),
     ]);
 
   // A draft's own partners may fall outside the 500-row/2000-row caps above
@@ -330,6 +335,30 @@ export default async function BuatKerjaSama({
                       (adendum)
                     </span>
                   ) : null}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {/* Revisi V8 §3. Optional, and never filtered by is_active — the
+              list is the UN's 17 goals, which do not retire. */}
+          <fieldset className="mt-4">
+            <legend className="mb-1 text-sm font-medium">
+              Sustainable Development Goals (SDGs)
+            </legend>
+            <p className="mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
+              Opsional. Pilih SDG yang relevan dengan kerja sama ini.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(sdgOpsi ?? []).map((s) => (
+                <label key={s.nomor} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="sdg"
+                    value={s.nomor}
+                    defaultChecked={sdgTerpilih.has(s.nomor)}
+                  />
+                  {s.nomor}. {s.nama}
                 </label>
               ))}
             </div>
