@@ -7,6 +7,7 @@ import { StudioGrafik, type Grafik } from "@/components/studio-grafik";
 import { GrafikForm, grafikDariForm, type NilaiGrafik } from "@/components/grafik-form";
 import { Tabs } from "@/components/tabs";
 import { STATUS_DOKUMEN_AKTIF, lolosIlike } from "@/lib/laporan";
+import { batasAkanBerakhir } from "@/lib/periode";
 
 /**
  * Dashboard — the control panel (PRD §8.1).
@@ -388,16 +389,14 @@ export default async function Dashboard({
     hitung("proposal_dokumen", (q) => q.in("status_proposal", DALAM_PROSES)),
   ]);
 
-  // The expiring-soon window comes from settings, never a hardcoded 6 (DR-04).
-  const { data: pengaturan } = await supabase
-    .from("settings")
-    .select("key, value")
-    .in("key", ["expiring_soon_months"]);
-  const bulan = Number(
-    pengaturan?.find((p) => p.key === "expiring_soon_months")?.value ?? 6,
-  );
-  const batas = new Date();
-  batas.setMonth(batas.getMonth() + bulan);
+  // The expiring-soon window comes from settings, never a hardcoded 6 (DR-04);
+  // shared with Cari Kerja Sama so both mean the same thing.
+  const batas = await batasAkanBerakhir(supabase);
+  // The card caption names the same window, read back off the cutoff so the
+  // setting is fetched once.
+  const kini = new Date();
+  const bulan =
+    (batas.getFullYear() - kini.getFullYear()) * 12 + batas.getMonth() - kini.getMonth();
   // The cutoff is a plain date compared to a DATE column; formatting it in
   // UTC (toISOString) can land on the wrong side of midnight for Indonesia
   // (UTC+7), so it is read out in Asia/Jakarta instead.

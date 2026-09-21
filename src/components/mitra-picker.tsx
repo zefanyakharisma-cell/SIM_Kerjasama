@@ -110,13 +110,14 @@ export function MitraPicker({
               <button
                 type="button"
                 className="text-xs underline"
-                onClick={() =>
-                  setBaris((s) => {
-                    const sisa = s.filter((r) => r.key !== b.key);
-                    if (leadKey === b.key) setLeadKey(sisa[0].key);
-                    return sisa;
-                  })
-                }
+                onClick={() => {
+                  // Computed outside the updater: React may run a functional
+                  // updater more than once, and setLeadKey inside it would fire
+                  // just as often.
+                  const sisa = baris.filter((r) => r.key !== b.key);
+                  setBaris(sisa);
+                  if (leadKey === b.key && sisa[0]) setLeadKey(sisa[0].key);
+                }}
               >
                 Hapus
               </button>
@@ -131,6 +132,7 @@ export function MitraPicker({
                 defaultValue={b.idPartnerAwal}
                 placeholder="Cari nama mitra..."
                 ariaLabel="Mitra"
+                required
                 onValueChange={(idBaru) => setIdPartnerTerpilih((s) => ({ ...s, [b.key]: idBaru }))}
               />
 

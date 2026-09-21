@@ -752,17 +752,38 @@ insert into akun (id_jabatan, email, role) values
 -- Every threshold in the system reads from here; no magic numbers in code (DR-04).
 insert into settings (key, value) values
   ('expiring_soon_months',    '6'),
-  ('expiry_cadence',          'monthly_then_weekly_2mo'),
   ('sla_yellow_days',         '2'),
   ('sla_red_days',            '4'),
+  -- The expiry-reminder rhythm sapu_kedaluarsa() used to hardcode as
+  -- `case when sisa_hari <= 60 then 7 else 30 end` (DR-04, migration
+  -- 20260924000100). Values below are exactly that former behaviour.
+  -- expiry_cadence ('monthly_then_weekly_2mo') used to sit here: prose that
+  -- described these numbers but that nothing ever read. Removed with them.
+  ('reminder_near_days',         '60'),  -- "close to expiry" starts here
+  ('reminder_near_cadence_days', '7'),   -- ...remind this often once close
+  ('reminder_far_cadence_days',  '30'),  -- ...and this often before that
   ('renewal_reminder_days',   '30'),
   ('renewal_yellow_days',     '60'),
   ('renewal_red_days',        '90'),
   ('kpi_turnaround_basis',    'final_approved');
 
 -- Holiday calendar -----------------------------------------------------------
--- Business-day SLA is wrong without this, and an empty table makes the SLA
--- function warn (BR-19). 2026 Indonesian public holidays.
+-- Business-day SLA is wrong without this, and a year with no entry at all makes
+-- the SLA function warn (BR-19, tightened from "the table is empty" to "this
+-- year is empty" in migration 20260924000100 -- a 2026-only calendar was
+-- silently counting every 2027 holiday as a working day, and an SLA figure is
+-- frozen on resolution, so it would have been wrong forever).
+--
+-- Fixed-date and Gregorian-computable holidays (Tahun Baru, Imlek, Wafat Isa
+-- Almasih, Kenaikan Isa Almasih, Buruh, Pancasila, Kemerdekaan, Natal) are
+-- certain. Every date marked "KONFIRMASI SKB" below follows a lunar or
+-- lunisolar calendar -- Islamic (Isra Mikraj, Idul Fitri, Idul Adha, Tahun Baru
+-- Islam, Maulid), Saka (Nyepi) and the Vesak full moon (Waisak) -- and is a
+-- best-known projection, NOT an announced date. Indonesia fixes them by SKB 3
+-- Menteri roughly a year ahead; each must be checked against that decree when
+-- it is published, and corrected here (Master Data > Hari Libur in the app).
+--
+-- 2026 Indonesian public holidays.
 insert into holidays (tanggal, keterangan) values
   ('2026-01-01','Tahun Baru Masehi'),
   ('2026-01-17','Isra Mikraj Nabi Muhammad SAW'),
@@ -774,11 +795,55 @@ insert into holidays (tanggal, keterangan) values
   ('2026-05-01','Hari Buruh'),
   ('2026-05-14','Kenaikan Isa Almasih'),
   ('2026-05-27','Hari Raya Idul Adha'),
+  -- KONFIRMASI SKB. Terlewat pada seed awal; jatuh hari Minggu sehingga tidak
+  -- mengubah hitungan hari kerja, tetapi kalender harus tetap lengkap (BR-19).
+  ('2026-05-31','Hari Raya Waisak'),
   ('2026-06-01','Hari Lahir Pancasila'),
   ('2026-06-16','Tahun Baru Islam'),
   ('2026-08-17','Hari Kemerdekaan RI'),
   ('2026-08-25','Maulid Nabi Muhammad SAW'),
   ('2026-12-25','Hari Raya Natal');
+
+-- 2027 Indonesian public holidays.
+insert into holidays (tanggal, keterangan) values
+  ('2027-01-01','Tahun Baru Masehi'),
+  ('2027-01-06','Isra Mikraj Nabi Muhammad SAW'),  -- KONFIRMASI SKB: 27 Rajab 1448, proyeksi
+  ('2027-02-06','Tahun Baru Imlek 2578'),
+  ('2027-03-09','Hari Raya Nyepi (Tahun Baru Saka 1949)'), -- KONFIRMASI SKB: kalender Saka, proyeksi
+  ('2027-03-10','Hari Raya Idul Fitri 1448 H'),    -- KONFIRMASI SKB: 1 Syawal 1448, proyeksi
+  ('2027-03-11','Hari Raya Idul Fitri 1448 H'),    -- KONFIRMASI SKB: 2 Syawal 1448, proyeksi
+  ('2027-03-26','Wafat Isa Almasih'),
+  ('2027-05-01','Hari Buruh'),
+  ('2027-05-06','Kenaikan Isa Almasih'),
+  ('2027-05-17','Hari Raya Idul Adha 1448 H'),     -- KONFIRMASI SKB: 10 Zulhijah 1448, proyeksi
+  ('2027-05-20','Hari Raya Waisak'),               -- KONFIRMASI SKB: purnama Waisaka, proyeksi
+  ('2027-06-01','Hari Lahir Pancasila'),
+  ('2027-06-06','Tahun Baru Islam 1449 H'),        -- KONFIRMASI SKB: 1 Muharam 1449, proyeksi
+  ('2027-08-15','Maulid Nabi Muhammad SAW'),       -- KONFIRMASI SKB: 12 Rabiulawal 1449, proyeksi
+  ('2027-08-17','Hari Kemerdekaan RI'),
+  ('2027-12-25','Hari Raya Natal');
+
+-- 2028 Indonesian public holidays. The Islamic dates drift ~11 days earlier
+-- each Gregorian year, which is why Isra Mikraj lands twice in the 2027-2028
+-- window (Des 2027 and Des 2028) -- another reason not to trust these without
+-- the decree.
+insert into holidays (tanggal, keterangan) values
+  ('2028-01-01','Tahun Baru Masehi'),
+  ('2028-01-26','Tahun Baru Imlek 2579'),
+  ('2028-02-27','Hari Raya Idul Fitri 1449 H'),    -- KONFIRMASI SKB: 1 Syawal 1449, proyeksi
+  ('2028-02-28','Hari Raya Idul Fitri 1449 H'),    -- KONFIRMASI SKB: 2 Syawal 1449, proyeksi
+  ('2028-03-26','Hari Raya Nyepi (Tahun Baru Saka 1950)'), -- KONFIRMASI SKB: kalender Saka, proyeksi
+  ('2028-04-14','Wafat Isa Almasih'),
+  ('2028-05-01','Hari Buruh'),
+  ('2028-05-06','Hari Raya Idul Adha 1449 H'),     -- KONFIRMASI SKB: 10 Zulhijah 1449, proyeksi
+  ('2028-05-09','Hari Raya Waisak'),               -- KONFIRMASI SKB: purnama Waisaka, proyeksi
+  ('2028-05-25','Kenaikan Isa Almasih'),
+  ('2028-05-26','Tahun Baru Islam 1450 H'),        -- KONFIRMASI SKB: 1 Muharam 1450, proyeksi
+  ('2028-06-01','Hari Lahir Pancasila'),
+  ('2028-08-04','Maulid Nabi Muhammad SAW'),       -- KONFIRMASI SKB: 12 Rabiulawal 1450, proyeksi
+  ('2028-08-17','Hari Kemerdekaan RI'),
+  ('2028-12-14','Isra Mikraj Nabi Muhammad SAW'),  -- KONFIRMASI SKB: 27 Rajab 1450, proyeksi
+  ('2028-12-25','Hari Raya Natal');
 
 -- Historical proposals from the TUJUAN_KERJASAMA.csv import --------------
 -- One proposal_dokumen per source row, so every tujuan/manfaat value in the

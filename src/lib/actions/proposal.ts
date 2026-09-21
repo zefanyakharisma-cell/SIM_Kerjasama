@@ -96,6 +96,11 @@ export async function simpanProposal(formData: FormData) {
   const { idPerBaris, kontakPerBaris } = await resolusiMitra(supabase, formData);
 
   const unik = [...new Set(idPerBaris.values())];
+  // A row that resolves to nothing is skipped above, so an unrecognised name
+  // would otherwise reach simpan_anak_proposal as an empty partner list and
+  // write a partner-less document — which DR-01 forbids and which leaves the
+  // renewal evaluation (BR-29) with no lead to ask.
+  if (!unik.length) throw new Error("Calon Mitra wajib diisi dan dipilih dari daftar.");
   const pilihanLead = idPerBaris.get(Number(formData.get("lead_index") ?? 0));
   const lead = pilihanLead !== undefined && unik.includes(pilihanLead) ? pilihanLead : unik[0];
 

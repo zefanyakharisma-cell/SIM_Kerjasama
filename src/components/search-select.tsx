@@ -20,6 +20,7 @@ export function SearchSelect({
   className,
   onValueChange,
   ariaLabel,
+  required,
 }: {
   name: string;
   options: { id: number; label: string }[];
@@ -29,6 +30,9 @@ export function SearchSelect({
   onValueChange?: (id: number | null) => void;
   /** Accessible name when the field is not wrapped in a <label>. */
   ariaLabel?: string;
+  /** Blocks submit while the visible box is empty — the server still rejects a
+   *  typed name that resolves to no id. */
+  required?: boolean;
 }) {
   const awal = options.find((o) => o.id === defaultValue) ?? null;
   const [teks, setTeks] = useState(awal?.label ?? "");
@@ -52,6 +56,7 @@ export function SearchSelect({
         onChange={(e) => ubah(e.target.value)}
         placeholder={placeholder}
         aria-label={ariaLabel}
+        required={required}
         className={className ?? inputKelas}
         style={inputGaya}
       />

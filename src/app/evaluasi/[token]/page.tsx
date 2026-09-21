@@ -128,13 +128,24 @@ export default async function EvaluasiMitra({
   async function kirim(formData: FormData) {
     "use server";
     const klien = await supabaseServer();
+    const jawaban = bacaJawaban(formData);
+    // An incomplete grid is our own validation, so it is named exactly.
+    if (typeof jawaban.galat === "string") {
+      redirect(`/evaluasi/${token}?galat=${encodeURIComponent(jawaban.galat)}`);
+    }
     const { error } = await klien.rpc("kirim_evaluasi_partner", {
       p_token: token,
-      p_jawaban: bacaJawaban(formData),
+      p_jawaban: jawaban,
     });
     if (error) {
+      // The database message names an internal rule or column and this page is
+      // public and unauthenticated (AR-07) — it is logged, never shown.
       console.error("[simks] evaluasi mitra ditolak:", error.message);
-      redirect(`/evaluasi/${token}?galat=${encodeURIComponent(error.message)}`);
+      redirect(
+        `/evaluasi/${token}?galat=${encodeURIComponent(
+          "Jawaban tidak dapat disimpan. Silakan periksa kembali isian Anda atau hubungi Kantor Kerja Sama dan Urusan Internasional.",
+        )}`,
+      );
     }
     redirect(`/evaluasi/${token}?ok=1`);
   }

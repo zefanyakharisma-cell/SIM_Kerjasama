@@ -45,6 +45,10 @@ export async function kirimEvaluasiFakultas(
   noEvaluasi: number,
   jawaban: Record<string, unknown>,
 ): Promise<Hasil> {
+  // An incomplete Likert grid is refused before the RPC, with the reason
+  // `bacaJawaban` already worked out — otherwise the CHECK constraint refuses it
+  // and the user reads raw Postgres instead (EC-06).
+  if (typeof jawaban.galat === "string") return { ok: false, pesan: jawaban.galat };
   const hasil = await panggil("kirim_evaluasi_fakultas", {
     p_no: noEvaluasi,
     p_jawaban: jawaban,

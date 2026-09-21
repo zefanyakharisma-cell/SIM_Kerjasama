@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
 import { kirimPermintaanPembaruan } from "@/lib/actions/pembaruan";
+import { batasAkanBerakhir } from "@/lib/periode";
 import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
 import { SubmitButton } from "@/components/submit-button";
@@ -357,6 +358,9 @@ function TabelDokumen({
     gerbang: Map<number, string>;
     io: boolean;
     minta: (formData: FormData) => Promise<void>;
+    // Days left below which Sisa Hari turns red — derived from
+    // expiring_soon_months in settings, never a literal (DR-04).
+    ambangHari: number;
   };
 }) {
   const kolom = [
@@ -425,7 +429,7 @@ function TabelDokumen({
                           className="text-xs font-medium"
                           style={{
                             color:
-                              b.sisa_hari !== null && b.sisa_hari <= 60
+                              b.sisa_hari !== null && b.sisa_hari <= pembaruan.ambangHari
                                 ? "var(--sla-red)"
                                 : "var(--text-secondary)",
                           }}
@@ -527,6 +531,11 @@ export default async function CariKerjaSama({
     (jalan ?? []).map((r: any) => [r.no_dokumen_kerjasama, r.gerbang]),
   );
 
+  // Sisa Hari turns red inside the same window the dashboard counts, which is
+  // expiring_soon_months in settings and not a hardcoded 60 (DR-04).
+  const batas = await batasAkanBerakhir(supabase);
+  const ambangHari = Math.round((batas.getTime() - Date.now()) / 86_400_000);
+
   async function minta(formData: FormData) {
     "use server";
     await kirimPermintaanPembaruan(Number(formData.get("no")), String(formData.get("pesan") ?? ""));
@@ -616,7 +625,7 @@ export default async function CariKerjaSama({
       ) : tab === "aktif" ? (
         <TabelDokumen baris={baris} halaman={halaman} />
       ) : tab === "berakhir" ? (
-        <TabelDokumen baris={baris} halaman={halaman} pembaruan={{ gerbang, io, minta }} />
+        <TabelDokumen baris={baris} halaman={halaman} pembaruan={{ gerbang, io, minta, ambangHari }} />
       ) : (
         <div
           className="overflow-x-auto rounded-xl border bg-white"

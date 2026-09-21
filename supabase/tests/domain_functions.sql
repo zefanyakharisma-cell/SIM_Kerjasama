@@ -876,8 +876,38 @@ begin
   if not v_ok then
     raise exception 'FAIL anak-b: an unrecognised jenis_kerjasama was accepted';
   end if;
-  raise notice 'PASS simpan_anak_proposal atomic replace and jenis guard';
 
+  -- DR-01 (bug fix 20260924000100): a proposal with no mitra pengusul is not a
+  -- proposal. An empty p_partner used to insert zero partner_pengusul rows and
+  -- report success, leaving a document nothing downstream could join through.
+  v_ok := false;
+  begin
+    perform simpan_anak_proposal(v_p, '[]'::jsonb, 3, array[1], array[1], array[1],
+                                 'MoU', jsonb_build_object('ringkasan_kegiatan','x'), null);
+  exception when others then v_ok := true;
+  end;
+  if not v_ok then
+    raise exception 'FAIL anak-c: an empty partner list was accepted';
+  end if;
+
+  -- ...and NULL is the same nothing, through the RPC's missing-argument path.
+  v_ok := false;
+  begin
+    perform simpan_anak_proposal(v_p, null::jsonb, 3, array[1], array[1], array[1],
+                                 'MoU', jsonb_build_object('ringkasan_kegiatan','x'), null);
+  exception when others then v_ok := true;
+  end;
+  if not v_ok then
+    raise exception 'FAIL anak-d: a null partner list was accepted';
+  end if;
+
+  -- The refusal happens before the deletes, so the previous save is intact.
+  if (select count(*) from partner_pengusul where id_proposal_dokumen = v_p) <> 1 then
+    raise exception 'FAIL anak-e: the rejected save wiped the existing child rows';
+  end if;
+  raise notice 'PASS simpan_anak_proposal atomic replace, jenis and partner guards';
+
+  delete from partner_pengusul where id_proposal_dokumen = v_p;
   delete from proposal_dokumen where id = v_p;
   delete from partner where id = v_pt;
 end
@@ -1044,13 +1074,18 @@ $t$;
 -- function has a tenth parameter with a default.
 -- ===========================================================================
 do $t$
-declare v_p int;
+declare v_p int; v_pt int; v_mitra jsonb;
 begin
   perform set_config('simks.akun_id','7',true);
   insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
   values ('MoU','Draft',7) returning id into v_p;
+  -- A real mitra, because an empty p_partner is refused outright since the
+  -- DR-01 guard of 20260924000100 (see the case below).
+  insert into partner (nama, is_international, id_negara) values ('Uji SDG', false, 1)
+    returning id into v_pt;
+  v_mitra := jsonb_build_array(jsonb_build_object('id_partner', v_pt, 'is_lead', true));
 
-  perform simpan_anak_proposal(v_p, '[]'::jsonb, null, array[]::int[], array[]::int[],
+  perform simpan_anak_proposal(v_p, v_mitra, null, array[]::int[], array[]::int[],
                                array[]::int[], 'MoU',
                                jsonb_build_object('ringkasan_kegiatan','x'), null,
                                array[4,17]);
@@ -1059,7 +1094,7 @@ begin
   end if;
 
   -- Replace, not append -- the same rule every other child set follows.
-  perform simpan_anak_proposal(v_p, '[]'::jsonb, null, array[]::int[], array[]::int[],
+  perform simpan_anak_proposal(v_p, v_mitra, null, array[]::int[], array[]::int[],
                                array[]::int[], 'MoU',
                                jsonb_build_object('ringkasan_kegiatan','x'), null,
                                array[4]);
@@ -1069,7 +1104,7 @@ begin
 
   -- The old 9-argument call still resolves through p_sdg's default, and
   -- clearing is what an empty set means.
-  perform simpan_anak_proposal(v_p, '[]'::jsonb, null, array[]::int[], array[]::int[],
+  perform simpan_anak_proposal(v_p, v_mitra, null, array[]::int[], array[]::int[],
                                array[]::int[], 'MoU',
                                jsonb_build_object('ringkasan_kegiatan','x'), null);
   if (select count(*) from proposal_dokumen_sdg where id_proposal_dokumen = v_p) <> 0 then
@@ -1081,7 +1116,9 @@ begin
   end if;
   raise notice 'PASS sdg child set and simpan_anak_proposal arity';
 
+  delete from partner_pengusul where id_proposal_dokumen = v_p;
   delete from proposal_dokumen where id = v_p;
+  delete from partner where id = v_pt;
 end
 $t$;
 

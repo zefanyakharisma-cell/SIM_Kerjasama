@@ -177,9 +177,18 @@ export function BlokRekomendasi({ dwibahasa = false }: { dwibahasa?: boolean }) 
   );
 }
 
-/** Pulls the posted answers into the jsonb shape the database function takes. */
-export function bacaJawaban(formData: FormData): Record<string, unknown> {
-  const jawaban: Record<string, unknown> = {
+/**
+ * Pulls the posted answers into the jsonb shape the database function takes.
+ *
+ * An unanswered Likert cell must never reach the database. `Number(null)` is 0,
+ * not NaN, so a missing radio used to pass this layer intact and be refused only
+ * by the CHECK (... between 1 and 5) — whose raw Postgres text then surfaced to
+ * the partner on the public page. So the miss is caught here, once, for both
+ * callers: the result carries `galat` and every caller refuses on it before the
+ * RPC. The return type stays a plain jsonb record, so no call site changes shape.
+ */
+export function bacaJawaban(formData: FormData): Record<string, unknown> & { galat?: string } {
+  const jawaban: Record<string, unknown> & { galat?: string } = {
     rekomendasi: formData.get("rekomendasi"),
     continuation_mode: formData.get("continuation_mode") ?? "",
     catatan_evaluasi: formData.get("catatan_evaluasi") ?? "",
@@ -188,9 +197,17 @@ export function bacaJawaban(formData: FormData): Record<string, unknown> {
     respondent_jabatan: formData.get("respondent_jabatan") ?? "",
     respondent_hp: formData.get("respondent_hp") ?? "",
   };
+  const kosong: string[] = [];
   for (const d of DIMENSI) {
-    jawaban[`exp_${d.kunci}`] = Number(formData.get(`exp_${d.kunci}`));
-    jawaban[`sat_${d.kunci}`] = Number(formData.get(`sat_${d.kunci}`));
+    for (const awalan of ["exp", "sat"] as const) {
+      const n = Number(formData.get(`${awalan}_${d.kunci}`));
+      if (!Number.isInteger(n) || n < 1 || n > 5) kosong.push(d.id);
+      jawaban[`${awalan}_${d.kunci}`] = n;
+    }
+  }
+  if (!jawaban.rekomendasi) kosong.push("Rekomendasi");
+  if (kosong.length) {
+    jawaban.galat = `Mohon lengkapi penilaian: ${[...new Set(kosong)].join(", ")}.`;
   }
   return jawaban;
 }
