@@ -29,6 +29,7 @@ const TAB = {
   detail: "Detail",
   approval: "Approval",
   history: "History",
+  implementasi: "Implementasi",
   disposisi: "Disposisi",
   pembaruan: "Pembaruan",
 } as const;
@@ -149,6 +150,16 @@ export default async function LaporanDokumen({
     : { count: 0 };
   const adaPembaruan = Boolean(dok?.no) && (dok.status === "Akan Berakhir" || (jumlahPembaruan ?? 0) > 0);
 
+  // Implementation Arrangement / Report (Revisi V8 §2). Read-only here — the
+  // Realization Form project is what writes these rows.
+  const { data: implementasi } = dok?.no
+    ? await supabase
+        .from("implementasi_dokumen")
+        .select("no, jenis, judul, deskripsi, tanggal, berkas, status")
+        .eq("no_dokumen_kerjasama", dok.no)
+        .order("tanggal", { ascending: false })
+    : { data: [] };
+
   // Primary contact per partner, fetched separately — partner_contact has two
   // possible FK paths to partner, so a nested embed would be ambiguous.
   const daftarMitra = ((proposal as any).partner_pengusul ?? [])
@@ -259,7 +270,12 @@ export default async function LaporanDokumen({
   const bolehDisposisi = io || pengusulSaya || approverSaya;
 
   // Signed links for each disposition's attached document.
-  const pathLampiran = (disposisi ?? []).map((d: any) => d.lampiran).filter(Boolean);
+  // One signing round trip for both kinds of attachment: the disposition
+  // files and the implementation documents share the bucket and the map.
+  const pathLampiran = [
+    ...(disposisi ?? []).map((d: any) => d.lampiran),
+    ...(implementasi ?? []).map((i: any) => i.berkas),
+  ].filter(Boolean);
   const { data: lampiranSigned } = pathLampiran.length
     ? await supabase.storage.from("dokumen-kerjasama").createSignedUrls(pathLampiran, 3600)
     : { data: [] };
@@ -396,7 +412,11 @@ export default async function LaporanDokumen({
         basePath={`/kerja-sama/${idProposal}/laporan`}
         tabs={Object.fromEntries(
           Object.entries(TAB).filter(
-            ([k]) => (k !== "disposisi" || bolehDisposisi) && (k !== "pembaruan" || adaPembaruan),
+            ([k]) =>
+              (k !== "disposisi" || bolehDisposisi) &&
+              (k !== "pembaruan" || adaPembaruan) &&
+              // Nothing can be implemented before the document is signed.
+              (k !== "implementasi" || Boolean(dok?.no)),
           ),
         )}
         aktif={tab}
@@ -764,6 +784,54 @@ export default async function LaporanDokumen({
             ) : null}
           </ul>
         </section>
+      ) : null}
+
+      {tab === "implementasi" && dok?.no ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {([
+            ["arrangement", "Implementation Arrangement"],
+            ["report", "Implementation Report"],
+          ] as const).map(([jenis, judul]) => {
+            const baris = (implementasi ?? []).filter((i: any) => i.jenis === jenis);
+            return (
+              <Kartu key={jenis} judul={judul}>
+                <ul className="space-y-3 text-sm">
+                  {baris.map((i: any) => (
+                    <li key={i.no} className="border-b pb-3 last:border-0 last:pb-0" style={gaya}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-medium">{i.judul}</span>
+                        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                          <Tanggal nilai={i.tanggal} />
+                        </span>
+                      </div>
+                      {i.deskripsi ? (
+                        <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                          {i.deskripsi}
+                        </p>
+                      ) : null}
+                      <div className="mt-1 flex items-center gap-3 text-xs">
+                        <span style={{ color: "var(--text-muted)" }}>{i.status}</span>
+                        {i.berkas && urlLampiran.get(i.berkas) ? (
+                          <a
+                            href={urlLampiran.get(i.berkas) as string}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
+                            Unduh
+                          </a>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                  {!baris.length ? (
+                    <li style={{ color: "var(--text-muted)" }}>Belum ada dokumen implementasi.</li>
+                  ) : null}
+                </ul>
+              </Kartu>
+            );
+          })}
+        </div>
       ) : null}
 
       {tab === "pembaruan" && adaPembaruan ? (

@@ -884,6 +884,44 @@ end
 $t$;
 
 -- ===========================================================================
+-- Revisi V8 §2 — implementasi_dokumen hangs off the SIGNED document, and goes
+-- away with it, so the test seam needs no new delete line.
+-- ===========================================================================
+do $t$
+declare v_p int; v_no int;
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Disetujui',7) returning id into v_p;
+  insert into dokumen_kerja_sama (id_proposal_dokumen, no_dokumen, tanggal_mulai, status)
+  values (v_p, 'UJI-IMPL-1', date '2019-05-01', 'Aktif') returning no into v_no;
+
+  insert into implementasi_dokumen (no_dokumen_kerjasama, jenis, judul, tanggal, id_akun_pembuat)
+  values (v_no, 'arrangement', 'IA 2019', date '2019-06-01', 7),
+         (v_no, 'report',      'IR 2020', date '2020-06-01', 7);
+  if (select count(*) from implementasi_dokumen where no_dokumen_kerjasama = v_no) <> 2 then
+    raise exception 'FAIL impl-a: rows were not stored';
+  end if;
+
+  -- Only the two declared kinds exist.
+  begin
+    insert into implementasi_dokumen (no_dokumen_kerjasama, jenis, judul, tanggal, id_akun_pembuat)
+    values (v_no, 'realization', 'salah', date '2020-06-01', 7);
+    raise exception 'FAIL impl-b: an unrecognised jenis was accepted';
+  exception when check_violation then null;
+  end;
+
+  delete from dokumen_kerja_sama where no = v_no;
+  if exists (select 1 from implementasi_dokumen where no_dokumen_kerjasama = v_no) then
+    raise exception 'FAIL impl-c: rows did not cascade with the document';
+  end if;
+  raise notice 'PASS implementasi_dokumen jenis guard and cascade';
+
+  delete from proposal_dokumen where id = v_p;
+end
+$t$;
+
+-- ===========================================================================
 -- Revisi V8 §3 — SDGs ride along on simpan_anak_proposal's atomic replace, and
 -- the 9-argument positional callers above must still resolve now that the
 -- function has a tenth parameter with a default.
