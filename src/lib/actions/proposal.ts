@@ -21,7 +21,13 @@ export async function simpanProposal(formData: FormData) {
 
   const kolom = {
     jenis_kerjasama: formData.get("jenis_kerjasama"),
-    periode_kerjasama: formData.get("periode_kerjasama") || null,
+    // The form posts two numbers (Revisi V6 §3), not the composed string —
+    // reading "periode_kerjasama" meant every proposal saved NULL here, and a
+    // draft edit wiped whatever had been set before.
+    periode_kerjasama: susunPeriode(
+      formData.get("periode_tahun"),
+      formData.get("periode_bulan"),
+    ),
     sifat_periode_kerjasama: formData.get("sifat_periode_kerjasama") || null,
     tujuan_kerjasama: formData.get("tujuan_kerjasama") || null,
     manfaat_bagi_petra: formData.get("manfaat_bagi_petra") || null,
