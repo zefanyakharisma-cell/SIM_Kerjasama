@@ -54,7 +54,7 @@ export default async function DetailDokumen({
   const { data: proposal } = await supabase
     .from("proposal_dokumen")
     .select(
-      `id, jenis_kerjasama, status_proposal, periode_kerjasama,
+      `id, jenis_kerjasama, status_proposal, is_pencatatan_langsung, periode_kerjasama,
        sifat_periode_kerjasama, tujuan_kerjasama, manfaat_bagi_petra,
        manfaat_bagi_mitra, informasi_tambahan, waktu_proposal_dokumen,
        waktu_disetujui, waktu_aktif, id_dokumen_sebelumnya, file_draft,
@@ -112,6 +112,13 @@ export default async function DetailDokumen({
     .limit(50);
 
   const io = isIO(akun);
+  // A directly-recorded document has no approval chain at all (Revisi V8 §1).
+  // Every other approval block here already self-hides -- it is Disetujui, so
+  // dalamDisposisi and belumDidisposisi are false, it always has a dokumen_
+  // kerja_sama row so the activation CTA is off, and it has no disposisi_target
+  // so targetSaya is null. Only the tier progress below renders unconditionally.
+  const langsung = Boolean((proposal as any).is_pencatatan_langsung);
+
   const dalamDisposisi = [
     "Diproses",
     "Disposisi - Tier 1",
@@ -324,6 +331,7 @@ export default async function DetailDokumen({
         whole system (Design §4.3): what state the document is in, and who it
         is waiting on.
       */}
+      {!langsung ? (
       <section
             className="mb-6 rounded-xl border bg-white p-4"
             style={{ borderColor: "var(--border)" }}
@@ -384,6 +392,7 @@ export default async function DetailDokumen({
               </div>
             )}
           </section>
+      ) : null}
 
           {targetSaya ? (
             <section className="mb-6">

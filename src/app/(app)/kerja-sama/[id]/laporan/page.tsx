@@ -115,7 +115,8 @@ export default async function LaporanDokumen({
   const { data: proposal } = await supabase
     .from("proposal_dokumen")
     .select(
-      `id, jenis_kerjasama, status_proposal, tujuan_kerjasama, manfaat_bagi_petra,
+      `id, jenis_kerjasama, status_proposal, is_pencatatan_langsung,
+       tujuan_kerjasama, manfaat_bagi_petra,
        manfaat_bagi_mitra, id_dokumen_sebelumnya, file_draft, id_akun_pembuat,
        partner_pengusul ( partner ( id, nama, kota, alamat, homepage,
          afiliasi_group, jenis_bisnis, is_international, id_partner_contact,
@@ -267,7 +268,10 @@ export default async function LaporanDokumen({
   // submitter (who answers revision requests there).
   const pengusulSaya = Boolean(akun) && proposal.id_akun_pembuat === akun?.id;
   const approverSaya = (target ?? []).some((t: any) => t.jabatan?.id === akun?.id_jabatan);
-  const bolehDisposisi = io || pengusulSaya || approverSaya;
+  // A directly-recorded document never had an approval chain, so the Approval
+  // and Disposisi tabs would only ever show an empty one (Revisi V8 §1).
+  const langsung = Boolean((proposal as any).is_pencatatan_langsung);
+  const bolehDisposisi = !langsung && (io || pengusulSaya || approverSaya);
 
   // Signed links for each disposition's attached document.
   // One signing round trip for both kinds of attachment: the disposition
@@ -403,6 +407,19 @@ export default async function LaporanDokumen({
             {proposal.jenis_kerjasama}
           </span>
         </div>
+          {langsung ? (
+            <span
+              className="rounded px-2 py-0.5 text-xs"
+              style={{ background: "var(--surface-muted)", color: "var(--text-muted)" }}
+            >
+              Dicatat langsung oleh KUI
+            </span>
+          ) : null}
+          {langsung && io ? (
+            <Link href={`/catat?id=${idProposal}` as any} className="text-sm underline">
+              Ubah Pencatatan
+            </Link>
+          ) : null}
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
           {daftarMitra.map((p: any) => p.nama).filter(Boolean).join(", ") || "Mitra belum dipilih"}
         </p>
@@ -413,6 +430,7 @@ export default async function LaporanDokumen({
         tabs={Object.fromEntries(
           Object.entries(TAB).filter(
             ([k]) =>
+              (k !== "approval" || !langsung) &&
               (k !== "disposisi" || bolehDisposisi) &&
               (k !== "pembaruan" || adaPembaruan) &&
               // Nothing can be implemented before the document is signed.

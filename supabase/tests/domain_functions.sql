@@ -884,6 +884,123 @@ end
 $t$;
 
 -- ===========================================================================
+-- Revisi V8 §1 — catat_dokumen_langsung: an already-signed document lands
+-- Aktif with no approval trail, edits replace rather than duplicate, and the
+-- door is closed to non-IO callers and to workflow documents.
+-- ===========================================================================
+do $t$
+declare v_pt int; v_id int; v_no int; v_normal int; v_ok boolean;
+begin
+  perform set_config('simks.akun_id','7',true);   -- staf-kui, io_admin
+  insert into partner (nama, is_international, id_negara)
+  values ('Uji Pencatatan Langsung', false, 1) returning id into v_pt;
+
+  v_id := catat_dokumen_langsung(
+    null,
+    jsonb_build_object('jenis_kerjasama','MoU'),
+    jsonb_build_array(jsonb_build_object('id_partner', v_pt, 'is_lead', true)),
+    3, array[]::int[], array[]::int[], array[]::int[], array[4],
+    jsonb_build_object('ringkasan_kegiatan','legacy'), null,
+    jsonb_build_object(
+      'no_dokumen','L-001',
+      'tanggal_tanda_tangan','2019-05-01',
+      'tanggal_mulai','2019-05-01',
+      'tanggal_berakhir','2099-05-01',
+      'penandatangan_petra','Rektor',
+      'penandatangan_mitra','CEO'));
+
+  if (select status_proposal from proposal_dokumen where id = v_id) <> 'Disetujui'
+     or not (select is_pencatatan_langsung from proposal_dokumen where id = v_id) then
+    raise exception 'FAIL catat-a: status/flag wrong on creation';
+  end if;
+
+  select no into v_no from dokumen_kerja_sama where id_proposal_dokumen = v_id;
+  if v_no is null
+     or (select status from dokumen_kerja_sama where no = v_no) <> 'Aktif' then
+    raise exception 'FAIL catat-b: the document is not active on creation';
+  end if;
+
+  if exists (select 1 from disposisi where id_proposal_dokumen = v_id) then
+    raise exception 'FAIL catat-c: a direct entry created a disposisi';
+  end if;
+
+  -- The turnaround KPI must read the real signing date, not today.
+  if (select waktu_disetujui::date from proposal_dokumen where id = v_id)
+       <> date '2019-05-01' then
+    raise exception 'FAIL catat-d: waktu_disetujui was stamped with now()';
+  end if;
+
+  if (select count(*) from penandatangan_partner where no_dokumen_kerjasama = v_no) <> 1 then
+    raise exception 'FAIL catat-e: partner signatory not recorded';
+  end if;
+
+  -- An edit replaces; it must not duplicate the signatories, and clearing the
+  -- id_penandatangan_partner FK first is what makes the delete possible.
+  perform catat_dokumen_langsung(
+    v_id,
+    jsonb_build_object('jenis_kerjasama','MoU'),
+    jsonb_build_array(jsonb_build_object('id_partner', v_pt, 'is_lead', true)),
+    3, array[]::int[], array[]::int[], array[]::int[], array[4],
+    jsonb_build_object('ringkasan_kegiatan','legacy'), null,
+    jsonb_build_object(
+      'no_dokumen','L-002',
+      'tanggal_tanda_tangan','2019-05-01',
+      'tanggal_mulai','2019-05-01',
+      'tanggal_berakhir','2099-05-01',
+      'penandatangan_petra','Rektor',
+      'penandatangan_mitra','CFO'));
+
+  if (select count(*) from penandatangan_partner where no_dokumen_kerjasama = v_no) <> 1
+     or (select nama from penandatangan_partner where no_dokumen_kerjasama = v_no) <> 'CFO' then
+    raise exception 'FAIL catat-f: the edit duplicated or failed to replace the signatory';
+  end if;
+  if (select no_dokumen from dokumen_kerja_sama where id_proposal_dokumen = v_id) <> 'L-002' then
+    raise exception 'FAIL catat-g: the edit did not update the document';
+  end if;
+
+  -- A document that really went through approval is not editable this way.
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Disetujui',7) returning id into v_normal;
+  v_ok := false;
+  begin
+    perform catat_dokumen_langsung(
+      v_normal, jsonb_build_object('jenis_kerjasama','MoU'), '[]'::jsonb, null,
+      array[]::int[], array[]::int[], array[]::int[], array[]::int[],
+      jsonb_build_object('ringkasan_kegiatan','x'), null,
+      jsonb_build_object('no_dokumen','X','tanggal_tanda_tangan','2020-01-01',
+                         'tanggal_mulai','2020-01-01'));
+  exception when others then v_ok := true;
+  end;
+  if not v_ok then
+    raise exception 'FAIL catat-h: a workflow document was edited as a direct entry';
+  end if;
+
+  -- And a non-IO account cannot open the door at all.
+  perform set_config('simks.akun_id','4',true);
+  v_ok := false;
+  begin
+    perform catat_dokumen_langsung(
+      null, jsonb_build_object('jenis_kerjasama','MoU'),
+      jsonb_build_array(jsonb_build_object('id_partner', v_pt, 'is_lead', true)),
+      3, array[]::int[], array[]::int[], array[]::int[], array[]::int[],
+      jsonb_build_object('ringkasan_kegiatan','x'), null,
+      jsonb_build_object('no_dokumen','Y','tanggal_tanda_tangan','2020-01-01',
+                         'tanggal_mulai','2020-01-01'));
+  exception when others then v_ok := true;
+  end;
+  if not v_ok then
+    raise exception 'FAIL catat-i: a non-IO account recorded a document';
+  end if;
+  perform set_config('simks.akun_id','7',true);
+  raise notice 'PASS catat_dokumen_langsung create, edit and both refusals';
+
+  perform bersihkan_proposal_uji(v_id);
+  perform bersihkan_proposal_uji(v_normal);
+  delete from partner where id = v_pt;
+end
+$t$;
+
+-- ===========================================================================
 -- Revisi V8 §2 — implementasi_dokumen hangs off the SIGNED document, and goes
 -- away with it, so the test seam needs no new delete line.
 -- ===========================================================================

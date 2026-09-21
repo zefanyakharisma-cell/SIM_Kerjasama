@@ -7,6 +7,7 @@ import { KerjaSamaFields } from "@/components/kerja-sama-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { uraiPeriode } from "@/lib/periode";
 import { TERIMA_PDF_WORD } from "@/lib/unggah";
+import { Bagian } from "@/components/bagian";
 
 /**
  * Buat Kerja Sama — the Proposal Form (PRD §7.2, Design §5.5).
@@ -20,33 +21,6 @@ import { TERIMA_PDF_WORD } from "@/lib/unggah";
  * international KPI and free text would fragment it on spelling (PRD §11).
  */
 export const dynamic = "force-dynamic";
-
-function Bagian({
-  judul,
-  keterangan,
-  children,
-}: {
-  judul: string;
-  keterangan?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      className="mb-5 rounded-xl border bg-white p-5"
-      style={{ borderColor: "var(--border)" }}
-    >
-      <h2 className="text-sm font-semibold">{judul}</h2>
-      {keterangan ? (
-        <p className="mb-3 mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
-          {keterangan}
-        </p>
-      ) : (
-        <div className="mb-3" />
-      )}
-      {children}
-    </section>
-  );
-}
 
 /** PostgREST `or`: active rows, plus the ids a draft already holds. */
 const aktifAtau = (ids: unknown[]) =>

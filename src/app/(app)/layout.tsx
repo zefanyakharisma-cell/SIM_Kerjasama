@@ -12,6 +12,10 @@ const MENU = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/kerja-sama", label: "Cari Kerja Sama" },
   { href: "/buat", label: "Buat Kerja Sama" },
+  // Pencatatan Langsung (Revisi V8 §1) — KUI only, both staff and admin,
+  // because recording an already-signed document is IO's routine work rather
+  // than a system-settings change.
+  { href: "/catat", label: "Catat Dokumen", ioSaja: true },
   { href: "/antrean", label: "Antrean Saya" },
   { href: "/notifikasi", label: "Notifikasi" },
   { href: "/master-data", label: "Master Data", adminSaja: true },
@@ -65,7 +69,11 @@ export default async function AppLayout({
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <SidebarNav
-        menu={MENU.filter((m) => !("adminSaja" in m) || akun.role === "io_admin")}
+        menu={MENU.filter(
+          (m) =>
+            (!("adminSaja" in m) || akun.role === "io_admin") &&
+            (!("ioSaja" in m) || akun.role === "io_admin" || akun.role === "io_staff"),
+        )}
         belumDibaca={belumDibaca ?? 0}
         jabatan={jabatan?.nama ?? "Jabatan"}
         email={akun.email}

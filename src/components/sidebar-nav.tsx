@@ -22,6 +22,7 @@ const IKON: Record<string, string> = {
   "/dashboard": "M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z",
   "/kerja-sama": "M8.5 3a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zM17 17l-4.1-4.1",
   "/buat": "M4 3h12a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM10 7v6M7 10h6",
+  "/catat": "M4 3h9l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM12 3v4h4M6 11h8M6 14h5",
   "/antrean": "M3 5h14M3 10h14M3 15h9",
   "/notifikasi": "M5 8a5 5 0 0 1 10 0c0 5 2 6 2 6H3s2-1 2-6zM8.5 17a1.5 1.5 0 0 0 3 0",
   "/master-data":

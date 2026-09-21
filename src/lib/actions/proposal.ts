@@ -30,22 +30,7 @@ export async function simpanProposal(formData: FormData) {
     informasi_tambahan: formData.get("informasi_tambahan") || null,
   };
 
-  // The searchable fields are free-text inputs in the browser (Revisi V7 §7),
-  // so the list is enforced here: a value must be one of the table's.
-  const DAFTAR = [
-    ["tujuan_kerjasama", "tujuan_kerjasama", "Tujuan Kerja Sama"],
-    ["manfaat_bagi_petra", "manfaat_petra", "Manfaat bagi UKP"],
-    ["manfaat_bagi_mitra", "manfaat_mitra", "Manfaat bagi Mitra"],
-  ] as const;
-  for (const [kolomNama, tabel, label] of DAFTAR) {
-    const nilai = kolom[kolomNama];
-    if (!nilai) continue;
-    const { count } = await supabase
-      .from(tabel)
-      .select("nilai", { count: "exact", head: true })
-      .eq("nilai", String(nilai));
-    if (!count) throw new Error(`${label} harus dipilih dari daftar.`);
-  }
+  await periksaDaftar(supabase, kolom);
 
   let id: number;
 
@@ -102,60 +87,7 @@ export async function simpanProposal(formData: FormData) {
   // links the partner to this proposal. H1 fix: set_kontak_utama now checks
   // that link (a submitter may only touch their own Draft's partners), so
   // calling it before the link exists would always fail.
-  const jumlahMitra = Number(formData.get("mitra_count") ?? 0);
-  const idPerBaris = new Map<number, number>();
-  const kontakPerBaris = new Map<number, number>();
-  for (let i = 0; i < jumlahMitra; i++) {
-    const mode = formData.get(`mitra_mode_${i}`);
-    if (mode === "baru") {
-      const namaBaru = String(formData.get(`mitra_baru_nama_${i}`) ?? "").trim();
-      const idNegaraBaru = Number(formData.get(`mitra_baru_negara_${i}`) ?? 0);
-      if (!namaBaru || !idNegaraBaru) continue;
-      const { data: negaraBaru } = await supabase
-        .from("negara")
-        .select("is_domestic")
-        .eq("id", idNegaraBaru)
-        .maybeSingle();
-      const idJenisBaru = Number(formData.get(`mitra_baru_jenis_${i}`) ?? 0) || null;
-      const { data: partnerBaru, error: errPartnerBaru } = await supabase
-        .from("partner")
-        .insert({
-          nama: namaBaru,
-          id_negara: idNegaraBaru,
-          is_international: !(negaraBaru?.is_domestic ?? true),
-          id_jenis_mitra: idJenisBaru,
-          kota: String(formData.get(`mitra_baru_kota_${i}`) ?? "") || null,
-          alamat: String(formData.get(`mitra_baru_alamat_${i}`) ?? "") || null,
-          no_telp: String(formData.get(`mitra_baru_telp_${i}`) ?? "") || null,
-          homepage: String(formData.get(`mitra_baru_homepage_${i}`) ?? "") || null,
-        })
-        .select("id")
-        .single();
-      if (errPartnerBaru || !partnerBaru) {
-        throw new Error(`Mitra baru gagal disimpan: ${errPartnerBaru?.message}`);
-      }
-      const idPartnerBaru = partnerBaru.id as number;
-      const idKontakBaru = await simpanKontakBaru(supabase, idPartnerBaru, i, formData);
-      if (idKontakBaru) kontakPerBaris.set(i, idKontakBaru);
-      idPerBaris.set(i, idPartnerBaru);
-    } else {
-      const idPartner = Number(formData.get(`id_partner_${i}`) ?? 0);
-      if (!idPartner) continue;
-      // Existing partner: the user either points at an existing
-      // PARTNER_CONTACT (set as primary) or fills in a new one inline. Only
-      // IO Admin may write `partner` directly (rls.sql master-data loop), so
-      // the primary contact goes through set_kontak_utama rather than a plain
-      // update that RLS would otherwise silently drop.
-      if (formData.get(`kontak_mode_${i}`) === "existing") {
-        const idKontak = Number(formData.get(`id_kontak_${i}`) ?? 0);
-        if (idKontak) kontakPerBaris.set(i, idKontak);
-      } else {
-        const idKontakBaru = await simpanKontakBaru(supabase, idPartner, i, formData);
-        if (idKontakBaru) kontakPerBaris.set(i, idKontakBaru);
-      }
-      idPerBaris.set(i, idPartner);
-    }
-  }
+  const { idPerBaris, kontakPerBaris } = await resolusiMitra(supabase, formData);
 
   const unik = [...new Set(idPerBaris.values())];
   const pilihanLead = idPerBaris.get(Number(formData.get("lead_index") ?? 0));
@@ -251,6 +183,107 @@ export async function simpanProposal(formData: FormData) {
   revalidatePath("/kerja-sama");
   if (idEdit) revalidatePath(`/kerja-sama/${id}/laporan`);
   redirect(idEdit ? `/kerja-sama/${id}/laporan` : `/kerja-sama/${id}`);
+}
+
+/**
+ * The searchable Section III fields are free-text inputs in the browser
+ * (Revisi V7 §7), so the list is enforced on the server: a value must be one
+ * the master table actually holds. Shared by simpanProposal and
+ * catatDokumenLangsung — both write the same three columns.
+ */
+export async function periksaDaftar(
+  supabase: Awaited<ReturnType<typeof supabaseServer>>,
+  kolom: {
+    tujuan_kerjasama: unknown;
+    manfaat_bagi_petra: unknown;
+    manfaat_bagi_mitra: unknown;
+  },
+) {
+  const DAFTAR = [
+    ["tujuan_kerjasama", "tujuan_kerjasama", "Tujuan Kerja Sama"],
+    ["manfaat_bagi_petra", "manfaat_petra", "Manfaat bagi UKP"],
+    ["manfaat_bagi_mitra", "manfaat_mitra", "Manfaat bagi Mitra"],
+  ] as const;
+  for (const [kolomNama, tabel, label] of DAFTAR) {
+    const nilai = kolom[kolomNama];
+    if (!nilai) continue;
+    const { count } = await supabase
+      .from(tabel)
+      .select("nilai", { count: "exact", head: true })
+      .eq("nilai", String(nilai));
+    if (!count) throw new Error(`${label} harus dipilih dari daftar.`);
+  }
+}
+
+/**
+ * Resolves the Section I Calon Mitra rows to partner ids, inserting any
+ * brand-new partner and its contact along the way. Returns both maps keyed by
+ * FORM ROW index, because lead_index refers to the row, not to a position in a
+ * list that shifts whenever a row is skipped.
+ *
+ * Shared by simpanProposal and catatDokumenLangsung: Section I is the same
+ * form in both, so resolving it twice is how the two would drift apart.
+ */
+export async function resolusiMitra(
+  supabase: Awaited<ReturnType<typeof supabaseServer>>,
+  formData: FormData,
+): Promise<{ idPerBaris: Map<number, number>; kontakPerBaris: Map<number, number> }> {
+  const jumlahMitra = Number(formData.get("mitra_count") ?? 0);
+  const idPerBaris = new Map<number, number>();
+  const kontakPerBaris = new Map<number, number>();
+  for (let i = 0; i < jumlahMitra; i++) {
+    const mode = formData.get(`mitra_mode_${i}`);
+    if (mode === "baru") {
+      const namaBaru = String(formData.get(`mitra_baru_nama_${i}`) ?? "").trim();
+      const idNegaraBaru = Number(formData.get(`mitra_baru_negara_${i}`) ?? 0);
+      if (!namaBaru || !idNegaraBaru) continue;
+      const { data: negaraBaru } = await supabase
+        .from("negara")
+        .select("is_domestic")
+        .eq("id", idNegaraBaru)
+        .maybeSingle();
+      const idJenisBaru = Number(formData.get(`mitra_baru_jenis_${i}`) ?? 0) || null;
+      const { data: partnerBaru, error: errPartnerBaru } = await supabase
+        .from("partner")
+        .insert({
+          nama: namaBaru,
+          id_negara: idNegaraBaru,
+          is_international: !(negaraBaru?.is_domestic ?? true),
+          id_jenis_mitra: idJenisBaru,
+          kota: String(formData.get(`mitra_baru_kota_${i}`) ?? "") || null,
+          alamat: String(formData.get(`mitra_baru_alamat_${i}`) ?? "") || null,
+          no_telp: String(formData.get(`mitra_baru_telp_${i}`) ?? "") || null,
+          homepage: String(formData.get(`mitra_baru_homepage_${i}`) ?? "") || null,
+        })
+        .select("id")
+        .single();
+      if (errPartnerBaru || !partnerBaru) {
+        throw new Error(`Mitra baru gagal disimpan: ${errPartnerBaru?.message}`);
+      }
+      const idPartnerBaru = partnerBaru.id as number;
+      const idKontakBaru = await simpanKontakBaru(supabase, idPartnerBaru, i, formData);
+      if (idKontakBaru) kontakPerBaris.set(i, idKontakBaru);
+      idPerBaris.set(i, idPartnerBaru);
+    } else {
+      const idPartner = Number(formData.get(`id_partner_${i}`) ?? 0);
+      if (!idPartner) continue;
+      // Existing partner: the user either points at an existing
+      // PARTNER_CONTACT (set as primary) or fills in a new one inline. Only
+      // IO Admin may write `partner` directly (rls.sql master-data loop), so
+      // the primary contact goes through set_kontak_utama rather than a plain
+      // update that RLS would otherwise silently drop.
+      if (formData.get(`kontak_mode_${i}`) === "existing") {
+        const idKontak = Number(formData.get(`id_kontak_${i}`) ?? 0);
+        if (idKontak) kontakPerBaris.set(i, idKontak);
+      } else {
+        const idKontakBaru = await simpanKontakBaru(supabase, idPartner, i, formData);
+        if (idKontakBaru) kontakPerBaris.set(i, idKontakBaru);
+      }
+      idPerBaris.set(i, idPartner);
+    }
+  }
+
+  return { idPerBaris, kontakPerBaris };
 }
 
 /**
