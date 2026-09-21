@@ -410,7 +410,7 @@ export default async function LaporanDokumen({
           {langsung ? (
             <span
               className="rounded px-2 py-0.5 text-xs"
-              style={{ background: "var(--surface-muted)", color: "var(--text-muted)" }}
+              style={{ background: "var(--surface-sunk)", color: "var(--text-muted)" }}
             >
               Dicatat langsung oleh KUI
             </span>
