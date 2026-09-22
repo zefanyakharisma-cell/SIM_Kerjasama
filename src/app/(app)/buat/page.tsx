@@ -5,6 +5,7 @@ import { simpanProposal } from "@/lib/actions/proposal";
 import { PohonLingkup } from "@/components/lingkup-tree";
 import { MitraPicker } from "@/components/mitra-picker";
 import { SearchSelect } from "@/components/search-select";
+import { JabatanPengusulPicker } from "@/components/jabatan-pengusul-picker";
 import { KerjaSamaFields } from "@/components/kerja-sama-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { uraiPeriode } from "@/lib/periode";
@@ -130,7 +131,7 @@ export default async function BuatKerjaSama({
       supabase.from("manfaat_mitra").select("nilai").eq("is_active", true).order("nilai"),
       supabase
         .from("jabatan")
-        .select("id, nama")
+        .select("id, nama, id_unit, tier_disposisi, unit ( nama )")
         .or(aktifAtau(jabatanPengusulDraf ? [jabatanPengusulDraf] : []))
         .order("nama"),
       // Only the new-partner dropdowns read these, so retired values just go.
@@ -216,11 +217,11 @@ export default async function BuatKerjaSama({
         >
           <label className="block">
             <span className="mb-1 block text-sm font-medium">Jabatan Pengusul (*)</span>
-            <SearchSelect
-              name="id_jabatan_pengusul"
-              options={(jabatan ?? []).map((j) => ({ id: j.id, label: j.nama }))}
+            <JabatanPengusulPicker
+              jabatan={jabatan ?? []}
+              units={(unit ?? []).map((u) => ({ id: u.id, nama: u.nama }))}
               defaultValue={jabatanPengusulDraf}
-              placeholder="Cari jabatan..."
+              isAdmin={akun?.role === "admin"}
             />
           </label>
         </Bagian>
