@@ -11,9 +11,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * instead of one.
  */
 
+// Order per Revisi V8 §18: Proposal Kerja Sama first, then Kerja Sama Aktif.
 export const TAB = {
-  aktif: "Kerja Sama Aktif",
   proposal: "Proposal Kerja Sama",
+  aktif: "Kerja Sama Aktif",
   disetujui: "Disetujui",
   berakhir: "Akan Berakhir",
   pembaruan: "Pembaruan",
@@ -75,6 +76,8 @@ export const TAB_DOKUMEN: TabKey[] =["aktif", "berakhir", "pembaruan", "arsip"];
 export const KOLOM = [
   { kunci: "jenis_kerjasama", label: "Jenis", jenis: "pilih", lanjutan: false },
   { kunci: "status_tampil", label: "Status", jenis: "pilih", lanjutan: false },
+  // Auto-Renewed filter (Revisi V8 §17) — only meaningful on Kerja Sama Aktif.
+  { kunci: "sifat_periode_kerjasama", label: "Sifat Periode", jenis: "pilih", lanjutan: false, tab: ["aktif"] },
   { kunci: "no_dokumen", label: "No. Dokumen", jenis: "teks", lanjutan: true, tab: TAB_DOKUMEN },
   { kunci: "nama_mitra", label: "Mitra", jenis: "teks", lanjutan: true },
   { kunci: "negara", label: "Negara", jenis: "teks", lanjutan: true },
@@ -90,6 +93,7 @@ export type Kolom = (typeof KOLOM)[number];
 export function opsiKolom(k: Kolom, tab: TabKey): string[] {
   if (k.kunci === "jenis_kerjasama") return ["MoU", "MoA"];
   if (k.kunci === "status_tampil") return STATUS_PER_TAB[tab];
+  if (k.kunci === "sifat_periode_kerjasama") return ["Kedua Belah Pihak", "Auto Renewed"];
   return [];
 }
 
