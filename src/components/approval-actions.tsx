@@ -26,7 +26,7 @@ const KONFIRMASI: Record<Aksi, string | null> = {
   revision: null,
   pending:
     "Menangguhkan dokumen ini akan MEMBEKUKAN prosesnya dan menghentikan " +
-    "hitungan SLA. Ketika KUI mengaktifkannya kembali, SELURUH approval " +
+    "hitungan batas waktu. Ketika KUI mengaktifkannya kembali, SELURUH approval " +
     "diulang dari Tier 1 — termasuk tier yang sudah menyetujui. Lanjutkan?",
   reject:
     "Menolak akan MENGARSIPKAN dokumen ini secara permanen. Tidak ada jalan " +

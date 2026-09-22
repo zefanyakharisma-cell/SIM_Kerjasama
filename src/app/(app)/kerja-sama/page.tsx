@@ -612,7 +612,7 @@ export default async function CariKerjaSama({
             className="rounded-lg border px-3 py-1.5 text-xs"
             style={{ borderColor: "var(--border)", background: "white" }}
           >
-            Unduh SLA per Dokumen
+            Unduh Batas Waktu per Dokumen
           </a>
           <a
             href={unduh("proses")}

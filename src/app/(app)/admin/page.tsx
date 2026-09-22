@@ -134,7 +134,7 @@ export default async function Admin({
     isi = (
       <Bagian
         judul="Ambang & Cadence"
-        keterangan="Seluruh ambang SLA, jendela akan-berakhir dan irama pengingat dibaca dari sini. Tidak ada angka 2/4/6/30/60/90 yang ditulis di dalam kode."
+        keterangan="Seluruh ambang batas waktu, jendela akan-berakhir dan irama pengingat dibaca dari sini. Tidak ada angka 2/4/6/30/60/90 yang ditulis di dalam kode."
       >
         <ul className="divide-y" style={gaya}>
           {(pengaturan ?? []).map((s) => (

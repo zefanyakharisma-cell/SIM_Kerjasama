@@ -708,7 +708,7 @@ export default async function LaporanDokumen({
 
             {beku ? (
               <p className="mb-3 text-xs" style={{ color: "var(--status-pending-text)" }}>
-                Dokumen ditangguhkan. Hitungan SLA berhenti sampai KUI mengaktifkannya kembali.
+                Dokumen ditangguhkan. Hitungan batas waktu berhenti sampai KUI mengaktifkannya kembali.
                 {io ? (
                   <span className="ml-2 inline-block align-middle">
                     <TombolReaktivasi idProposal={idProposal} />

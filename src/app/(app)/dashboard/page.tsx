@@ -617,10 +617,11 @@ export default async function Dashboard({
           href="/kerja-sama?tab=proposal"
         />
         <Kartu
-          label="Melewati SLA"
+          label="Melewati Batas Waktu"
           nilai={lewatSla ?? 0}
           catatan="Approver yang tertahan"
           warna={lewatSla ? "var(--sla-red)" : undefined}
+          href="/dashboard/bottleneck"
         />
         <Kartu
           label="Penyelesaian Dokumen < 1 Bulan"
@@ -652,7 +653,7 @@ export default async function Dashboard({
         />
       </div>
 
-      {ringkasGap.length > 0 ? (
+      {ringkasGap.length > 0 && akun?.role === "admin" ? (
         <section
           className="rounded-xl border bg-white p-4"
           style={{ borderColor: "var(--border)" }}

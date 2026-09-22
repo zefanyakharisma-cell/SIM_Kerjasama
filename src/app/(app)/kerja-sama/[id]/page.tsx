@@ -270,7 +270,7 @@ export default async function DetailDokumen({
             Dokumen ditangguhkan sejak {waktuLokal(beku.mulai)}
           </h2>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-            Hitungan SLA berhenti selama dokumen dibekukan. Saat KUI
+            Hitungan batas waktu berhenti selama dokumen dibekukan. Saat KUI
             mengaktifkannya kembali, seluruh approval diulang dari Tier 1.
           </p>
           {io ? (

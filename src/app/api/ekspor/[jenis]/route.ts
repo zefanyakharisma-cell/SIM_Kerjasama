@@ -61,8 +61,8 @@ const KOLOM_SLA: string[][] = [
   ["waktu_unlock", "Mulai Menunggu"],
   ["waktu_resolusi", "Ditindak"],
   ["durasi_hari_kerja", "Hari Kerja Terpakai"],
-  ["status_sla", "Bendera SLA"],
-  ["batas_waktu_sla", "Batas SLA"],
+  ["status_sla", "Bendera Batas Waktu"],
+  ["batas_waktu_sla", "Batas Waktu"],
 ];
 
 // "Ongoing and processed" is every document past Draft, whatever state it
