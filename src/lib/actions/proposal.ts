@@ -101,8 +101,6 @@ export async function simpanProposal(formData: FormData) {
   // write a partner-less document — which DR-01 forbids and which leaves the
   // renewal evaluation (BR-29) with no lead to ask.
   if (!unik.length) throw new Error("Calon Mitra wajib diisi dan dipilih dari daftar.");
-  const pilihanLead = idPerBaris.get(Number(formData.get("lead_index") ?? 0));
-  const lead = pilihanLead !== undefined && unik.includes(pilihanLead) ? pilihanLead : unik[0];
 
   // Section II — the proposing position. Without it a renewal request has
   // nowhere to be routed later, so it is recorded at creation rather than
@@ -113,7 +111,8 @@ export async function simpanProposal(formData: FormData) {
   const jenis = String(formData.get("jenis_kerjasama") ?? "");
   const { error: errAnak } = await supabase.rpc("simpan_anak_proposal", {
     p_id: id,
-    p_partner: unik.map((p) => ({ id_partner: p, is_lead: p === lead })),
+    // No partner is "Mitra Utama" — every one is equally important (V8 §8).
+    p_partner: unik.map((p) => ({ id_partner: p })),
     p_id_jabatan: idJabatanPengusul,
     p_bidang: formData.getAll("bidang").map(Number),
     p_agenda: formData.getAll("agenda").map(Number),

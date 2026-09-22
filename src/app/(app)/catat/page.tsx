@@ -75,7 +75,6 @@ export default async function CatatDokumen({
 
   const r = rekaman as any;
   const partnerTerpilih = new Set(r?.partner_pengusul?.map((p: any) => p.id_partner) ?? []);
-  const partnerLead = r?.partner_pengusul?.find((p: any) => p.is_lead)?.id_partner ?? null;
   const bidangTerpilih = new Set(r?.proposal_dokumen_bidang?.map((b: any) => b.id_bidang_kerjasama) ?? []);
   const agendaTerpilih = new Set(r?.proposal_dokumen_agenda?.map((a: any) => a.id_agenda) ?? []);
   const unitTerpilih: number[] = r?.proposal_dokumen_unit?.map((u: any) => u.id_unit) ?? [];
@@ -104,7 +103,9 @@ export default async function CatatDokumen({
   ] = await Promise.all([
     supabase
       .from("partner")
-      .select("id, nama, is_international")
+      .select(
+        "id, nama, is_international, kota, alamat, no_telp, homepage, negara ( nama ), jenis_mitra ( nama )",
+      )
       .eq("is_active", true)
       .order("nama")
       .limit(500),
@@ -129,7 +130,11 @@ export default async function CatatDokumen({
       .order("nama"),
     supabase.from("negara").select("id, nama").eq("is_active", true).order("nama"),
     supabase.from("jenis_mitra").select("id, nama").eq("is_active", true).order("nama"),
-    supabase.from("partner_contact").select("id, id_partner, nama").order("nama").limit(2000),
+    supabase
+      .from("partner_contact")
+      .select("id, id_partner, nama, jabatan, email, no_telp")
+      .order("nama")
+      .limit(2000),
     supabase.from("sdg").select("nomor, nama, warna").order("nomor"),
   ]);
 
@@ -137,12 +142,17 @@ export default async function CatatDokumen({
   // as on the proposal form — fetch and merge so the picker always prefills.
   const idPartnerAda = [...partnerTerpilih] as number[];
   const { data: partnerRekaman } = idPartnerAda.length
-    ? await supabase.from("partner").select("id, nama, is_international").in("id", idPartnerAda)
+    ? await supabase
+        .from("partner")
+        .select(
+          "id, nama, is_international, kota, alamat, no_telp, homepage, negara ( nama ), jenis_mitra ( nama )",
+        )
+        .in("id", idPartnerAda)
     : { data: [] };
   const { data: kontakRekaman } = idPartnerAda.length
     ? await supabase
         .from("partner_contact")
-        .select("id, id_partner, nama")
+        .select("id, id_partner, nama, jabatan, email, no_telp")
         .in("id_partner", idPartnerAda)
     : { data: [] };
 
@@ -179,7 +189,6 @@ export default async function CatatDokumen({
             jenisMitra={jenisMitra ?? []}
             contacts={kontakGabungan}
             awal={idPartnerAda}
-            leadAwal={partnerLead}
           />
         </Bagian>
 

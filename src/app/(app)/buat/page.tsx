@@ -71,7 +71,6 @@ export default async function BuatKerjaSama({
     : { data: null };
 
   const partnerTerpilih = new Set((draf as any)?.partner_pengusul?.map((p: any) => p.id_partner) ?? []);
-  const partnerLead = (draf as any)?.partner_pengusul?.find((p: any) => p.is_lead)?.id_partner ?? null;
   const bidangTerpilih = new Set((draf as any)?.proposal_dokumen_bidang?.map((b: any) => b.id_bidang_kerjasama) ?? []);
   const agendaTerpilih = new Set((draf as any)?.proposal_dokumen_agenda?.map((a: any) => a.id_agenda) ?? []);
   const unitTerpilih: number[] = (draf as any)?.proposal_dokumen_unit?.map((u: any) => u.id_unit) ?? [];
@@ -101,7 +100,9 @@ export default async function BuatKerjaSama({
       // cap.
       supabase
         .from("partner")
-        .select("id, nama, is_international")
+        .select(
+          "id, nama, is_international, kota, alamat, no_telp, homepage, negara ( nama ), jenis_mitra ( nama )",
+        )
         .eq("is_active", true)
         .order("nama")
         .limit(500),
@@ -138,7 +139,11 @@ export default async function BuatKerjaSama({
       // Supabase's default max-rows (often 1000) already makes a limit(2000)
       // here mostly aspirational; the draft partners' contacts are fetched
       // separately below so a draft edit at least never loses those.
-      supabase.from("partner_contact").select("id, id_partner, nama").order("nama").limit(2000),
+      supabase
+        .from("partner_contact")
+        .select("id, id_partner, nama, jabatan, email, no_telp")
+        .order("nama")
+        .limit(2000),
       // No aktifAtau here: the 17 goals are the UN's and are never retired.
       supabase.from("sdg").select("nomor, nama, warna").order("nomor"),
     ]);
@@ -150,11 +155,16 @@ export default async function BuatKerjaSama({
   const { data: partnerDraf } = idPartnerDraf.length
     ? await supabase
         .from("partner")
-        .select("id, nama, is_international")
+        .select(
+          "id, nama, is_international, kota, alamat, no_telp, homepage, negara ( nama ), jenis_mitra ( nama )",
+        )
         .in("id", idPartnerDraf)
     : { data: [] };
   const { data: kontakDraf } = idPartnerDraf.length
-    ? await supabase.from("partner_contact").select("id, id_partner, nama").in("id_partner", idPartnerDraf)
+    ? await supabase
+        .from("partner_contact")
+        .select("id, id_partner, nama, jabatan, email, no_telp")
+        .in("id_partner", idPartnerDraf)
     : { data: [] };
 
   const partnerGabungan = [...(partner ?? [])];
@@ -197,7 +207,6 @@ export default async function BuatKerjaSama({
             jenisMitra={jenisMitra ?? []}
             contacts={kontakGabungan}
             awal={[...partnerTerpilih] as number[]}
-            leadAwal={partnerLead}
           />
         </Bagian>
 

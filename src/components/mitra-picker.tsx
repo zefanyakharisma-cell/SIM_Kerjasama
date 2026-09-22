@@ -17,11 +17,13 @@ type Baris = {
  * Data Calon Mitra (Revisi V4 §1.a): each row is either an existing partner
  * (searched by name, pre-filled) or a brand-new partner (fields entered
  * inline). The "+" row is optional — most documents have exactly one partner
- * (PRD §7.8) — and only shows a Mitra Utama choice once there is more than one.
+ * (PRD §7.8). No partner is designated "Mitra Utama" — every one is equally
+ * important (Revisi V8 §8), whether there is one row or several.
  *
  * Each row also carries a contact: for a new partner the entire
  * PARTNER_CONTACT entity is filled inline, and for an existing partner the
- * user picks between an existing contact on file or a new one.
+ * user picks between an existing contact on file or a new one. Selecting an
+ * existing partner also shows that partner's own info (Revisi V8 §9).
  */
 export function MitraPicker({
   partners,
@@ -29,16 +31,24 @@ export function MitraPicker({
   jenisMitra,
   contacts,
   awal,
-  leadAwal,
 }: {
-  partners: { id: number; nama: string }[];
+  partners: {
+    id: number;
+    nama: string;
+    kota: string | null;
+    alamat: string | null;
+    no_telp: string | null;
+    homepage: string | null;
+    is_international: boolean;
+    negara: { nama: string }[] | { nama: string } | null;
+    jenis_mitra: { nama: string }[] | { nama: string } | null;
+  }[];
   negara: { id: number; nama: string }[];
   jenisMitra: { id: number; nama: string }[];
   /** All partner contacts; filtered per row to the selected partner. */
-  contacts: { id: number; id_partner: number; nama: string }[];
+  contacts: { id: number; id_partner: number; nama: string; jabatan: string | null; email: string | null; no_telp: string | null }[];
   /** Pre-selected partner ids, for editing a draft. */
   awal: number[];
-  leadAwal: number | null;
 }) {
   const [baris, setBaris] = useState<Baris[]>(
     awal.length
@@ -50,21 +60,12 @@ export function MitraPicker({
   const [idPartnerTerpilih, setIdPartnerTerpilih] = useState<Record<number, number | null>>(
     Object.fromEntries(awal.map((p, i) => [i, p])),
   );
-  // Lead is tracked by row key too, so removing another row doesn't shift it.
-  const [leadKey, setLeadKey] = useState<number>(() => {
-    const i = awal.indexOf(leadAwal ?? -1);
-    return i >= 0 ? i : 0;
-  });
+  const [idKontakTerpilih, setIdKontakTerpilih] = useState<Record<number, number | null>>({});
   const kunciBerikutnya = useRef(baris.length);
-  const leadIndex = Math.max(
-    0,
-    baris.findIndex((b) => b.key === leadKey),
-  );
 
   return (
     <div>
       <input type="hidden" name="mitra_count" value={baris.length} />
-      {baris.length > 1 ? <input type="hidden" name="lead_index" value={leadIndex} /> : null}
 
       {baris.map((b, i) => (
         <div key={b.key} className="mb-3 rounded-lg border p-3" style={inputGaya}>
@@ -96,28 +97,10 @@ export function MitraPicker({
               </label>
             </div>
             {baris.length > 1 ? (
-              <label className="flex items-center gap-1 text-xs">
-                <input
-                  type="radio"
-                  name="lead_index_radio"
-                  checked={leadKey === b.key}
-                  onChange={() => setLeadKey(b.key)}
-                />
-                Mitra Utama
-              </label>
-            ) : null}
-            {baris.length > 1 ? (
               <button
                 type="button"
                 className="text-xs underline"
-                onClick={() => {
-                  // Computed outside the updater: React may run a functional
-                  // updater more than once, and setLeadKey inside it would fire
-                  // just as often.
-                  const sisa = baris.filter((r) => r.key !== b.key);
-                  setBaris(sisa);
-                  if (leadKey === b.key && sisa[0]) setLeadKey(sisa[0].key);
-                }}
+                onClick={() => setBaris((s) => s.filter((r) => r.key !== b.key))}
               >
                 Hapus
               </button>
@@ -135,6 +118,45 @@ export function MitraPicker({
                 required
                 onValueChange={(idBaru) => setIdPartnerTerpilih((s) => ({ ...s, [b.key]: idBaru }))}
               />
+
+              {(() => {
+                const mitra = partners.find((p) => p.id === idPartnerTerpilih[b.key]);
+                if (!mitra) return null;
+                const satu = (v: { nama: string }[] | { nama: string } | null) =>
+                  (Array.isArray(v) ? v[0] : v)?.nama ?? "—";
+                return (
+                  <dl className="mt-2 grid gap-x-3 gap-y-0.5 rounded-lg border p-2 text-xs sm:grid-cols-2" style={inputGaya}>
+                    <div>
+                      <dt className="inline font-medium">Negara: </dt>
+                      <dd className="inline">
+                        {satu(mitra.negara)} ({mitra.is_international ? "Luar Negeri" : "Domestik"})
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="inline font-medium">Jenis Mitra: </dt>
+                      <dd className="inline">{satu(mitra.jenis_mitra)}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline font-medium">Kota: </dt>
+                      <dd className="inline">{mitra.kota ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline font-medium">No. Telp: </dt>
+                      <dd className="inline">{mitra.no_telp ?? "—"}</dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="inline font-medium">Alamat: </dt>
+                      <dd className="inline">{mitra.alamat ?? "—"}</dd>
+                    </div>
+                    {mitra.homepage ? (
+                      <div className="sm:col-span-2">
+                        <dt className="inline font-medium">Homepage: </dt>
+                        <dd className="inline">{mitra.homepage}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                );
+              })()}
 
               <div className="mt-3 border-t pt-2" style={inputGaya}>
                 <div className="mb-2 flex gap-3 text-xs">
@@ -165,14 +187,26 @@ export function MitraPicker({
                 </div>
 
                 {b.kontakMode === "existing" ? (
-                  <SearchSelect
-                    name={`id_kontak_${i}`}
-                    options={contacts
-                      .filter((c) => c.id_partner === idPartnerTerpilih[b.key])
-                      .map((c) => ({ id: c.id, label: c.nama }))}
-                    placeholder="Cari nama kontak..."
-                    ariaLabel="Kontak Mitra"
-                  />
+                  <>
+                    <SearchSelect
+                      name={`id_kontak_${i}`}
+                      options={contacts
+                        .filter((c) => c.id_partner === idPartnerTerpilih[b.key])
+                        .map((c) => ({ id: c.id, label: c.nama }))}
+                      placeholder="Cari nama kontak..."
+                      ariaLabel="Kontak Mitra"
+                      onValueChange={(idBaru) => setIdKontakTerpilih((s) => ({ ...s, [b.key]: idBaru }))}
+                    />
+                    {(() => {
+                      const kontak = contacts.find((c) => c.id === idKontakTerpilih[b.key]);
+                      if (!kontak) return null;
+                      return (
+                        <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                          {[kontak.jabatan, kontak.email, kontak.no_telp].filter(Boolean).join(" · ") || "Tidak ada detail lain."}
+                        </p>
+                      );
+                    })()}
+                  </>
                 ) : (
                   <FormKontak i={i} />
                 )}

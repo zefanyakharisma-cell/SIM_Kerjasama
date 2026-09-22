@@ -46,15 +46,14 @@ export async function catatDokumenLangsung(formData: FormData) {
   const { idPerBaris, kontakPerBaris } = await resolusiMitra(supabase, formData);
   const unik = [...new Set(idPerBaris.values())];
   if (!unik.length) throw new Error("Pilih setidaknya satu mitra.");
-  const pilihanLead = idPerBaris.get(Number(formData.get("lead_index") ?? 0));
-  const lead = pilihanLead !== undefined && unik.includes(pilihanLead) ? pilihanLead : unik[0];
 
   const jenis = proposal.jenis_kerjasama;
 
   const { data: idBaru, error } = await supabase.rpc("catat_dokumen_langsung", {
     p_id: idEdit,
     p_proposal: proposal,
-    p_partner: unik.map((p) => ({ id_partner: p, is_lead: p === lead })),
+    // No partner is "Mitra Utama" — every one is equally important (V8 §8).
+    p_partner: unik.map((p) => ({ id_partner: p })),
     p_id_jabatan: Number(formData.get("id_jabatan_pengusul") ?? 0) || null,
     p_bidang: formData.getAll("bidang").map(Number),
     p_agenda: formData.getAll("agenda").map(Number),
