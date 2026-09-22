@@ -25,6 +25,12 @@ $fn$;
 
 -- v_pembaruan.gerbang: "terbuka" only once Admin has started the process;
 -- evaluation-agreement-but-not-started reads as "siap" instead.
+--
+-- Body is 20260917000500_analytics_admin.sql's verbatim, with exactly two
+-- changes: the gerbang expression, and pembaruan_dimulai_at APPENDED LAST --
+-- create-or-replace can only add columns at the end of the list, and every
+-- existing column must keep its name, position and type. The ::text casts and
+-- the `status <> 'superseded'` filter below are load-bearing for that.
 create or replace view v_pembaruan with (security_invoker = true) as
 select
   dk.no                       as no_dokumen_kerjasama,
@@ -45,35 +51,35 @@ select
   ev.status_partner,
   ev.rekomendasi_partner,
   ev.token_partner,
-  dk.pembaruan_dimulai_at,
   (case when status_gerbang_pembaruan(dk.no) = 'terbuka' and dk.pembaruan_dimulai_at is null
         then 'siap'
         else status_gerbang_pembaruan(dk.no) end) as gerbang,
-  penerus.id                  as id_proposal_penerus
+  penerus.id                  as id_proposal_penerus,
+  dk.pembaruan_dimulai_at
 from dokumen_kerja_sama dk
 join disposisi d on d.no_dokumen_kerjasama = dk.no
                 and d.jenis_disposisi = 'renewal_request'
 left join lateral (
   select
-    max(case when respondent_type='faculty' then e.no end)          as no_evaluasi_faculty,
-    max(case when respondent_type='faculty' then e.status end)      as status_faculty,
-    max(case when respondent_type='faculty' then e.rekomendasi end) as rekomendasi_faculty,
-    max(case when respondent_type='partner' then e.no end)          as no_evaluasi_partner,
-    max(case when respondent_type='partner' then e.status end)      as status_partner,
-    max(case when respondent_type='partner' then e.rekomendasi end) as rekomendasi_partner,
-    max(case when respondent_type='partner' then t.token end)       as token_partner
+    max(case when e.respondent_type = 'faculty' then e.no end)                as no_evaluasi_faculty,
+    max((case when e.respondent_type = 'faculty' then e.status end)::text)      as status_faculty,
+    max((case when e.respondent_type = 'faculty' then e.rekomendasi end)::text) as rekomendasi_faculty,
+    max(case when e.respondent_type = 'partner' then e.no end)                as no_evaluasi_partner,
+    max((case when e.respondent_type = 'partner' then e.status end)::text)      as status_partner,
+    max((case when e.respondent_type = 'partner' then e.rekomendasi end)::text) as rekomendasi_partner,
+    max(case when e.respondent_type = 'partner' then t.token end)             as token_partner
     from evaluasi e
     left join partner_eval_token t on t.id_evaluasi = e.no and t.is_active
-   where e.id_dokumen_kerjasama = dk.no
+   where e.id_dokumen_kerjasama = dk.no and e.status <> 'superseded'
 ) ev on true
 left join lateral (
-  select string_agg(pr.nama, ', ' order by pr.nama) as nama_mitra
+  select string_agg(pr.nama, ', ' order by pp.is_lead desc, pr.nama) as nama_mitra
     from partner_pengusul pp
     join partner pr on pr.id = pp.id_partner
    where pp.id_proposal_dokumen = dk.id_proposal_dokumen
 ) mitra on true
 left join lateral (
-  select string_agg(distinct u.nama, ', ' order by u.nama) as unit_pengusul
+  select string_agg(u.nama, ', ') as unit_pengusul
     from pengusul pg
     join jabatan j on j.id = pg.id_jabatan
     join unit u on u.id = j.id_unit

@@ -12,23 +12,32 @@
 -- ---------------------------------------------------------------------------
 alter table akun drop constraint akun_role_check;
 
+-- Each statement below only touches rows still holding a legacy role, so the
+-- order is the precedence: admin, then approver, then user, then the rest.
+
 -- io_staff already collapsed into io_admin in V7 (20260921000100 §1); both
 -- become admin, keeping every KUI duty (incl. revision uploads) unchanged.
 update akun set role = 'admin' where role in ('io_admin', 'io_staff');
 
--- Dekan / Kepala UP become "user" (create + approve); every other account
--- that could create today (submitter, viewer) becomes "user_staff" (create
--- only) unless its jabatan name says otherwise. Best-effort: an admin
--- corrects individual accounts afterwards in Master Data.
+-- Rektorat approves from disposisi and never authors a document (V8 §12.4).
+update akun a
+   set role = 'approver'
+  from jabatan j
+ where a.id_jabatan = j.id
+   and a.role in ('submitter', 'viewer')
+   and j.nama ilike '%rektor%';
+
+-- "Kepala unit" is the stored flag for Dekan / Kepala Unit Pendukung
+-- (20260921000100 §2) — the same field Master Data edits, rather than a guess
+-- at the jabatan name. An admin promotes further accounts there afterwards.
 update akun a
    set role = 'user'
   from jabatan j
  where a.id_jabatan = j.id
    and a.role in ('submitter', 'viewer')
-   and (j.nama ilike '%dekan%'
-        or j.nama ilike '%kepala up%'
-        or j.nama ilike '%kepala unit pengelola%');
+   and j.kepala_unit;
 
+-- Everyone else may create a proposal but does not approve.
 update akun set role = 'user_staff' where role in ('submitter', 'viewer');
 
 alter table akun add constraint akun_role_check
@@ -39,8 +48,11 @@ alter table akun add constraint akun_role_check
 --    policies, Server Actions, current_akun_is_io() in src/) keeps working
 --    unchanged — only what counts as "IO" moves from two roles to one.
 -- ---------------------------------------------------------------------------
+-- search_path is re-stated on every replace: create-or-replace resets a
+-- function's attributes, and dropping it here would undo 20260916000900's
+-- hardening and trip the linter's function_search_path_mutable.
 create or replace function current_akun_is_io() returns boolean
-language sql stable as $fn$
+language sql stable set search_path = public as $fn$
   select coalesce((current_akun()).role = 'admin', false);
 $fn$;
 
@@ -53,7 +65,7 @@ $fn$;
 -- New: who may author a proposal. Only Approver (Rektorat) is excluded —
 -- everyone else could create today and keeps that (V8 §12).
 create function current_akun_dapat_buat() returns boolean
-language sql stable as $fn$
+language sql stable set search_path = public as $fn$
   select coalesce((current_akun()).role <> 'approver', false);
 $fn$;
 
@@ -62,17 +74,21 @@ grant execute on function current_akun_dapat_buat() to authenticated;
 -- ---------------------------------------------------------------------------
 -- 3. RLS: every "_kelola" policy literally gated on 'io_admin' moves to
 --    'admin'. Same table list as 20260916000800_rls.sql,
---    20260917001200_jenis_mitra.sql and 20260917001300_split_tujuan_manfaat.sql.
+--    20260917001200_jenis_mitra.sql and 20260917001300_split_tujuan_manfaat.sql,
+--    MINUS dashboard_chart: 20260918000500_grafik_pribadi.sql replaced its
+--    master-data policy with the per-account dashboard_chart_sendiri, and
+--    recreating a _kelola there would hand admins write access over every
+--    account's private charts.
 -- ---------------------------------------------------------------------------
 do $rls$
 declare t text;
 begin
   foreach t in array array['negara','jenis_unit','unit','jabatan','agenda',
                            'bidang_kerjasama','managed_options','settings',
-                           'holidays','dashboard_chart','partner','partner_contact',
+                           'holidays','partner','partner_contact',
                            'jenis_mitra','tujuan_kerjasama','manfaat_petra','manfaat_mitra']
   loop
-    execute format('drop policy %I on %I', t || '_kelola', t);
+    execute format('drop policy if exists %I on %I', t || '_kelola', t);
     execute format(
       'create policy %I on %I for all to authenticated
          using ((current_akun()).role = ''admin'')
@@ -82,17 +98,17 @@ begin
 end
 $rls$;
 
-drop policy akun_kelola on akun;
+drop policy if exists akun_kelola on akun;
 create policy akun_kelola on akun for all to authenticated
   using ((current_akun()).role = 'admin')
   with check ((current_akun()).role = 'admin');
 
 -- Approver may never author or keep editing a proposal of their own.
-drop policy proposal_buat on proposal_dokumen;
+drop policy if exists proposal_buat on proposal_dokumen;
 create policy proposal_buat on proposal_dokumen for insert to authenticated
   with check (id_akun_pembuat = current_akun_id() and current_akun_dapat_buat());
 
-drop policy proposal_ubah on proposal_dokumen;
+drop policy if exists proposal_ubah on proposal_dokumen;
 create policy proposal_ubah on proposal_dokumen for update to authenticated
   using (current_akun_is_io()
          or (id_akun_pembuat = current_akun_id() and status_proposal = 'Draft'))
