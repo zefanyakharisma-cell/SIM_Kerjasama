@@ -16,6 +16,7 @@ import {
   buatTautanEvaluasiMitra,
   kirimEvaluasiFakultas,
   kirimPermintaanPembaruan,
+  mulaiProsesPembaruan,
   putuskanPembaruan,
   type Hasil,
 } from "@/lib/actions/pembaruan";
@@ -45,11 +46,20 @@ export const GERBANG: Record<string, { label: string; warna: string; jelas: stri
     jelas:
       "Proposal perpanjangan belum bisa dibuat. Kedua evaluasi harus masuk lebih dahulu.",
   },
-  terbuka: {
-    label: "Gerbang terbuka",
+  // "Gerbang Terbuka" renamed to "Proses Pembaruan" (Revisi V8 §15); the
+  // internal key stays `terbuka` — it is what "the process is actually
+  // running" still means, now reached only after Admin starts it (§16).
+  siap: {
+    label: "Siap Memulai Pembaruan",
     warna: "var(--status-active)",
     jelas:
-      "PETRA dan mitra melanjutkan (atau KUI memutuskan lanjut). Unit pengusul mengunggah dokumen perpanjangan.",
+      "PETRA dan mitra melanjutkan (atau KUI memutuskan lanjut). Admin dapat memulai Proses Pembaruan.",
+  },
+  terbuka: {
+    label: "Proses Pembaruan",
+    warna: "var(--status-active)",
+    jelas:
+      "Proses pembaruan telah dimulai. Unit pengusul mengunggah dokumen perpanjangan.",
   },
   terminate: {
     label: "Tidak dilanjutkan",
@@ -288,6 +298,11 @@ export async function PembaruanPanel({
     cek(halaman, await bukaUlangEvaluasi(Number(formData.get("no_evaluasi"))));
   }
 
+  async function mulaiPembaruan() {
+    "use server";
+    cek(halaman, await mulaiProsesPembaruan(noDokumen));
+  }
+
   async function unggahDokumen(formData: FormData) {
     "use server";
     const file = formData.get("berkas") as File | null;
@@ -522,6 +537,42 @@ export async function PembaruanPanel({
           </>
         )}
       </section>
+
+      {/* Both evaluations agree, but the process has not started (V8 §16) —
+          Admin previews the files that will go to the unit pengusul, then
+          starts it explicitly. */}
+      {r.gerbang === "siap" && io && !r.id_proposal_penerus ? (
+        <section className={`${kartu} border-2`} style={{ borderColor: "var(--status-active)" }}>
+          <h2 className="mb-2 text-sm font-semibold">Mulai Proses Pembaruan</h2>
+          <p className="mb-3 text-sm" style={{ color: "var(--text-secondary)" }}>
+            PETRA dan mitra melanjutkan. Memulai akan mengirim berkas berikut ke
+            notifikasi dan Antrean Saya unit pengusul sebagai tanda mulainya
+            Pembaruan.
+          </p>
+          {berkasSigned?.length ? (
+            <ul className="mb-3 space-y-1 text-sm">
+              {pathBerkas.map((b, i) =>
+                berkasSigned[i]?.signedUrl ? (
+                  <li key={b.path}>
+                    <a href={berkasSigned[i].signedUrl} className="underline" target="_blank" rel="noreferrer">
+                      {b.label}
+                    </a>
+                  </li>
+                ) : null,
+              )}
+            </ul>
+          ) : null}
+          <form action={mulaiPembaruan}>
+            <SubmitButton
+              labelMenunggu="Memulai…"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+              style={{ background: "var(--midnight)" }}
+            >
+              Mulai Proses Pembaruan
+            </SubmitButton>
+          </form>
+        </section>
+      ) : null}
 
       {/* Renewal draft — only once the gate actually permits it. The control is
           absent rather than disabled, and the banner above says why. */}

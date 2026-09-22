@@ -89,6 +89,17 @@ export async function buatTautanEvaluasiMitra(noDokumen: number): Promise<Hasil>
   return hasil;
 }
 
+/**
+ * Admin explicitly starts Pembaruan once both evaluations agree (V8 §16) —
+ * this is the moment the unit pengusul is actually told, with the signed PDF
+ * and the final approved draft, that the renewal has begun.
+ */
+export async function mulaiProsesPembaruan(noDokumen: number): Promise<Hasil> {
+  const hasil = await panggil("mulai_proses_pembaruan", { p_no_dokumen: noDokumen });
+  revalidatePath("/kerja-sama", "layout");
+  return hasil;
+}
+
 /** The gate must already be open; the database is what decides that. */
 export async function buatProposalPerpanjangan(
   noDokumen: number,
