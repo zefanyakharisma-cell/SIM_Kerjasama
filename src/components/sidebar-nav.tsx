@@ -231,21 +231,24 @@ export function SidebarNav({
 
   return (
     <>
+      {/* Menu button on the LEFT (Revisi V8 mobile pass): it matches the side
+          the drawer slides in from, and it leaves the top-right corner to the
+          floating notification bell, which used to land on top of it. */}
       <header
-        className="flex items-center justify-between px-4 py-3 text-white md:hidden"
+        className="flex items-center gap-2 px-4 py-3 text-white md:hidden"
         style={{ background: "var(--midnight)" }}
       >
-        <span className="text-sm font-semibold tracking-wide">SIM KERJA SAMA</span>
         <button
           type="button"
           onClick={() => setMenuTerbuka(true)}
           aria-expanded={menuTerbuka}
           aria-controls="menu-seluler"
           aria-label="Buka menu"
-          className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-white/10"
+          className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-white/10"
         >
           <Ikon d="M3 5h14M3 10h14M3 15h14" />
         </button>
+        <span className="text-sm font-semibold tracking-wide">SIM KERJA SAMA</span>
       </header>
 
       {menuTerbuka ? (

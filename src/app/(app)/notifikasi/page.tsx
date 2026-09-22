@@ -1,78 +1,33 @@
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
+import type { Route } from "next";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
+import { tandaiSemuaTerbaca } from "@/lib/actions/notifikasi";
+import {
+  JUDUL_NOTIFIKASI,
+  KOLOM_NOTIFIKASI,
+  WARNA_NOTIFIKASI,
+  tautanNotifikasi,
+  waktuNotifikasi,
+  type Notifikasi,
+} from "@/lib/notifikasi";
 
 /**
  * In-app notifications (Design §7).
  *
+ * The floating bell opens this same inbox as a popup, which is how it is
+ * normally read (Revisi V8 mobile pass); this page stays for a direct link and
+ * renders the identical rows from lib/notifikasi.ts, so the two cannot drift.
+ *
  * Grouped by document and each opening the document the notice is about — an
- * approval request opens the document, an SLA reminder opens the same document
- * on the same screen the approver needs. A notification that does not lead
- * anywhere is just noise.
+ * approval request opens the document, a batas-waktu reminder opens the same
+ * document on the screen the approver needs.
  *
  * Notifications are addressed to a POSITION, not a person, so the current
  * holder of the office receives them with no migration when the office changes
  * hands (DR-06). RLS already scopes this list to the reader's own position.
  */
 export const dynamic = "force-dynamic";
-
-const JUDUL: Record<string, string> = {
-  disposition_assigned: "Dokumen menunggu persetujuan Anda",
-  renewal_request_assigned: "Permintaan pembaruan untuk unit Anda",
-  approved: "Disetujui",
-  rejected: "Ditolak",
-  pending: "Dokumen ditangguhkan",
-  revision_requested: "Permintaan revisi",
-  revision_submitted: "Revisi diunggah — silakan tinjau",
-  reactivated: "Diaktifkan kembali — approval diulang dari Tier 1",
-  expiring_soon: "Dokumen akan berakhir",
-  sla_yellow: "Melewati batas waktu",
-  sla_red: "Jauh melewati batas waktu",
-  sla_eskalasi: "Eskalasi: approver belum menindak",
-  renewal_request_sla: "Batas waktu permintaan pembaruan",
-  evaluation_submitted: "Evaluasi masuk",
-  split_decision: "Evaluasi berbeda — perlu keputusan",
-  renewal_open: "Evaluasi lanjut — unggah dokumen perpanjangan",
-  renewal_terminated: "Evaluasi tidak dilanjutkan",
-};
-
-// Evaluation outcomes open the Pembaruan tab, where the files and actions are.
-const KE_PEMBARUAN = new Set(["split_decision", "renewal_open", "renewal_terminated"]);
-
-const KE_DISPOSISI = new Set([
-  "disposition_assigned",
-  "revision_requested",
-  "revision_submitted",
-]);
-
-// Colour carries no meaning alone; each of these also reads as a word above.
-const WARNA: Record<string, string> = {
-  sla_red: "var(--sla-red)",
-  sla_eskalasi: "var(--sla-red)",
-  sla_yellow: "var(--sla-yellow)",
-  pending: "var(--status-pending)",
-  rejected: "var(--action-danger)",
-  split_decision: "var(--action-danger)",
-  renewal_open: "var(--status-active)",
-  expiring_soon: "var(--sla-yellow)",
-  renewal_request_assigned: "var(--renewal-request)",
-};
-
-async function tandaiTerbaca() {
-  "use server";
-  const akun = await akunSaatIni();
-  if (!akun) return;
-  const supabase = await supabaseServer();
-  // Only the recipient position may mark its own inbox read; the RLS update
-  // policy says so, and this call simply relies on it (EC-05).
-  await supabase
-    .from("notifikasi")
-    .update({ status: "read", waktu_dibaca: new Date().toISOString() })
-    .eq("id_jabatan_penerima", akun.id_jabatan)
-    .is("waktu_dibaca", null);
-  revalidatePath("/notifikasi");
-}
 
 export default async function Notifikasi() {
   const akun = await akunSaatIni();
@@ -81,14 +36,12 @@ export default async function Notifikasi() {
   // filter IO would see each event once per recipient. The inbox is its own.
   const { data } = await supabase
     .from("notifikasi")
-    .select(
-      "id, jenis_notifikasi, isi, waktu_kirim, waktu_dibaca, id_proposal_dokumen, no_dokumen_kerjasama",
-    )
+    .select(KOLOM_NOTIFIKASI)
     .eq("id_jabatan_penerima", akun?.id_jabatan ?? -1)
     .order("waktu_kirim", { ascending: false })
     .limit(100);
 
-  const daftar = data ?? [];
+  const daftar = (data ?? []) as Notifikasi[];
   const belumDibaca = daftar.filter((n) => !n.waktu_dibaca).length;
 
   return (
@@ -103,7 +56,7 @@ export default async function Notifikasi() {
           </p>
         </div>
         {belumDibaca > 0 ? (
-          <form action={tandaiTerbaca}>
+          <form action={tandaiSemuaTerbaca}>
             <SubmitButton
               labelMenunggu="Menandai…"
               className="rounded-lg border px-3 py-1.5 text-xs"
@@ -125,6 +78,7 @@ export default async function Notifikasi() {
       ) : (
         <ul className="space-y-2">
           {daftar.map((n) => {
+            const tautan = tautanNotifikasi(n);
             const isi = (
               <>
                 <span className="flex items-baseline gap-2">
@@ -134,11 +88,11 @@ export default async function Notifikasi() {
                     style={{
                       background: n.waktu_dibaca
                         ? "transparent"
-                        : (WARNA[n.jenis_notifikasi] ?? "var(--status-progress)"),
+                        : (WARNA_NOTIFIKASI[n.jenis_notifikasi] ?? "var(--status-progress)"),
                     }}
                   />
                   <span className="text-sm font-medium">
-                    {JUDUL[n.jenis_notifikasi] ?? n.jenis_notifikasi}
+                    {JUDUL_NOTIFIKASI[n.jenis_notifikasi] ?? n.jenis_notifikasi}
                   </span>
                 </span>
                 {/* First line: [Jabatan] [aksi] [No. Dokumen] [Jenis] [Mitra]
@@ -156,10 +110,7 @@ export default async function Notifikasi() {
                   className="mt-0.5 block pl-3.5 text-xs"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  {new Date(n.waktu_kirim).toLocaleString("id-ID", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
+                  {waktuNotifikasi(n.waktu_kirim)}
                 </span>
               </>
             );
@@ -171,24 +122,8 @@ export default async function Notifikasi() {
 
             return (
               <li key={n.id}>
-                {n.id_proposal_dokumen || n.no_dokumen_kerjasama ? (
-                  <Link
-                    href={
-                      // Renewal notices carry only the document number;
-                      // /pembaruan/[no] redirects to its Pembaruan tab.
-                      // Disposition and revision notices open the Disposisi
-                      // tab, where the message and the revision upload live.
-                      (n.id_proposal_dokumen
-                        ? KE_DISPOSISI.has(n.jenis_notifikasi)
-                          ? `/kerja-sama/${n.id_proposal_dokumen}/laporan?tab=disposisi`
-                          : KE_PEMBARUAN.has(n.jenis_notifikasi)
-                            ? `/kerja-sama/${n.id_proposal_dokumen}/laporan?tab=pembaruan`
-                            : `/kerja-sama/${n.id_proposal_dokumen}`
-                        : `/pembaruan/${n.no_dokumen_kerjasama}`) as any
-                    }
-                    className={kelas}
-                    style={gaya}
-                  >
+                {tautan ? (
+                  <Link href={tautan as Route} className={kelas} style={gaya}>
                     {isi}
                   </Link>
                 ) : (
