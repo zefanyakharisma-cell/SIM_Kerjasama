@@ -15,7 +15,7 @@ import { Tabs } from "@/components/tabs";
  * tab says what depends on it.
  *
  * Authorization is RLS's, not this page's: every write below goes through a
- * policy or a function that checks `io_admin` itself. The role check here only
+ * policy or a function that checks `admin` itself. The role check here only
  * decides whether to render controls that would be refused anyway (AR-02).
  */
 export const dynamic = "force-dynamic";
@@ -54,8 +54,8 @@ export default async function Admin({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const akun = await akunSaatIni();
-  if (akun?.role !== "io_admin") {
-    // A viewer reaching this by URL lands back in the app, not on a refusal.
+  if (akun?.role !== "admin") {
+    // A non-admin reaching this by URL lands back in the app, not on a refusal.
     redirect("/dashboard");
   }
 

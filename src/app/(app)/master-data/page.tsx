@@ -142,7 +142,7 @@ export default async function MasterData({
   searchParams: Promise<{ tab?: string; jenis?: string; ubah?: string; q?: string; galat?: string; info?: string }>;
 }) {
   const akun = await akunSaatIni();
-  if (akun?.role !== "io_admin") {
+  if (akun?.role !== "admin") {
     redirect("/dashboard");
   }
 

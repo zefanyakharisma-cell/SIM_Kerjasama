@@ -36,7 +36,7 @@ export type Akun = {
   id: number;
   id_jabatan: number;
   email: string;
-  role: "submitter" | "io_staff" | "io_admin" | "viewer";
+  role: "admin" | "user" | "user_staff" | "approver";
 };
 
 /** The signed-in account, or null. The account IS a position (DR-06). */
@@ -56,5 +56,7 @@ export const akunSaatIni = cache(async (): Promise<Akun | null> => {
   return (data as Akun) ?? null;
 });
 
-export const isIO = (a: Akun | null) =>
-  a?.role === "io_staff" || a?.role === "io_admin";
+export const isIO = (a: Akun | null) => a?.role === "admin";
+
+/** Everyone but Approver (Rektorat-only) may author a proposal (V8 §12.4). */
+export const canBuat = (a: Akun | null) => !!a && a.role !== "approver";

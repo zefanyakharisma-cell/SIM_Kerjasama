@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
 import { PilihanBuat } from "@/components/pilihan-buat";
 import { simpanProposal } from "@/lib/actions/proposal";
@@ -35,6 +36,12 @@ export default async function BuatKerjaSama({
 }: {
   searchParams: Promise<{ id?: string }>;
 }) {
+  // Approver (Rektorat) only approves from disposisi — it never authors a
+  // document (Revisi V8 §12.4). RLS already refuses the insert; this just
+  // keeps a Rektorat account from landing on a form it cannot submit.
+  const akun = await akunSaatIni();
+  if (akun?.role === "approver") redirect("/antrean");
+
   const { id: idMentah } = await searchParams;
   const idEdit = idMentah ? Number(idMentah) : null;
   const supabase = await supabaseServer();
@@ -161,8 +168,8 @@ export default async function BuatKerjaSama({
     if (!idKontakAda.has(k.id)) kontakGabungan.push(k);
   }
 
-  // Cached per request: the layout already resolved the account.
-  const io = isIO(await akunSaatIni());
+  // Cached per request: resolved above already.
+  const io = isIO(akun);
 
   return (
     <div className="max-w-3xl">

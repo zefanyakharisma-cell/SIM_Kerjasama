@@ -2,20 +2,24 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { SidebarNav } from "@/components/sidebar-nav";
+import { NotificationBell } from "@/components/notification-bell";
 
 /**
  * The app shell (Design §3): one flat sidebar shared by every role. Role
  * differences show up in which rows and actions appear, not in a different
- * menu.
+ * menu. Order per Revisi V8 §3: Dashboard, Antrean Saya, Cari Kerja Sama,
+ * Buat Kerja Sama, Master Data, Settings. Notifikasi moved out of the
+ * sidebar entirely into a floating bell (V8 §4) — see NotificationBell.
  */
 const MENU = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/antrean", label: "Antrean Saya" },
   { href: "/kerja-sama", label: "Cari Kerja Sama" },
   // One entry for both ways in: KUI picks "ajukan" or "catat langsung"
   // (Pencatatan Langsung, Revisi V8 §1) at the top of the page itself.
-  { href: "/buat", label: "Buat Kerja Sama" },
-  { href: "/antrean", label: "Antrean Saya" },
-  { href: "/notifikasi", label: "Notifikasi" },
+  // Approver (Rektorat) never authors a document (V8 §12.4), so it is
+  // filtered below like the admin-only rows.
+  { href: "/buat", label: "Buat Kerja Sama", bukanApprover: true },
   { href: "/master-data", label: "Master Data", adminSaja: true },
   // Master data and system settings. Shown to everyone, refused by RLS to
   // everyone else — but hiding it keeps the menu honest about what a role can
@@ -66,14 +70,16 @@ export default async function AppLayout({
       <SidebarNav
         menu={MENU.filter(
           (m) =>
-            !("adminSaja" in m) || akun.role === "io_admin",
+            (!("adminSaja" in m) || akun.role === "admin") &&
+            (!("bukanApprover" in m) || akun.role !== "approver"),
         )}
-        belumDibaca={belumDibaca ?? 0}
         jabatan={jabatan?.nama ?? "Jabatan"}
         email={akun.email}
         role={akun.role}
         terlipatAwal={(await cookies()).get("sidebar-terlipat")?.value === "1"}
       />
+
+      <NotificationBell belumDibaca={belumDibaca ?? 0} />
 
       <main className="min-w-0 flex-1 p-6 md:p-8">{children}</main>
     </div>

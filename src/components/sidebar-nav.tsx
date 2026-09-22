@@ -11,10 +11,10 @@ import { SubmitButton } from "@/components/submit-button";
 export type MenuItem = { href: string; label: string };
 
 const PERAN_LABEL: Record<string, string> = {
-  io_admin: "IO Admin",
-  io_staff: "Staf KUI",
-  viewer: "Peninjau",
-  submitter: "Pengusul",
+  admin: "Admin",
+  user: "User",
+  user_staff: "User-Staff",
+  approver: "Approver",
 };
 
 // 20px stroke icons, one per route. Unknown routes fall back to a circle.
@@ -24,7 +24,6 @@ const IKON: Record<string, string> = {
   "/buat": "M4 3h12a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM10 7v6M7 10h6",
   "/catat": "M4 3h9l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM12 3v4h4M6 11h8M6 14h5",
   "/antrean": "M3 5h14M3 10h14M3 15h9",
-  "/notifikasi": "M5 8a5 5 0 0 1 10 0c0 5 2 6 2 6H3s2-1 2-6zM8.5 17a1.5 1.5 0 0 0 3 0",
   "/master-data":
     "M3 5c0-1.1 3.1-2 7-2s7 .9 7 2-3.1 2-7 2-7-.9-7-2zM3 5v10c0 1.1 3.1 2 7 2s7-.9 7-2V5M3 10c0 1.1 3.1 2 7 2s7-.9 7-2",
   "/admin": "M3 6h8M15 6h2M3 14h2M9 14h8M13 4v4M7 12v4",
@@ -60,14 +59,12 @@ function Ikon({ d }: { d: string }) {
  */
 export function SidebarNav({
   menu,
-  belumDibaca,
   jabatan,
   email,
   role,
   terlipatAwal,
 }: {
   menu: MenuItem[];
-  belumDibaca: number;
   jabatan: string;
   email: string;
   role: string;
@@ -209,7 +206,6 @@ export function SidebarNav({
           // /catat is the second way into Buat Kerja Sama, not its own menu.
           const jalur = pathname.startsWith("/catat") ? "/buat" : pathname;
           const aktif = jalur === m.href || jalur.startsWith(`${m.href}/`);
-          const lencana = m.href === "/notifikasi" && belumDibaca > 0;
           return (
             <Link
               key={m.href}
@@ -222,26 +218,8 @@ export function SidebarNav({
               }`}
               style={aktif ? { background: "rgba(255,255,255,0.14)" } : undefined}
             >
-              <span className="relative">
-                <Ikon d={IKON[m.href] ?? "M10 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"} />
-                {lipat && lencana ? (
-                  <span
-                    aria-hidden="true"
-                    className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--midnight)]"
-                    style={{ background: "var(--status-progress-strong)" }}
-                  />
-                ) : null}
-              </span>
+              <Ikon d={IKON[m.href] ?? "M10 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"} />
               <span className={lipat ? "sr-only" : "flex-1"}>{m.label}</span>
-              {lencana ? (
-                <span
-                  className={lipat ? "sr-only" : "rounded-full px-1.5 text-xs font-medium"}
-                  style={lipat ? undefined : { background: "var(--status-progress-strong)" }}
-                >
-                  {belumDibaca}
-                  <span className="sr-only"> belum dibaca</span>
-                </span>
-              ) : null}
             </Link>
           );
         })}

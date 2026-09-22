@@ -28,7 +28,7 @@ function balik(tab: string, hasil: Hasil = {}): never {
 
 async function klienAdmin() {
   const akun = await akunSaatIni();
-  if (akun?.role !== "io_admin") redirect("/dashboard");
+  if (akun?.role !== "admin") redirect("/dashboard");
   return supabaseServer();
 }
 
