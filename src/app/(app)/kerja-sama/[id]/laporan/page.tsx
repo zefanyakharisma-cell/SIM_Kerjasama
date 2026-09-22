@@ -951,7 +951,7 @@ export default async function LaporanDokumen({
                         {jawab.catatan ? ` — ${jawab.catatan}` : ""}. Berkas terbaru tampil di tab
                         Detail.
                       </p>
-                    ) : pengusulSaya && dalamDisposisi ? (
+                    ) : io && dalamDisposisi ? (
                       <form action={kirimRevisi} className="mt-3 space-y-2">
                         <input type="hidden" name="no_target" value={minta.id_disposisi_target} />
                         <input
