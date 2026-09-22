@@ -38,6 +38,14 @@ export async function simpanProposal(formData: FormData) {
 
   await periksaDaftar(supabase, kolom);
 
+  // Revisi V8 §6 — every substantive field is required, but only to submit
+  // (Ajukan). Draft stays the deliberate escape valve for incomplete data
+  // ("Draft hanya terlihat oleh Anda dan KUI"), so this never blocks a Draft
+  // save, only a real submission.
+  if (ajukan) {
+    periksaWajibAjukan(kolom, formData);
+  }
+
   let id: number;
 
   if (idEdit) {
@@ -222,6 +230,61 @@ export async function periksaDaftar(
       .select("nilai", { count: "exact", head: true })
       .eq("nilai", String(nilai));
     if (!count) throw new Error(`${label} harus dipilih dari daftar.`);
+  }
+}
+
+/**
+ * Revisi V8 §6 — nothing may be null when actually submitting (Ajukan).
+ * Draft is unaffected: it stays the place for data that is not ready yet.
+ * Mitra and Jabatan Pengusul are checked by their own callers, since
+ * resolving them happens later in simpanProposal.
+ */
+function periksaWajibAjukan(
+  kolom: {
+    periode_kerjasama: string | null;
+    sifat_periode_kerjasama: FormDataEntryValue | null;
+    tujuan_kerjasama: FormDataEntryValue | null;
+    manfaat_bagi_petra: FormDataEntryValue | null;
+    manfaat_bagi_mitra: FormDataEntryValue | null;
+  },
+  formData: FormData,
+) {
+  const WAJIB: [unknown, string][] = [
+    [formData.get("jenis_kerjasama"), "Jenis Kerja Sama"],
+    [kolom.periode_kerjasama, "Periode Kerja Sama"],
+    [kolom.sifat_periode_kerjasama, "Sifat Periode"],
+    [kolom.tujuan_kerjasama, "Tujuan Kerja Sama"],
+    [kolom.manfaat_bagi_petra, "Manfaat bagi UKP"],
+    [kolom.manfaat_bagi_mitra, "Manfaat bagi Mitra"],
+    [formData.get("id_jabatan_pengusul") || null, "Jabatan Pengusul"],
+  ];
+  for (const [nilai, label] of WAJIB) {
+    if (!nilai) throw new Error(`${label} wajib diisi untuk mengajukan.`);
+  }
+  if (formData.getAll("bidang").length === 0) {
+    throw new Error("Bidang Kerja Sama wajib dipilih untuk mengajukan.");
+  }
+  if (formData.getAll("agenda").length === 0) {
+    throw new Error("Agenda Kerja Sama wajib dipilih untuk mengajukan.");
+  }
+  if (formData.getAll("unit").length === 0) {
+    throw new Error("Lingkup Kerja Sama wajib dipilih untuk mengajukan.");
+  }
+  const jenis = String(formData.get("jenis_kerjasama") ?? "");
+  if (jenis === "MoU" && !String(formData.get("ringkasan_kegiatan") ?? "").trim()) {
+    throw new Error("Ringkasan Kegiatan wajib diisi untuk mengajukan.");
+  }
+  if (jenis === "MoA") {
+    for (const [k, label] of [
+      ["hak_petra", "Hak UKP"],
+      ["hak_calon_mitra", "Hak Mitra"],
+      ["kewajiban_petra", "Kewajiban UKP"],
+      ["kewajiban_calon_mitra", "Kewajiban Mitra"],
+    ] as const) {
+      if (!String(formData.get(k) ?? "").trim()) {
+        throw new Error(`${label} wajib diisi untuk mengajukan.`);
+      }
+    }
   }
 }
 

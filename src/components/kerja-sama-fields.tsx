@@ -61,17 +61,17 @@ export function KerjaSamaFields({
       </label>
 
       <label className="mt-4 block">
-        <span className="mb-1 block text-sm font-medium">Tujuan Kerja Sama</span>
+        <span className="mb-1 block text-sm font-medium">Tujuan Kerja Sama (*)</span>
         <PilihCari name="tujuan_kerjasama" opsi={tujuanOpsi} awal={tujuanAwal} placeholder="Ketik untuk mencari tujuan..." />
       </label>
 
       <label className="mt-4 block">
-        <span className="mb-1 block text-sm font-medium">Manfaat bagi UKP</span>
+        <span className="mb-1 block text-sm font-medium">Manfaat bagi UKP (*)</span>
         <PilihCari name="manfaat_bagi_petra" opsi={manfaatPetraOpsi} awal={manfaatPetraAwal} placeholder="Ketik untuk mencari manfaat..." />
       </label>
 
       <label className="mt-4 block">
-        <span className="mb-1 block text-sm font-medium">Manfaat bagi Mitra</span>
+        <span className="mb-1 block text-sm font-medium">Manfaat bagi Mitra (*)</span>
         <PilihCari name="manfaat_bagi_mitra" opsi={manfaatMitraOpsi} awal={manfaatMitraAwal} placeholder="Ketik untuk mencari manfaat..." />
         <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
           Satu pernyataan bersama, berlaku untuk seluruh mitra pada dokumen ini.
@@ -80,7 +80,7 @@ export function KerjaSamaFields({
 
       {jenis === "MoU" ? (
         <label className="mt-4 block">
-          <span className="mb-1 block text-sm font-medium">Ringkasan Kegiatan (MoU)</span>
+          <span className="mb-1 block text-sm font-medium">Ringkasan Kegiatan (MoU) (*)</span>
           <textarea
             name="ringkasan_kegiatan"
             rows={2}
@@ -92,7 +92,7 @@ export function KerjaSamaFields({
       ) : (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Hak UKP (MoA)</span>
+            <span className="mb-1 block text-sm font-medium">Hak UKP (MoA) (*)</span>
             <textarea
               name="hak_petra"
               rows={2}
@@ -102,7 +102,7 @@ export function KerjaSamaFields({
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Hak Mitra (MoA)</span>
+            <span className="mb-1 block text-sm font-medium">Hak Mitra (MoA) (*)</span>
             <textarea
               name="hak_calon_mitra"
               rows={2}
@@ -112,7 +112,7 @@ export function KerjaSamaFields({
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Kewajiban UKP (MoA)</span>
+            <span className="mb-1 block text-sm font-medium">Kewajiban UKP (MoA) (*)</span>
             <textarea
               name="kewajiban_petra"
               rows={2}
@@ -122,7 +122,7 @@ export function KerjaSamaFields({
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Kewajiban Mitra (MoA)</span>
+            <span className="mb-1 block text-sm font-medium">Kewajiban Mitra (MoA) (*)</span>
             <textarea
               name="kewajiban_calon_mitra"
               rows={2}

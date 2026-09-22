@@ -229,7 +229,7 @@ export default async function BuatKerjaSama({
         <Bagian judul="III. Kerja Sama yang Diusulkan">
           <div className="grid gap-4 sm:grid-cols-2">
             <fieldset className="block sm:col-span-2">
-              <legend className="mb-1 block text-sm font-medium">Periode Kerja Sama</legend>
+              <legend className="mb-1 block text-sm font-medium">Periode Kerja Sama (*)</legend>
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <input
                   type="number"
@@ -259,7 +259,7 @@ export default async function BuatKerjaSama({
             </fieldset>
 
             <label className="block sm:col-span-2">
-              <span className="mb-1 block text-sm font-medium">Sifat Periode</span>
+              <span className="mb-1 block text-sm font-medium">Sifat Periode (*)</span>
               <select
                 name="sifat_periode_kerjasama"
                 defaultValue={(draf as any)?.sifat_periode_kerjasama ?? "Kedua Belah Pihak"}
@@ -296,7 +296,7 @@ export default async function BuatKerjaSama({
           </div>
 
           <fieldset className="mt-4">
-            <legend className="mb-1 text-sm font-medium">Bidang Kerja Sama</legend>
+            <legend className="mb-1 text-sm font-medium">Bidang Kerja Sama (*)</legend>
             <div className="flex flex-wrap gap-3">
               {(bidang ?? []).map((b) => (
                 <label key={b.id} className="flex items-center gap-2 text-sm">
@@ -313,7 +313,7 @@ export default async function BuatKerjaSama({
           </fieldset>
 
           <fieldset className="mt-4">
-            <legend className="mb-1 text-sm font-medium">Agenda Kerja Sama</legend>
+            <legend className="mb-1 text-sm font-medium">Agenda Kerja Sama (*)</legend>
             <div className="grid gap-2 sm:grid-cols-2">
               {(agenda ?? []).map((a) => (
                 <label key={a.id} className="flex items-center gap-2 text-sm">
@@ -377,7 +377,7 @@ export default async function BuatKerjaSama({
         </Bagian>
 
         <Bagian
-          judul="IV. Lingkup Kerja Sama"
+          judul="IV. Lingkup Kerja Sama (*)"
           keterangan="Mencentang fakultas otomatis mencentang seluruh prodi dan program di bawahnya. Mencabut satu anak membuat induknya berstatus sebagian."
         >
           <PohonLingkup units={unit ?? []} awal={unitTerpilih} />
