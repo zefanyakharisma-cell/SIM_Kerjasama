@@ -75,6 +75,7 @@ const PROSES = [
   "Disposisi - Tier 3",
   "Pending",
   "Disetujui",
+  "Siap TTD",
   "Ditolak",
 ];
 

@@ -49,15 +49,17 @@ const STATUS_PROPOSAL = [
 /**
  * Status values a tab can actually show, for its Status dropdown (Revisi V6
  * §1) — a free-text status box let users type values the tab never holds.
- * Disetujui has one status only, so it gets no dropdown.
+ * Disetujui now holds two statuses: Disetujui itself, and Siap TTD once KUI
+ * has marked the document printed and in signing (Revisi V8 §2) — both stay
+ * on this one tab rather than a dedicated tab of their own.
  */
 const STATUS_DOKUMEN_TAMPIL = ["Aktif", "Akan Berakhir", "Disposisi Evaluasi", "Kedaluarsa", "Diarsipkan"];
 export const STATUS_PER_TAB: Record<TabKey, string[]> = {
   aktif: ["Aktif", "Disposisi Evaluasi"],
   proposal: STATUS_PROPOSAL,
-  disetujui: [],
+  disetujui: ["Disetujui", "Siap TTD"],
   berakhir: ["Akan Berakhir", "Disposisi Evaluasi"],
-  pembaruan: [...STATUS_PROPOSAL, "Disetujui", "Ditolak", ...STATUS_DOKUMEN_TAMPIL],
+  pembaruan: [...STATUS_PROPOSAL, "Disetujui", "Siap TTD", "Ditolak", ...STATUS_DOKUMEN_TAMPIL],
   arsip: ["Kedaluarsa", "Diarsipkan"],
 };
 
@@ -172,7 +174,7 @@ export function terapkanFilter(q: any, tab: TabKey, f: Filter) {
       q = q.in("status_proposal", STATUS_PROPOSAL).is("status_dokumen", null);
       break;
     case "disetujui":
-      q = q.eq("status_proposal", "Disetujui").is("status_dokumen", null);
+      q = q.in("status_proposal", ["Disetujui", "Siap TTD"]).is("status_dokumen", null);
       break;
     case "berakhir":
       // Auto Renewed carries no end date, so it is absent here by construction

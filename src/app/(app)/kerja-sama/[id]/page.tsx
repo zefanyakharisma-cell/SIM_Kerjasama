@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
-import { aktivasiDokumen, kirimDisposisi } from "@/lib/actions/workflow";
+import { aktivasiDokumen, kirimDisposisi, tandaiSiapTtd } from "@/lib/actions/workflow";
 import { arsipkanDokumen } from "@/lib/actions/pembaruan";
 import { StatusPill } from "@/components/status-pill";
 import { SlaFlag } from "@/components/sla-flag";
@@ -191,6 +191,12 @@ export default async function DetailDokumen({
       dipilih,
       String(formData.get("pesan") ?? ""),
     );
+  }
+
+  async function tandaiSiapTtdAksi() {
+    "use server";
+    await tandaiSiapTtd(idProposal);
+    revalidatePath(`/kerja-sama/${idProposal}`);
   }
 
   async function aktifkan(formData: FormData) {
@@ -456,6 +462,28 @@ export default async function DetailDokumen({
           ) : null}
 
           {io && proposal.status_proposal === "Disetujui" && !dok ? (
+            <section
+              className="mb-6 rounded-xl border-2 bg-white p-4"
+              style={{ borderColor: "var(--status-approved)" }}
+            >
+              <h2 className="mb-1 text-sm font-semibold">Tandai Siap TTD</h2>
+              <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                Dokumen sudah disetujui semua disposisi. Tandai setelah dicetak
+                dan memasuki proses tanda tangan (Revisi V8 §2).
+              </p>
+              <form action={tandaiSiapTtdAksi}>
+                <SubmitButton
+                  labelMenunggu="Menandai…"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                  style={{ background: "var(--midnight)" }}
+                >
+                  Tandai Siap TTD
+                </SubmitButton>
+              </form>
+            </section>
+          ) : null}
+
+          {io && proposal.status_proposal === "Siap TTD" && !dok ? (
             <section
               className="mb-6 rounded-xl border-2 bg-white p-4"
               style={{ borderColor: "var(--status-approved)" }}

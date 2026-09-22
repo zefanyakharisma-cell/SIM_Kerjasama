@@ -5,9 +5,10 @@ import { SubmitButton } from "@/components/submit-button";
 import { TERIMA_PDF, unggahBerkas } from "@/lib/unggah";
 
 /**
- * Disetujui tab's activation form (revision V3). Every row on that tab has
- * already cleared Tier 3, so there is nothing left to decide here — only the
- * signed-document details to type in, once, by IO.
+ * Siap TTD's activation form (revision V3; status renamed in V8 §2). Every
+ * row here has already cleared Tier 3 and been printed for signing, so there
+ * is nothing left to decide — only the signed-document details to type in,
+ * once, by IO.
  */
 export const dynamic = "force-dynamic";
 
@@ -36,10 +37,10 @@ export default async function AktivasiDokumen({
     .maybeSingle();
 
   if (!proposal) notFound();
-  // Only a fully approved proposal reaches this form — same rule the RPC
-  // itself enforces, checked here too so the page reads correctly instead of
+  // Only a Siap TTD proposal reaches this form — same rule the RPC itself
+  // enforces, checked here too so the page reads correctly instead of
   // failing only on submit.
-  if (proposal.status_proposal !== "Disetujui") {
+  if (proposal.status_proposal !== "Siap TTD") {
     redirect(`/kerja-sama/${idProposal}/laporan` as any);
   }
 
@@ -93,7 +94,7 @@ export default async function AktivasiDokumen({
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium">Nomor LAPORDIKTI</span>
+          <span className="mb-1 block text-sm font-medium">Nomor LAPORKERMA</span>
           <input name="no_berkas_dikti" className={inputKelas} style={gaya} />
         </label>
 

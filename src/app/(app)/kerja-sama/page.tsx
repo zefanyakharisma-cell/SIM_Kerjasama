@@ -615,15 +615,14 @@ export default async function CariKerjaSama({
           editDraf
         />
       ) : tab === "disetujui" ? (
-        // Every row here has already cleared Tier 3 — the only action left is
-        // typing in the signed-document details, so the magnifying glass goes
-        // straight to that activation form instead of the report (per
-        // revision).
+        // Every row here has cleared Tier 3, but not every one is Siap TTD
+        // yet (Revisi V8 §2) — the detail page itself shows whichever action
+        // applies (Tandai Siap TTD, then the activation form).
         <TabelProposal
           baris={baris}
           halaman={halaman}
-          aksiHref={(id) => `/kerja-sama/${id}/aktivasi`}
-          aksiLabel="Aktivasi dokumen"
+          aksiHref={(id) => `/kerja-sama/${id}`}
+          aksiLabel="Kelola dokumen"
           editDraf={false}
         />
       ) : tab === "aktif" ? (

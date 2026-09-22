@@ -38,6 +38,14 @@ export async function ajukanProposal(idProposal: number): Promise<Hasil> {
   return hasil;
 }
 
+/** Disetujui -> Siap TTD: Admin marks the document printed and in signing (V8 §2). */
+export async function tandaiSiapTtd(idProposal: number): Promise<Hasil> {
+  const hasil = await panggil("tandai_siap_ttd", { p_id_proposal: idProposal });
+  revalidatePath(`/kerja-sama/${idProposal}`);
+  revalidatePath("/kerja-sama");
+  return hasil;
+}
+
 export async function kirimDisposisi(
   idProposal: number,
   idJabatan: number[],
