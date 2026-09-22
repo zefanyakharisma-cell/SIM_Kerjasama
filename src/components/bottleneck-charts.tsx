@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { ECharts } from "echarts";
 
 const PALET = ["#19304b", "#3880d0", "#45b8bc", "#6aaa43", "#be93e4", "#f37121", "#ffbc00"];
 const dasar = {
@@ -14,7 +15,7 @@ function Kanvas({ opsi, tinggi = 260 }: { opsi: Record<string, unknown>; tinggi?
   const el = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let grafik: any;
+    let grafik: ECharts | undefined;
     let batal = false;
     const ukur = () => grafik?.resize();
 

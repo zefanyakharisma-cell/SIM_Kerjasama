@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { ECharts } from "echarts";
 
 /**
  * Antrean Saya's personal summary (Revisi V8 §5) — what this account still
@@ -21,7 +22,7 @@ function Donut({ data }: { data: { label: string; nilai: number }[] }) {
   const el = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let grafik: any;
+    let grafik: ECharts | undefined;
     let batal = false;
     const ukur = () => grafik?.resize();
 
