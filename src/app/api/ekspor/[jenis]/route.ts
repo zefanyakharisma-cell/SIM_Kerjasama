@@ -142,12 +142,29 @@ export async function GET(
     kolom = KOLOM_SLA;
     nama = "sla-per-dokumen";
   } else if (jenis === "proses") {
+    // This export has its own scope and must not inherit a tab's, so the tab
+    // is passed as null. It used to pass "proposal", whose branch already
+    // applies `.in("status_proposal", STATUS_PROPOSAL)` — and a second `.in()`
+    // on the same column is ANDed by PostgREST, not replaced. The effective
+    // set was the intersection, so Disetujui, Siap TTD and Ditolak (the three
+    // PROSES adds, and half of what "dan Diproses" names) could never appear.
+    //
+    // status_tampil is the tab-relative status filter, so it is dropped here
+    // too: the list's Status dropdown offers values this export's own range
+    // contradicts, which is how exporting from Kerja Sama Aktif produced an
+    // empty workbook.
+    const filterProses = { ...filter };
+    delete filterProses.status_tampil;
     const q = terapkanFilter(
       supabase.from("v_daftar_dokumen").select("*"),
-      "proposal",
-      filter,
+      null,
+      filterProses,
     )
-      .in("status_proposal", PROSES);
+      .in("status_proposal", PROSES)
+      // A rejection archives the document (alasan_arsip = 'rejected'), so
+      // Ditolak never has a null status_dokumen; everything else in range is
+      // still a proposal that has not become a live document.
+      .or("status_dokumen.is.null,status_proposal.eq.Ditolak");
     const { data, error } = await terapkanUrutan(q, filter).limit(10000);
     if (error) return NextResponse.json({ pesan: error.message }, { status: 500 });
     baris = data ?? [];

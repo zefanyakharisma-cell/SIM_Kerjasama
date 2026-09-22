@@ -169,7 +169,11 @@ export function kueriDariFilter(f: Filter): string {
  * there is no global archive toggle, because the archive is one tab among the
  * others (PRD §8.2).
  */
-export function terapkanFilter(q: any, tab: TabKey, f: Filter) {
+export function terapkanFilter(q: any, tab: TabKey | null, f: Filter) {
+  // `null` means "no tab scope" — for an export that defines its own status
+  // range and must not also inherit a tab's. Chaining a second `.in()` on the
+  // same column does NOT replace the first: PostgREST ANDs them, so the result
+  // is the intersection, which silently drops rows.
   switch (tab) {
     case "aktif":
       q = q.eq("status_dokumen", "Aktif");

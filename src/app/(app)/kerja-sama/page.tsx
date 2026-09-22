@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { Route } from "next";
+import { redirect } from "next/navigation";
 import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
 import { kirimPermintaanPembaruan } from "@/lib/actions/pembaruan";
 import { batasAkanBerakhir } from "@/lib/periode";
@@ -560,9 +562,17 @@ export default async function CariKerjaSama({
 
   const ambangHari = Math.round((batas.getTime() - Date.now()) / 86_400_000);
 
+  // A refused renewal request used to leave the row reading "Belum dikirim"
+  // with nothing said about why (EC-06).
   async function minta(formData: FormData) {
     "use server";
-    await kirimPermintaanPembaruan(Number(formData.get("no")), String(formData.get("pesan") ?? ""));
+    const hasil = await kirimPermintaanPembaruan(
+      Number(formData.get("no")),
+      String(formData.get("pesan") ?? ""),
+    );
+    if (!hasil.ok) {
+      redirect(`/kerja-sama?tab=${tab}&galat=${encodeURIComponent(hasil.pesan)}` as Route);
+    }
   }
 
   const halamanTerakhir = Math.max(1, Math.ceil(total / PER_HALAMAN));
@@ -589,6 +599,16 @@ export default async function CariKerjaSama({
           Cari Kerja Sama
         </h1>
       </header>
+
+      {typeof sp.galat === "string" && sp.galat ? (
+        <p
+          role="alert"
+          className="mb-4 rounded-lg border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
+        >
+          {sp.galat}
+        </p>
+      ) : null}
 
       <Tabs basePath="/kerja-sama" tabs={TAB} aktif={tab} />
 

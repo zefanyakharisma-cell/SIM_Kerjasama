@@ -863,7 +863,13 @@ export default async function LaporanDokumen({
       ) : null}
 
       {tab === "pembaruan" && adaPembaruan ? (
-        <PembaruanPanel noDokumen={dok.no} io={io} idJabatan={akun?.id_jabatan ?? null} galat={galat} />
+        <PembaruanPanel
+          noDokumen={dok.no}
+          idProposal={idProposal}
+          io={io}
+          idJabatan={akun?.id_jabatan ?? null}
+          galat={galat}
+        />
       ) : null}
 
       {tab === "disposisi" && bolehDisposisi ? (

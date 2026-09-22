@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { BlokRekomendasi, GridLikert, bacaJawaban } from "@/components/likert";
@@ -84,6 +85,47 @@ function Pesan({ judul, isi }: { judul: string; isi: string }) {
   );
 }
 
+const KUNCI_DRAF = "simks-eval-draf";
+
+/**
+ * Hold a refused submission so the form can be shown filled in again.
+ *
+ * It is the respondent's own answers, kept in their own browser: httpOnly, and
+ * scoped to this token's path so it cannot be read from any other page. It is
+ * deliberately short-lived — this is a recovery aid for the seconds between a
+ * refusal and the retry, not storage.
+ */
+async function simpanDraf(token: string, jawaban: Record<string, unknown>) {
+  // The validation message is ours, not an answer — it is regenerated on the
+  // next submit and must not come back as if it were typed.
+  const bersih: Record<string, unknown> = { ...jawaban };
+  delete bersih.galat;
+  (await cookies()).set(KUNCI_DRAF, JSON.stringify({ token, jawaban: bersih }), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: `/evaluasi/${token}`,
+    maxAge: 900,
+  });
+}
+
+/** The stashed answers, but only while an error is actually being shown. */
+async function bacaDraf(
+  token: string,
+  adaGalat: boolean,
+): Promise<Record<string, unknown> | undefined> {
+  if (!adaGalat) return undefined;
+  const mentah = (await cookies()).get(KUNCI_DRAF)?.value;
+  if (!mentah) return undefined;
+  try {
+    const isi = JSON.parse(mentah) as { token?: string; jawaban?: Record<string, unknown> };
+    // Belt and braces on top of the path scope: never prefill another token.
+    return isi.token === token ? isi.jawaban : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default async function EvaluasiMitra({
   params,
   searchParams,
@@ -94,6 +136,15 @@ export default async function EvaluasiMitra({
   const { token } = await params;
   const { ok, galat } = await searchParams;
   const supabase = await supabaseServer();
+
+  // A refused submission used to come back as a completely blank form: ten
+  // Likert radios, the recommendation, the note and the four identity fields,
+  // all gone. This is the one public, unauthenticated, single-use surface in
+  // the system, so a partner who loses their answers has no way back — they
+  // start over or give up. The action stashes what was posted in a short-lived
+  // cookie scoped to this token's path; it is read back only when we are
+  // actually showing an error, so a stale one never prefills a fresh visit.
+  const draf = await bacaDraf(token, Boolean(galat));
 
   // Resolved server-side. An unknown or spent token returns nothing at all —
   // not a hint, not a different message (AR-07).
@@ -131,6 +182,7 @@ export default async function EvaluasiMitra({
     const jawaban = bacaJawaban(formData);
     // An incomplete grid is our own validation, so it is named exactly.
     if (typeof jawaban.galat === "string") {
+      await simpanDraf(token, jawaban);
       redirect(`/evaluasi/${token}?galat=${encodeURIComponent(jawaban.galat)}`);
     }
     const { error } = await klien.rpc("kirim_evaluasi_partner", {
@@ -141,6 +193,7 @@ export default async function EvaluasiMitra({
       // The database message names an internal rule or column and this page is
       // public and unauthenticated (AR-07) — it is logged, never shown.
       console.error("[simks] evaluasi mitra ditolak:", error.message);
+      await simpanDraf(token, jawaban);
       redirect(
         `/evaluasi/${token}?galat=${encodeURIComponent(
           "Jawaban tidak dapat disimpan. Silakan periksa kembali isian Anda atau hubungi Kantor Kerja Sama dan Urusan Internasional.",
@@ -206,18 +259,20 @@ export default async function EvaluasiMitra({
 
       <form action={kirim}>
         <GridLikert
+          awal={draf}
           awalan="exp"
           judul="1. Harapan Anda · Your expectations"
           keterangan="Seberapa tinggi harapan Anda terhadap kerja sama ini pada tiap aspek? · How high were your expectations for this partnership in each area?"
           dwibahasa
         />
         <GridLikert
+          awal={draf}
           awalan="sat"
           judul="2. Kepuasan Anda · Your satisfaction"
           keterangan="Seberapa puas Anda dengan pelaksanaannya pada tiap aspek? · How satisfied are you with how it was carried out?"
           dwibahasa
         />
-        <BlokRekomendasi dwibahasa />
+        <BlokRekomendasi dwibahasa awal={draf} />
 
         {/* Name, position, email and phone are the accountability record for
             a form with no login, so they are required — and the database
@@ -235,7 +290,7 @@ export default async function EvaluasiMitra({
               <input
                 name="respondent_nama"
                 required
-                defaultValue={ev.nama_kontak ?? ""}
+                defaultValue={String(draf?.respondent_nama ?? ev.nama_kontak ?? "")}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)" }}
               />
@@ -245,7 +300,7 @@ export default async function EvaluasiMitra({
               <input
                 name="respondent_jabatan"
                 required
-                defaultValue={ev.jabatan_kontak ?? ""}
+                defaultValue={String(draf?.respondent_jabatan ?? ev.jabatan_kontak ?? "")}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)" }}
               />
@@ -256,7 +311,7 @@ export default async function EvaluasiMitra({
                 name="respondent_email"
                 type="email"
                 required
-                defaultValue={ev.email_kontak ?? ""}
+                defaultValue={String(draf?.respondent_email ?? ev.email_kontak ?? "")}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)" }}
               />
@@ -267,7 +322,7 @@ export default async function EvaluasiMitra({
                 name="respondent_hp"
                 type="tel"
                 required
-                defaultValue={ev.hp_kontak ?? ""}
+                defaultValue={String(draf?.respondent_hp ?? ev.hp_kontak ?? "")}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)" }}
               />

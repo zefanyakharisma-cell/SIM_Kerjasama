@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { akunSaatIni, isIO, supabaseServer } from "@/lib/supabase/server";
 import { aktivasiDokumen, kirimDisposisi, tandaiSiapTtd } from "@/lib/actions/workflow";
@@ -41,12 +41,28 @@ function waktuLokal(nilai: string | null) {
   });
 }
 
+/**
+ * Show the refusal the database gave, instead of dropping it.
+ *
+ * lib/actions/workflow.ts turns a refused transition into {ok:false, pesan}
+ * precisely so it can be read — "Never swallow a failed transition" (EC-06).
+ * The actions below used to ignore it, so a refused disposisi, Siap TTD or
+ * activation re-rendered the identical form with no message anywhere and the
+ * button simply looked dead. Same shape as laporan/page.tsx:337.
+ */
+function gagal(idProposal: number, pesan: string): never {
+  redirect(`/kerja-sama/${idProposal}?galat=${encodeURIComponent(pesan)}`);
+}
+
 export default async function DetailDokumen({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ galat?: string }>;
 }) {
   const { id } = await params;
+  const { galat } = await searchParams;
   const idProposal = Number(id);
   const supabase = await supabaseServer();
 
@@ -185,17 +201,19 @@ export default async function DetailDokumen({
   async function kirimDisposisiAwal(formData: FormData) {
     "use server";
     const dipilih = formData.getAll("jabatan").map(Number);
-    if (dipilih.length === 0) return;
-    await kirimDisposisi(
+    if (dipilih.length === 0) gagal(idProposal, "Pilih setidaknya satu jabatan tujuan disposisi.");
+    const hasil = await kirimDisposisi(
       idProposal,
       dipilih,
       String(formData.get("pesan") ?? ""),
     );
+    if (!hasil.ok) gagal(idProposal, hasil.pesan);
   }
 
   async function tandaiSiapTtdAksi() {
     "use server";
-    await tandaiSiapTtd(idProposal);
+    const hasil = await tandaiSiapTtd(idProposal);
+    if (!hasil.ok) gagal(idProposal, hasil.pesan);
     revalidatePath(`/kerja-sama/${idProposal}`);
   }
 
@@ -207,10 +225,10 @@ export default async function DetailDokumen({
     const berkas = formData.get("berkas") as File | null;
     if (berkas && berkas.size > 0) {
       const unggah = await unggahBerkas(await supabaseServer(), `dokumen/${idProposal}`, berkas, TERIMA_PDF);
-      if ("pesan" in unggah) throw new Error(unggah.pesan);
+      if ("pesan" in unggah) gagal(idProposal, unggah.pesan);
       uploadDokumen = unggah.path;
     }
-    await aktivasiDokumen(idProposal, {
+    const hasil = await aktivasiDokumen(idProposal, {
       // Typed by IO, never generated and never format-checked (BR-22).
       noDokumen: String(formData.get("no_dokumen") ?? ""),
       tanggalTandaTangan: String(formData.get("tanggal_tanda_tangan") ?? ""),
@@ -221,16 +239,18 @@ export default async function DetailDokumen({
       noBerkasDikti: String(formData.get("no_berkas_dikti") ?? "") || null,
       uploadDokumen,
     });
+    if (!hasil.ok) gagal(idProposal, hasil.pesan);
     revalidatePath(`/kerja-sama/${idProposal}`);
   }
 
   async function akhiriLebihAwal(formData: FormData) {
     "use server";
-    await arsipkanDokumen(
+    const hasil = await arsipkanDokumen(
       Number(formData.get("no")),
       "terminated_early",
       idProposal,
     );
+    if (!hasil.ok) gagal(idProposal, hasil.pesan);
   }
 
   // Empty tiers are omitted, never rendered blank (Design §4.3).
@@ -240,6 +260,15 @@ export default async function DetailDokumen({
 
   return (
     <div className="max-w-4xl">
+      {galat ? (
+        <p
+          className="mb-4 rounded-lg border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
+        >
+          {galat}
+        </p>
+      ) : null}
+
       <header className="mb-6">
         <div className="mb-1 flex flex-wrap items-center gap-3">
           <h1 className="no-dokumen text-lg font-semibold" style={{ color: "var(--midnight)" }}>

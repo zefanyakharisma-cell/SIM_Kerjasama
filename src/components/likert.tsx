@@ -29,12 +29,20 @@ export function GridLikert({
   keterangan,
   dwibahasa = false,
   wajib = true,
+  awal,
 }: {
   awalan: "exp" | "sat";
   judul: string;
   keterangan: string;
   dwibahasa?: boolean;
   wajib?: boolean;
+  /**
+   * The previously posted answers, so a submission the server refused comes
+   * back filled in rather than blank. The public partner page has one
+   * single-use link and no login, so losing ten answers to a refusal means the
+   * respondent starts over — or gives up.
+   */
+  awal?: Record<string, unknown>;
 }) {
   return (
     <fieldset
@@ -82,6 +90,7 @@ export function GridLikert({
                       type="radio"
                       name={`${awalan}_${d.kunci}`}
                       value={n}
+                      defaultChecked={Number(awal?.[`${awalan}_${d.kunci}`]) === n}
                       required={wajib && n === 1}
                       aria-label={`${d.id}: ${n} dari 5`}
                     />
@@ -106,7 +115,13 @@ export function GridLikert({
  * and it is never pre-selected — an unanswered recommendation must stay
  * unanswered rather than quietly meaning "continue" (BR-26).
  */
-export function BlokRekomendasi({ dwibahasa = false }: { dwibahasa?: boolean }) {
+export function BlokRekomendasi({
+  dwibahasa = false,
+  awal,
+}: {
+  dwibahasa?: boolean;
+  awal?: Record<string, unknown>;
+}) {
   return (
     <fieldset
       className="mb-5 rounded-xl border-2 bg-white p-4"
@@ -123,7 +138,14 @@ export function BlokRekomendasi({ dwibahasa = false }: { dwibahasa?: boolean }) 
 
       <div className="flex flex-col gap-2">
         <label className="flex items-start gap-2 text-sm">
-          <input type="radio" name="rekomendasi" value="continue" required className="mt-1" />
+          <input
+            type="radio"
+            name="rekomendasi"
+            value="continue"
+            defaultChecked={awal?.rekomendasi === "continue"}
+            required
+            className="mt-1"
+          />
           <span>
             Lanjutkan kerja sama
             {dwibahasa ? (
@@ -134,7 +156,13 @@ export function BlokRekomendasi({ dwibahasa = false }: { dwibahasa?: boolean }) 
           </span>
         </label>
         <label className="flex items-start gap-2 text-sm">
-          <input type="radio" name="rekomendasi" value="terminate" className="mt-1" />
+          <input
+            type="radio"
+            name="rekomendasi"
+            value="terminate"
+            defaultChecked={awal?.rekomendasi === "terminate"}
+            className="mt-1"
+          />
           <span>
             Akhiri kerja sama
             {dwibahasa ? (
@@ -153,6 +181,7 @@ export function BlokRekomendasi({ dwibahasa = false }: { dwibahasa?: boolean }) 
         </span>
         <select
           name="continuation_mode"
+          defaultValue={String(awal?.continuation_mode ?? "")}
           className="w-full rounded-lg border px-3 py-2 text-sm"
           style={{ borderColor: "var(--border)" }}
         >
@@ -169,6 +198,7 @@ export function BlokRekomendasi({ dwibahasa = false }: { dwibahasa?: boolean }) 
         <textarea
           name="catatan_evaluasi"
           rows={3}
+          defaultValue={String(awal?.catatan_evaluasi ?? "")}
           className="w-full rounded-lg border px-3 py-2 text-sm"
           style={{ borderColor: "var(--border)" }}
         />

@@ -174,6 +174,7 @@ function cek(halaman: string, hasil: Hasil) {
 
 export async function PembaruanPanel({
   noDokumen,
+  idProposal,
   io,
   idJabatan,
   galat,
@@ -182,6 +183,7 @@ export async function PembaruanPanel({
   io: boolean;
   idJabatan: number | null;
   galat?: string;
+  idProposal: number;
 }) {
   const supabase = await supabaseServer();
 
@@ -193,9 +195,14 @@ export async function PembaruanPanel({
 
   // Not yet requested: IO can send it from here too, not only from the list.
   if (!r) {
+    // A refused renewal request used to leave this card saying "Belum ada
+    // permintaan pembaruan" with no explanation anywhere.
     async function minta(formData: FormData) {
       "use server";
-      await kirimPermintaanPembaruan(noDokumen, String(formData.get("pesan") ?? ""));
+      cek(
+        `/kerja-sama/${idProposal}/laporan?tab=pembaruan`,
+        await kirimPermintaanPembaruan(noDokumen, String(formData.get("pesan") ?? "")),
+      );
     }
     return (
       <section className={kartu} style={{ borderColor: "var(--border)" }}>
@@ -203,6 +210,15 @@ export async function PembaruanPanel({
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
           Belum ada permintaan pembaruan untuk dokumen ini.
         </p>
+        {galat ? (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg border px-3 py-2 text-sm"
+            style={{ borderColor: "var(--action-danger)", color: "var(--action-danger)" }}
+          >
+            {galat}
+          </p>
+        ) : null}
         {io ? (
           <form action={minta} className="mt-3 flex flex-wrap gap-2">
             <input

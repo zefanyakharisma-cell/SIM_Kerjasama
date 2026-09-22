@@ -61,6 +61,9 @@ export function NotificationBell({ belumDibaca }: { belumDibaca: number }) {
   const [menandai, setMenandai] = useState(false);
   const [belum, setBelum] = useState(belumDibaca);
   const gerakan = useRef<Seret | null>(null);
+  // A drag ends with a click event too; this swallows that one so releasing
+  // the button after moving it does not also open the panel.
+  const abaikanKlik = useRef(false);
 
   // The server's count wins whenever the shell re-renders.
   useEffect(() => setBelum(belumDibaca), [belumDibaca]);
@@ -150,11 +153,13 @@ export function NotificationBell({ belumDibaca }: { belumDibaca: number }) {
     setSeret(null);
     if (!g) return;
 
-    if (!g.geser) {
-      bukaPanel(!buka, posisi); // a tap, not a drag
-      return;
-    }
+    // Opening is handled in onClick, not here: keyboard activation of a button
+    // fires `click` and no pointer events at all, so a pointer-only bell is
+    // unreachable by keyboard — and it is the only way into the inbox now that
+    // Notifikasi has left the sidebar (V8 §4).
+    if (!g.geser) return; // a tap: let the click through
 
+    abaikanKlik.current = true;
     // Snap to whichever edge it was released nearest, the way iOS does.
     const sisi: Posisi["sisi"] =
       g.cx + UKURAN / 2 < window.innerWidth / 2 ? "kiri" : "kanan";
@@ -177,6 +182,21 @@ export function NotificationBell({ belumDibaca }: { belumDibaca: number }) {
     router.refresh();
   }
 
+  // A cancelled gesture (a phone call, a system swipe) is not followed by a
+  // click, so it must not arm abaikanKlik or the next activation is eaten.
+  function batal() {
+    gerakan.current = null;
+    setSeret(null);
+  }
+
+  function klik() {
+    if (abaikanKlik.current) {
+      abaikanKlik.current = false; // this click closed a drag, not a tap
+      return;
+    }
+    bukaPanel(!buka, posisi);
+  }
+
   const gayaTombol: React.CSSProperties = seret
     ? { left: seret.x, top: seret.y, height: UKURAN, width: UKURAN }
     : {
@@ -197,7 +217,8 @@ export function NotificationBell({ belumDibaca }: { belumDibaca: number }) {
         onPointerDown={turun}
         onPointerMove={gerak}
         onPointerUp={naik}
-        onPointerCancel={naik}
+        onPointerCancel={batal}
+        onClick={klik}
         aria-label={belum > 0 ? `Notifikasi, ${belum} belum dibaca` : "Notifikasi"}
         aria-expanded={buka}
         className={`fixed z-50 flex touch-none select-none items-center justify-center rounded-full text-white shadow-lg backdrop-blur transition-[opacity,transform] ${
