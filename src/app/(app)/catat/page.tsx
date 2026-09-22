@@ -350,7 +350,7 @@ export default async function CatatDokumen({
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Nomor LAPORDIKTI</span>
+              <span className="mb-1 block text-sm font-medium">Nomor LAPORKERMA</span>
               <input
                 name="no_berkas_dikti"
                 defaultValue={dok?.no_berkas_dikti ?? ""}

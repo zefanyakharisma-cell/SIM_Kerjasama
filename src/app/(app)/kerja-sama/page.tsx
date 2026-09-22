@@ -46,35 +46,55 @@ function Tanggal({ nilai }: { nilai: string | null }) {
 
 const inputKelas = "w-full rounded border px-2 py-1 text-xs";
 
-function IkonCari() {
+const GlifCari = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    className="h-4 w-4"
+  >
+    <circle cx="11" cy="11" r="7" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+/**
+ * The magnifying glass. `polos` (bare, no colored square) is for the search
+ * box's own decoration; the Action column's "view" button keeps the blue
+ * square background (Revisi V8 §1) so it reads apart from Edit at a glance.
+ */
+function IkonCari({ polos = false }: { polos?: boolean }) {
+  if (polos) return <GlifCari />;
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      className="h-4 w-4"
+    <span
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white"
+      style={{ background: "var(--action-view, #2563eb)" }}
     >
-      <circle cx="11" cy="11" r="7" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
+      <GlifCari />
+    </span>
   );
 }
 
 function IkonEdit() {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      className="h-4 w-4"
+    <span
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white"
+      style={{ background: "var(--action-edit, #16a34a)" }}
     >
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        className="h-4 w-4"
+      >
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </svg>
+    </span>
   );
 }
 
@@ -157,7 +177,7 @@ function BarFilter({ tab, filter }: { tab: TabKey; filter: Filter }) {
               className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2"
               style={{ color: "var(--text-muted)" }}
             >
-              <IkonCari />
+              <IkonCari polos />
             </span>
             <input
               type="search"
