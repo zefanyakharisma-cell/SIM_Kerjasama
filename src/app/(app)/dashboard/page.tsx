@@ -6,17 +6,20 @@ import { PetaMitra, type Pin } from "@/components/peta-mitra";
 import { StudioGrafik, type Grafik } from "@/components/studio-grafik";
 import { GrafikForm, grafikDariForm, type NilaiGrafik } from "@/components/grafik-form";
 import { Tabs } from "@/components/tabs";
+import { SlaFlag } from "@/components/sla-flag";
+import { StatusPill } from "@/components/status-pill";
 import { STATUS_DOKUMEN_AKTIF, lolosIlike } from "@/lib/laporan";
 import { batasAkanBerakhir } from "@/lib/periode";
 
 /**
  * Dashboard — the control panel (PRD §8.1).
  *
- * Three tabs, exactly as the mockups have them: Dashboard, Discussion and
- * Activity Log. The latter two are read-only VIEWS over data the workflow
+ * Tabs: Dashboard, Activity Log, Discussion and — Admin only — In Process.
+ * Activity Log and Discussion are read-only VIEWS over data the workflow
  * already writes — the append-only approval log and the revision log — not new
  * entities. In particular "Discussion" is a revision-requests view, not a chat;
- * the system has no discussion thread and is not getting one.
+ * the system has no discussion thread and is not getting one. In Process is
+ * every document not yet active, grouped by where it sits in the workflow.
  *
  * Two of the KPI cards are the team KPIs the whole system exists to produce
  * (PRD §3.2): MoU/MoA counts split domestic vs international, and the
@@ -26,8 +29,9 @@ export const dynamic = "force-dynamic";
 
 const TAB = {
   dashboard: "Dashboard",
-  discussion: "Discussion",
   aktivitas: "Activity Log",
+  discussion: "Discussion",
+  proses: "In Process",
 } as const;
 type TabKey = keyof typeof TAB;
 
@@ -39,6 +43,13 @@ const DALAM_PROSES = [
   "Disposisi - Tier 3",
   "Pending",
 ];
+
+// The In Process tab's groups, in workflow order: everything from submission
+// until activation, so the two post-approval stages (printing and physical
+// signing) are included on top of DALAM_PROSES.
+const TAHAP_PROSES = [...DALAM_PROSES, "Disetujui", "Siap TTD"];
+
+const URUTAN_SLA: Record<string, number> = { red: 0, yellow: 1, normal: 2 };
 
 function Kartu({
   label,
@@ -98,10 +109,16 @@ export default async function Dashboard({
 }) {
   const sp = await searchParams;
   const { tab } = sp;
-  const aktif: TabKey = (tab as TabKey) in TAB ? (tab as TabKey) : "dashboard";
-  const supabase = await supabaseServer();
+  const [supabase, akun] = await Promise.all([supabaseServer(), akunSaatIni()]);
+  const admin = akun?.role === "admin";
+  // In Process shows every document's progress, so it is Admin's alone; for
+  // anyone else the tab does not exist and its URL falls back to Dashboard.
+  const tabs: Partial<typeof TAB> = admin
+    ? TAB
+    : Object.fromEntries(Object.entries(TAB).filter(([k]) => k !== "proses"));
+  const aktif: TabKey = Object.hasOwn(tabs, tab ?? "") ? (tab as TabKey) : "dashboard";
 
-  const nav = <Tabs basePath="/dashboard" tabs={TAB} aktif={aktif} />;
+  const nav = <Tabs basePath="/dashboard" tabs={tabs} aktif={aktif} />;
 
   const judul = (
     <header className="mb-5">
@@ -113,6 +130,150 @@ export default async function Dashboard({
       </p>
     </header>
   );
+
+  // ---------------------------------------------------------------- In Process
+  // One card per document still on its way to activation, grouped by stage.
+  // The SLA shown is the document's worst open approver — highest flag, then
+  // most working days — since SLA is per target, never per document (BR-17).
+  if (aktif === "proses") {
+    const { data: dokumen } = await supabase
+      .from("v_daftar_dokumen")
+      .select(
+        "id_proposal, no_dokumen, jenis_kerjasama, status_proposal, nama_mitra, unit_pengusul, waktu_proposal_dokumen",
+      )
+      .in("status_proposal", TAHAP_PROSES)
+      // The proposal keeps "Disetujui" after activation, so "not yet a signed
+      // document" is what actually marks it as still in process.
+      .is("status_dokumen", null)
+      .order("waktu_proposal_dokumen", { ascending: true })
+      .limit(1000);
+    const ids = (dokumen ?? []).map((d) => d.id_proposal);
+    const { data: target } = ids.length
+      ? await supabase
+          .from("v_sla_dokumen")
+          .select("id_proposal, jabatan, durasi_hari_kerja, status_sla")
+          .eq("status", "pending_action")
+          .in("id_proposal", ids)
+      : { data: [] as any[] };
+
+    type Target = { jabatan: string; durasi_hari_kerja: number | null; status_sla: string | null };
+    const lebihBuruk = (a: Target, b: Target) =>
+      (URUTAN_SLA[a.status_sla ?? "normal"] ?? 2) - (URUTAN_SLA[b.status_sla ?? "normal"] ?? 2) ||
+      (b.durasi_hari_kerja ?? 0) - (a.durasi_hari_kerja ?? 0);
+    const sla = new Map<number, { terburuk: Target; jumlah: number }>();
+    for (const t of (target ?? []) as (Target & { id_proposal: number })[]) {
+      const kini = sla.get(t.id_proposal);
+      if (!kini) sla.set(t.id_proposal, { terburuk: t, jumlah: 1 });
+      else {
+        kini.jumlah += 1;
+        if (lebihBuruk(t, kini.terburuk) < 0) kini.terburuk = t;
+      }
+    }
+    const peringkat = (id: number) => {
+      const s = sla.get(id)?.terburuk;
+      return s ? (URUTAN_SLA[s.status_sla ?? "normal"] ?? 2) : 3;
+    };
+
+    const grup = TAHAP_PROSES.map((status) => ({
+      status,
+      dokumen: (dokumen ?? [])
+        .filter((d) => d.status_proposal === status)
+        // Red first, then yellow, then the rest; oldest submission within each.
+        .sort((a, b) => peringkat(a.id_proposal) - peringkat(b.id_proposal)),
+    })).filter((g) => g.dokumen.length > 0);
+
+    return (
+      <div>
+        {judul}
+        {nav}
+        {grup.length === 0 ? (
+          <div
+            className="rounded-xl border bg-white p-10 text-center text-sm"
+            style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+          >
+            Tidak ada dokumen yang sedang dalam proses.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {grup.map((g) => (
+              <section key={g.status}>
+                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                  <StatusPill status={g.status} />
+                  <span style={{ color: "var(--text-muted)" }}>{g.dokumen.length} dokumen</span>
+                </h2>
+                <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {g.dokumen.map((d) => {
+                    const s = sla.get(d.id_proposal);
+                    return (
+                      <li key={d.id_proposal}>
+                        <Link
+                          href={`/kerja-sama/${d.id_proposal}` as Route}
+                          className="flex h-full flex-col gap-1 rounded-xl border bg-white p-4 transition-shadow hover:shadow-sm"
+                          style={{ borderColor: "var(--border)" }}
+                        >
+                          <span className="flex items-start justify-between gap-2">
+                            <span className="min-w-0 truncate text-sm font-medium">
+                              {d.nama_mitra ?? `Proposal #${d.id_proposal}`}
+                            </span>
+                            <span
+                              className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+                              style={{ background: "var(--surface-sunk)", color: "var(--midnight)" }}
+                            >
+                              {d.jenis_kerjasama}
+                            </span>
+                          </span>
+                          {/* No document number until activation (BR-22). */}
+                          <span className="no-dokumen text-xs" style={{ color: "var(--text-secondary)" }}>
+                            {d.no_dokumen ? `No. Dokumen ${d.no_dokumen}` : `No. Proposal #${d.id_proposal}`}
+                          </span>
+                          {d.unit_pengusul ? (
+                            <span className="truncate text-xs" style={{ color: "var(--text-secondary)" }}>
+                              {d.unit_pengusul}
+                            </span>
+                          ) : null}
+                          <span
+                            className="mt-auto flex items-end justify-between gap-2 border-t pt-2 text-xs"
+                            style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+                          >
+                            <span className="min-w-0">
+                              {d.waktu_proposal_dokumen
+                                ? `Diajukan ${new Date(d.waktu_proposal_dokumen).toLocaleDateString("id-ID", {
+                                    timeZone: "Asia/Jakarta",
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}`
+                                : "Belum diajukan"}
+                              {s ? (
+                                <span className="block truncate">
+                                  Menunggu {s.terburuk.jabatan}
+                                  {s.jumlah > 1 ? ` +${s.jumlah - 1}` : ""}
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="shrink-0">
+                              {/* Pending is frozen: the clock really is stopped (BR-08). */}
+                              {d.status_proposal === "Pending" ? (
+                                <SlaFlag hari={null} bendera={null} beku />
+                              ) : s ? (
+                                <SlaFlag hari={s.terburuk.durasi_hari_kerja} bendera={s.terburuk.status_sla} />
+                              ) : (
+                                <SlaFlag hari={null} bendera={null} />
+                              )}
+                            </span>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // ---------------------------------------------------------------- Discussion
   if (aktif === "discussion") {
@@ -390,7 +551,6 @@ export default async function Dashboard({
     { count: lewatSla },
     { data: selesai },
     { data: pin },
-    akun,
     { data: gap },
   ] = await Promise.all([
     // 'Akan Berakhir' is still a live agreement, only nearing its end date.
@@ -415,7 +575,6 @@ export default async function Dashboard({
       .not("waktu_disetujui", "is", null)
       .not("waktu_proposal_dokumen", "is", null),
     supabase.from("v_peta_mitra").select("*").limit(2000),
-    akunSaatIni(),
     // Evaluation analytics. Aggregated below but never detached from the
     // document: every row still carries id_dokumen_kerjasama, which is what
     // makes the drill-down possible (Q8).
@@ -653,7 +812,7 @@ export default async function Dashboard({
         />
       </div>
 
-      {ringkasGap.length > 0 && akun?.role === "admin" ? (
+      {ringkasGap.length > 0 && admin ? (
         <section
           className="rounded-xl border bg-white p-4"
           style={{ borderColor: "var(--border)" }}

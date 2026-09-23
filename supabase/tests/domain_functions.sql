@@ -1043,18 +1043,26 @@ begin
   insert into dokumen_kerja_sama (id_proposal_dokumen, no_dokumen, tanggal_mulai, status)
   values (v_p, 'UJI-IMPL-1', date '2019-05-01', 'Aktif') returning no into v_no;
 
-  insert into implementasi_dokumen (no_dokumen_kerjasama, jenis, judul, tanggal, id_akun_pembuat)
-  values (v_no, 'arrangement', 'IA 2019', date '2019-06-01', 7),
-         (v_no, 'report',      'IR 2020', date '2020-06-01', 7);
+  insert into implementasi_dokumen
+    (no_dokumen_kerjasama, judul, tanggal, periode, jumlah_peserta, id_akun_pembuat)
+  values (v_no, 'IA 2019', date '2019-06-01', 'Ganjil 2019/2020', 40, 7),
+         (v_no, 'IA 2020', date '2020-02-01', 'Genap 2019/2020', null, 7);
   if (select count(*) from implementasi_dokumen where no_dokumen_kerjasama = v_no) <> 2 then
     raise exception 'FAIL impl-a: rows were not stored';
   end if;
 
-  -- Only the two declared kinds exist.
+  -- Periode is a semester of one academic year: consecutive years only.
   begin
-    insert into implementasi_dokumen (no_dokumen_kerjasama, jenis, judul, tanggal, id_akun_pembuat)
-    values (v_no, 'realization', 'salah', date '2020-06-01', 7);
-    raise exception 'FAIL impl-b: an unrecognised jenis was accepted';
+    insert into implementasi_dokumen (no_dokumen_kerjasama, judul, tanggal, periode, id_akun_pembuat)
+    values (v_no, 'salah', date '2020-06-01', 'Ganjil 2019/2021', 7);
+    raise exception 'FAIL impl-b: a malformed periode was accepted';
+  exception when check_violation then null;
+  end;
+
+  begin
+    insert into implementasi_dokumen (no_dokumen_kerjasama, judul, tanggal, jumlah_peserta, id_akun_pembuat)
+    values (v_no, 'salah', date '2020-06-01', -1, 7);
+    raise exception 'FAIL impl-d: a negative jumlah_peserta was accepted';
   exception when check_violation then null;
   end;
 
@@ -1062,7 +1070,7 @@ begin
   if exists (select 1 from implementasi_dokumen where no_dokumen_kerjasama = v_no) then
     raise exception 'FAIL impl-c: rows did not cascade with the document';
   end if;
-  raise notice 'PASS implementasi_dokumen jenis guard and cascade';
+  raise notice 'PASS implementasi_dokumen periode/peserta guards and cascade';
 
   delete from proposal_dokumen where id = v_p;
 end

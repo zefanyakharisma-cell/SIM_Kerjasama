@@ -14,6 +14,7 @@ const WARNA: Record<string, string> = {
   "Disposisi - Tier 3": "var(--status-progress)",
   Pending: "var(--status-pending)",
   Disetujui: "var(--status-approved)",
+  "Siap TTD": "var(--status-approved)",
   Ditolak: "var(--action-danger)",
   Aktif: "var(--status-active)",
   "Akan Berakhir": "var(--sla-yellow)",
