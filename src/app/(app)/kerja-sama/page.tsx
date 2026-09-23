@@ -101,7 +101,15 @@ function IkonEdit() {
 }
 
 /** What a status reads as on screen — same wording as the status pill. */
-const LABEL_STATUS: Record<string, string> = { Pending: "Ditangguhkan", Kedaluarsa: "Kedaluwarsa" };
+// The four downloads (see src/app/api/ekspor/[jenis]/route.ts).
+const UNDUHAN = [
+  ["laporan-aktif", "Download Laporan Kerja Sama Aktif"],
+  ["laporan-proses", "Download Laporan Proses Kerja Sama"],
+  ["data-aktif", "Download Data Kerja Sama Aktif"],
+  ["data-sla", "Download Data SLA"],
+] as const;
+
+const LABEL_STATUS: Record<string, string> ={ Pending: "Ditangguhkan", Kedaluarsa: "Kedaluwarsa" };
 
 /**
  * Filter + sort for every tab (Revisi V6 §1): one search box, the few filters
@@ -587,8 +595,9 @@ export default async function CariKerjaSama({
       ...Object.fromEntries(Object.entries(filter).map(([k, v]) => [`f_${k}`, v])),
     },
   });
-  const unduh = (jenis: string) =>
-    `/api/ekspor/${jenis}?tab=${tab}${kueri ? `&${kueri}` : ""}`;
+  // Each download has its own fixed scope; only the search and column filters
+  // carry over from the list.
+  const unduh = (jenis: string) => `/api/ekspor/${jenis}${kueri ? `?${kueri}` : ""}`;
 
   const adaFilter = Object.keys(filter).length > 0;
 
@@ -620,27 +629,16 @@ export default async function CariKerjaSama({
           {halamanTerakhir}
         </span>
         <span className="flex flex-wrap gap-2">
-          <a
-            href={unduh("aktif")}
-            className="rounded-lg border px-3 py-1.5 text-xs"
-            style={{ borderColor: "var(--border)", background: "white" }}
-          >
-            Unduh Laporan
-          </a>
-          <a
-            href={unduh("sla")}
-            className="rounded-lg border px-3 py-1.5 text-xs"
-            style={{ borderColor: "var(--border)", background: "white" }}
-          >
-            Unduh Batas Waktu per Dokumen
-          </a>
-          <a
-            href={unduh("proses")}
-            className="rounded-lg border px-3 py-1.5 text-xs"
-            style={{ borderColor: "var(--border)", background: "white" }}
-          >
-            Unduh Dokumen Berjalan
-          </a>
+          {UNDUHAN.map(([jenis, label]) => (
+            <a
+              key={jenis}
+              href={unduh(jenis)}
+              className="rounded-lg border px-3 py-1.5 text-xs"
+              style={{ borderColor: "var(--border)", background: "white" }}
+            >
+              {label}
+            </a>
+          ))}
         </span>
       </div>
 

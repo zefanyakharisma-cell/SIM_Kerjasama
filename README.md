@@ -208,7 +208,7 @@ The UI is in Bahasa Indonesia.
 | `/master-data` | Units, positions/tiers, partners (incl. merge), countries, agendas, managed lists *(admin)* |
 | `/admin` | Settings and thresholds *(admin)* |
 | `/evaluasi/[token]` | **Public** partner evaluation page (bilingual, no login) |
-| `/api/ekspor/[jenis]` | Excel exports: `aktif`, `sla`, `proses` |
+| `/api/ekspor/[jenis]` | Excel downloads on Cari Kerja Sama: `laporan-aktif` (Table_Database_Kerjasama layout), `laporan-proses` (Table_Database_SLA layout), `data-aktif`, `data-sla` |
 | `/api/v1/kerja-sama…` | Realization read API (see below) |
 
 ## Roles & access

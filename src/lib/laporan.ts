@@ -275,7 +275,7 @@ const WAKTU = /^\d{4}-\d{2}-\d{2}T/;
 const WIB_MS = 7 * 60 * 60 * 1000;
 
 /** One cell's value, typed so Excel sorts and filters it properly. */
-function selXlsx(v: unknown): { nilai: unknown; format?: string; lebar: number } {
+export function selXlsx(v: unknown): { nilai: unknown; format?: string; lebar: number } {
   if (v === null || v === undefined) return { nilai: null, lebar: 0 };
   if (typeof v === "boolean") return { nilai: v ? "Ya" : "Tidak", lebar: 5 };
   if (typeof v === "number") return { nilai: v, lebar: String(v).length };
