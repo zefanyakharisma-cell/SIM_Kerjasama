@@ -234,8 +234,9 @@ export function SidebarNav({
       {/* Menu button on the LEFT (Revisi V8 mobile pass): it matches the side
           the drawer slides in from, and it leaves the top-right corner to the
           floating notification bell, which used to land on top of it. */}
+      {/* Sticky on both: the menu stays in reach however far a page scrolls. */}
       <header
-        className="flex items-center gap-2 px-4 py-3 text-white md:hidden"
+        className="sticky top-0 z-30 flex items-center gap-2 px-4 py-3 text-white md:hidden"
         style={{ background: "var(--midnight)" }}
       >
         <button
@@ -269,7 +270,7 @@ export function SidebarNav({
       ) : null}
 
       <aside
-        className={`hidden shrink-0 flex-col py-5 text-white transition-[width] duration-150 md:flex ${
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col py-5 text-white transition-[width] duration-150 md:flex ${
           terlipat ? "w-16 px-2" : "w-64 px-5"
         }`}
         style={{ background: "var(--midnight)" }}
