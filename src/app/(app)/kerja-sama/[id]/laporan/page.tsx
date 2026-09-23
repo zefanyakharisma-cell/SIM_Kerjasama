@@ -177,12 +177,16 @@ export default async function LaporanDokumen({
           .select("no_dokumen_kerjasama", { count: "exact", head: true })
           .eq("no_dokumen_kerjasama", dok.no)
       : Promise.resolve({ count: 0 }),
-    // Implementation Arrangement / Report (Revisi V8 §2). Read-only here — the
-    // Realization Form project is what writes these rows.
+    // Implementation Arrangements, one activity per row, each with its
+    // Implementation Report file. Read-only here — the Realization Form
+    // project is what writes these rows.
     dok?.no
       ? supabase
           .from("implementasi_dokumen")
-          .select("no, jenis, judul, deskripsi, tanggal, berkas, status")
+          .select(
+            `no, judul, tanggal, periode, jenis_kegiatan, jumlah_peserta, berkas, berkas_laporan,
+             unit_pelaksana:id_unit_pelaksana ( nama )`,
+          )
           .eq("no_dokumen_kerjasama", dok.no)
           .order("tanggal", { ascending: false })
       : Promise.resolve({ data: [] as any[] }),
@@ -265,7 +269,7 @@ export default async function LaporanDokumen({
   // files and the implementation documents share the bucket and the map.
   const pathLampiran = [
     ...(disposisi ?? []).map((d: any) => d.lampiran),
-    ...(implementasi ?? []).map((i: any) => i.berkas),
+    ...(implementasi ?? []).flatMap((i: any) => [i.berkas, i.berkas_laporan]),
   ].filter(Boolean);
 
   const [{ data: target }, { data: lampiranSigned }] = await Promise.all([
@@ -815,51 +819,71 @@ export default async function LaporanDokumen({
       ) : null}
 
       {tab === "implementasi" && dok?.no ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {([
-            ["arrangement", "Implementation Arrangement"],
-            ["report", "Implementation Report"],
-          ] as const).map(([jenis, judul]) => {
-            const baris = (implementasi ?? []).filter((i: any) => i.jenis === jenis);
-            return (
-              <Kartu key={jenis} judul={judul}>
-                <ul className="space-y-3 text-sm">
-                  {baris.map((i: any) => (
-                    <li key={i.no} className="border-b pb-3 last:border-0 last:pb-0" style={gaya}>
-                      <div className="flex items-baseline justify-between gap-3">
+        <Kartu judul="Implementation Arrangement">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
+                  {["No.", "Periode", "Nama Kegiatan", "Jenis Kegiatan", "Unit Pelaksana", "Jumlah Peserta"].map(
+                    (l) => (
+                      <th
+                        key={l}
+                        className={`px-2 py-2 font-medium ${l === "Jumlah Peserta" ? "text-right" : ""}`}
+                      >
+                        {l}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {(implementasi ?? []).map((i: any, n: number) => {
+                  // The IA's own file and its Implementation Report, when uploaded.
+                  const unduhan = [
+                    [i.berkas, "Unduh IA"],
+                    [i.berkas_laporan, "Unduh Laporan (IR)"],
+                  ].filter(([b]) => b && urlLampiran.get(b)) as [string, string][];
+                  return (
+                    <tr key={i.no} className="border-t align-top" style={gaya}>
+                      <td className="px-2 py-2" style={{ color: "var(--text-secondary)" }}>
+                        {n + 1}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-2">{i.periode ?? "—"}</td>
+                      <td className="px-2 py-2">
                         <span className="font-medium">{i.judul}</span>
-                        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                          <Tanggal nilai={i.tanggal} />
-                        </span>
-                      </div>
-                      {i.deskripsi ? (
-                        <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                          {i.deskripsi}
-                        </p>
-                      ) : null}
-                      <div className="mt-1 flex items-center gap-3 text-xs">
-                        <span style={{ color: "var(--text-muted)" }}>{i.status}</span>
-                        {i.berkas && urlLampiran.get(i.berkas) ? (
-                          <a
-                            href={urlLampiran.get(i.berkas) as string}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline"
-                          >
-                            Unduh
-                          </a>
+                        {unduhan.length ? (
+                          <span className="mt-0.5 flex flex-wrap gap-3 text-xs">
+                            {unduhan.map(([b, label]) => (
+                              <a
+                                key={label}
+                                href={urlLampiran.get(b) as string}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline"
+                              >
+                                {label}
+                              </a>
+                            ))}
+                          </span>
                         ) : null}
-                      </div>
-                    </li>
-                  ))}
-                  {!baris.length ? (
-                    <li style={{ color: "var(--text-muted)" }}>Belum ada dokumen implementasi.</li>
-                  ) : null}
-                </ul>
-              </Kartu>
-            );
-          })}
-        </div>
+                      </td>
+                      <td className="px-2 py-2">{i.jenis_kegiatan ?? "—"}</td>
+                      <td className="px-2 py-2">{i.unit_pelaksana?.nama ?? "—"}</td>
+                      <td className="px-2 py-2 text-right">{i.jumlah_peserta ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+                {!implementasi?.length ? (
+                  <tr>
+                    <td colSpan={6} className="px-2 py-8 text-center" style={{ color: "var(--text-muted)" }}>
+                      Belum ada kegiatan implementasi.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Kartu>
       ) : null}
 
       {tab === "pembaruan" && adaPembaruan ? (
