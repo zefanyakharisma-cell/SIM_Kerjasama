@@ -27,14 +27,19 @@ async function panggil(fn: string, args: Record<string, unknown>): Promise<Hasil
   return { ok: true, nilai: data };
 }
 
-/** The Head dispositions a renewal request to the owning unit (PRD §9.1). */
+/**
+ * The Head dispositions a renewal request (PRD §9.1) — to the owning unit by
+ * default, or to the positions Admin picked. An empty list means automatic.
+ */
 export async function kirimPermintaanPembaruan(
   noDokumen: number,
   pesan: string,
+  jabatan: number[] = [],
 ): Promise<Hasil> {
   const hasil = await panggil("kirim_permintaan_pembaruan", {
     p_no_dokumen: noDokumen,
     p_pesan: pesan || null,
+    p_jabatan: jabatan.length ? jabatan : null,
   });
   revalidatePath("/kerja-sama", "layout");
   return hasil;

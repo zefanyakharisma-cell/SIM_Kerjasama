@@ -21,6 +21,8 @@ import {
   type Hasil,
 } from "@/lib/actions/pembaruan";
 import { unggahBerkas, TERIMA_PDF_WORD } from "@/lib/unggah";
+import { TujuanEvaluasi } from "@/components/tujuan-evaluasi";
+import { bacaTujuanEvaluasi, opsiJabatanEvaluasi } from "@/lib/tujuan-evaluasi";
 
 /**
  * One renewal, end to end (PRD §9.3–§9.6, Design §5.3, §5.9, §5.11) — the
@@ -199,11 +201,19 @@ export async function PembaruanPanel({
     // permintaan pembaruan" with no explanation anywhere.
     async function minta(formData: FormData) {
       "use server";
+      const halamanMinta = `/kerja-sama/${idProposal}/laporan?tab=pembaruan`;
+      const tujuan = bacaTujuanEvaluasi(formData);
+      if ("galat" in tujuan) return cek(halamanMinta, { ok: false, pesan: tujuan.galat });
       cek(
-        `/kerja-sama/${idProposal}/laporan?tab=pembaruan`,
-        await kirimPermintaanPembaruan(noDokumen, String(formData.get("pesan") ?? "")),
+        halamanMinta,
+        await kirimPermintaanPembaruan(
+          noDokumen,
+          String(formData.get("pesan") ?? ""),
+          tujuan.jabatan,
+        ),
       );
     }
+    const opsiJabatan = io ? await opsiJabatanEvaluasi(supabase) : [];
     return (
       <section className={kartu} style={{ borderColor: "var(--border)" }}>
         <h2 className="mb-1 text-sm font-semibold">Pembaruan</h2>
@@ -220,20 +230,23 @@ export async function PembaruanPanel({
           </p>
         ) : null}
         {io ? (
-          <form action={minta} className="mt-3 flex flex-wrap gap-2">
-            <input
-              name="pesan"
-              placeholder="Pesan untuk unit pemilik…"
-              className="min-w-[14rem] flex-1 rounded-lg border px-3 py-1.5 text-sm"
-              style={{ borderColor: "var(--border)" }}
-            />
-            <SubmitButton
-              labelMenunggu="Mengirim…"
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-white"
-              style={{ background: "var(--renewal-request)" }}
-            >
-              Kirim Disposisi Evaluasi
-            </SubmitButton>
+          <form action={minta} className="mt-3 space-y-3">
+            <TujuanEvaluasi opsi={opsiJabatan} />
+            <div className="flex flex-wrap gap-2">
+              <input
+                name="pesan"
+                placeholder="Pesan untuk unit tujuan…"
+                className="min-w-[14rem] flex-1 rounded-lg border px-3 py-1.5 text-sm"
+                style={{ borderColor: "var(--border)" }}
+              />
+              <SubmitButton
+                labelMenunggu="Mengirim…"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-white"
+                style={{ background: "var(--renewal-request)" }}
+              >
+                Kirim Disposisi Evaluasi
+              </SubmitButton>
+            </div>
           </form>
         ) : null}
       </section>

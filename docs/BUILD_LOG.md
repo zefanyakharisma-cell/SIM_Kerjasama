@@ -447,3 +447,35 @@ creates it; do not rely on the default-privileges line from an earlier one.
 
 **Still owed outside SQL:** enable Supabase Auth's leaked-password protection
 (HaveIBeenPwned) in project settings — carried over from Phase 1 and still off.
+
+## 10 — Disposisi Evaluasi: automatic or manually chosen recipients
+
+Admin now chooses who receives the PETRA evaluation form when sending a
+Disposisi Evaluasi, both on Akan Berakhir and on the Pembaruan tab:
+
+- **Otomatis ke unit pengusul** (the default): unchanged routing through
+  `jabatan_kepala_lingkup`.
+- **Pilih jabatan manual**: any active position, via the same `PilihBanyak`
+  search list the approval disposition uses. Manual with nothing ticked is
+  refused rather than silently falling back to automatic.
+
+`kirim_permintaan_pembaruan` gains `p_jabatan int[] default null`. The old
+`(int, text)` signature is dropped, not overloaded: with defaults on both, a
+two-argument call would be ambiguous. Grants are restated because of the drop.
+An unknown or inactive position is refused, because it would create an
+evaluation nobody can fill and hold the gate shut.
+
+`mulai_proses_pembaruan` now tells the positions the renewal request actually
+went to, instead of recomputing the lingkup heads. That is the same set in
+automatic mode, and the chosen evaluators in manual mode.
+
+Verified on a fresh local Postgres 16: the new manual block passes, and so do
+V7's automatic-routing checks. Replaying the repo from scratch needed
+local-only workarounds for drift that predates this change and is left for a
+separate fix:
+
+- `20260917001000` reorders `v_daftar_dokumen` with `create or replace`.
+- `seed.sql` still uses pre-V8 roles (`io_admin`, `submitter`) and re-inserts
+  agenda rows already inserted by `20260919000400`.
+- The V7 test block predates Siap TTD and the Mulai Proses Pembaruan step.
+- `bersihkan_proposal_uji` predates `proposal_status_history`.

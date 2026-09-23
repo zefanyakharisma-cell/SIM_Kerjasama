@@ -1370,3 +1370,81 @@ begin
   delete from partner where id = v_pt;
 end
 $t$;
+
+-- ===========================================================================
+-- Disposisi Evaluasi, manual — Admin picks the positions that receive the
+-- PETRA evaluation instead of the automatic lingkup heads. Same document shape
+-- as Revisi V7 above, so automatic would be jabatan 1 and 3; the pick here is
+-- 3 and 4, and exactly those must be created. An unknown or inactive position
+-- is refused and leaves nothing behind.
+-- ===========================================================================
+do $t$
+declare
+  v_pt int; v_p int; v_no int; v_t int; v_ok boolean;
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into partner (nama, is_international, id_negara, kota)
+  values ('Uji Mitra Manual', false, 1, 'Surabaya') returning id into v_pt;
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Draft',4) returning id into v_p;
+  insert into partner_pengusul (id_partner, id_proposal_dokumen, is_lead) values (v_pt, v_p, true);
+  insert into pengusul (id_jabatan, id_proposal_dokumen) values (4, v_p);
+  insert into proposal_dokumen_unit (id_proposal_dokumen, id_unit) values (v_p, 7), (v_p, 2);
+
+  perform ajukan_proposal(v_p);
+  perform kirim_disposisi(v_p, array[1], 'uji manual');
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p;
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t, 'approve', null);
+  perform set_config('simks.akun_id','7',true);
+  perform tandai_siap_ttd(v_p);
+  select aktivasi_dokumen(v_p, 'UJI/MANUAL/1', current_date - 300, current_date - 300,
+                          current_date + 30) into v_no;
+
+  -- A position that does not exist is refused, and the whole send rolls back.
+  v_ok := false;
+  begin
+    perform kirim_permintaan_pembaruan(v_no, 'uji manual', array[3, 2147483647]);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL manual-a: an unknown jabatan was accepted'; end if;
+
+  -- So is an inactive one.
+  update jabatan set is_active = false where id = 4;
+  v_ok := false;
+  begin
+    perform kirim_permintaan_pembaruan(v_no, 'uji manual', array[4]);
+  exception when others then v_ok := true; end;
+  update jabatan set is_active = true where id = 4;
+  if not v_ok then raise exception 'FAIL manual-b: an inactive jabatan was accepted'; end if;
+
+  if exists (select 1 from disposisi where no_dokumen_kerjasama = v_no) then
+    raise exception 'FAIL manual-c: a refused send left a disposisi behind';
+  end if;
+
+  -- The pick, with a duplicate: one target and one evaluation per position.
+  perform kirim_permintaan_pembaruan(v_no, 'uji manual', array[4, 3, 4]);
+  if array(select dt.id_jabatan from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+            where d.no_dokumen_kerjasama = v_no and d.jenis_disposisi = 'renewal_request'
+            order by 1) <> array[3,4] then
+    raise exception 'FAIL manual-d: targets are not exactly the picked positions';
+  end if;
+  if array(select id_jabatan_pengusul from evaluasi
+            where id_dokumen_kerjasama = v_no and respondent_type = 'faculty'
+            order by 1) <> array[3,4] then
+    raise exception 'FAIL manual-e: PETRA evaluations are not exactly the picked positions';
+  end if;
+  if (select count(*) from evaluasi
+       where id_dokumen_kerjasama = v_no and respondent_type = 'partner') <> 1 then
+    raise exception 'FAIL manual-f: expected one partner evaluation';
+  end if;
+
+  raise notice 'PASS Disposisi Evaluasi manual';
+
+  -- bersihkan_proposal_uji predates proposal_status_history.
+  delete from proposal_status_history where id_proposal_dokumen = v_p;
+  delete from proposal_dokumen_unit where id_proposal_dokumen = v_p;
+  perform bersihkan_proposal_uji(v_p);
+  delete from partner where id = v_pt;
+end
+$t$;

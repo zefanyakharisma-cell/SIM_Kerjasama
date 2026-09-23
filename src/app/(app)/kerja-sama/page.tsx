@@ -9,6 +9,8 @@ import { SlaFlag } from "@/components/sla-flag";
 import { SubmitButton } from "@/components/submit-button";
 import { Tabs } from "@/components/tabs";
 import { GERBANG } from "@/components/pembaruan-panel";
+import { TujuanEvaluasi } from "@/components/tujuan-evaluasi";
+import { bacaTujuanEvaluasi, opsiJabatanEvaluasi } from "@/lib/tujuan-evaluasi";
 import {
   KOLOM,
   PER_HALAMAN,
@@ -388,6 +390,8 @@ function TabelDokumen({
     gerbang: Map<number, string>;
     io: boolean;
     minta: (formData: FormData) => Promise<void>;
+    // Positions Admin may pick for a manual Disposisi Evaluasi.
+    opsiJabatan: { id: number; label: string }[];
     // Days left below which Sisa Hari turns red — derived from
     // expiring_soon_months in settings, never a literal (DR-04).
     ambangHari: number;
@@ -501,14 +505,15 @@ function TabelDokumen({
                           </summary>
                           <form
                             action={pembaruan.minta}
-                            className="absolute right-0 z-10 mt-1 w-64 space-y-2 rounded-lg border bg-white p-3 shadow"
+                            className="absolute right-0 z-10 mt-1 w-80 space-y-2 rounded-lg border bg-white p-3 shadow"
                             style={{ borderColor: "var(--border)" }}
                           >
                             <input type="hidden" name="no" value={b.no_dokumen_kerjasama} />
+                            <TujuanEvaluasi opsi={pembaruan.opsiJabatan} />
                             <textarea
                               name="pesan"
                               rows={2}
-                              placeholder="Pesan untuk unit pemilik (opsional)…"
+                              placeholder="Pesan untuk unit tujuan (opsional)…"
                               className="w-full rounded border px-2 py-1 text-xs"
                               style={{ borderColor: "var(--border)" }}
                             />
@@ -568,15 +573,23 @@ export default async function CariKerjaSama({
     (jalan ?? []).map((r: any) => [r.no_dokumen_kerjasama, r.gerbang]),
   );
 
+  // Only Admin on Akan Berakhir can send a Disposisi Evaluasi from this list.
+  const opsiJabatan = tab === "berakhir" && io ? await opsiJabatanEvaluasi(supabase) : [];
+
   const ambangHari = Math.round((batas.getTime() - Date.now()) / 86_400_000);
 
   // A refused renewal request used to leave the row reading "Belum dikirim"
   // with nothing said about why (EC-06).
   async function minta(formData: FormData) {
     "use server";
+    const tujuan = bacaTujuanEvaluasi(formData);
+    if ("galat" in tujuan) {
+      redirect(`/kerja-sama?tab=${tab}&galat=${encodeURIComponent(tujuan.galat)}` as Route);
+    }
     const hasil = await kirimPermintaanPembaruan(
       Number(formData.get("no")),
       String(formData.get("pesan") ?? ""),
+      tujuan.jabatan,
     );
     if (!hasil.ok) {
       redirect(`/kerja-sama?tab=${tab}&galat=${encodeURIComponent(hasil.pesan)}` as Route);
@@ -666,7 +679,7 @@ export default async function CariKerjaSama({
       ) : tab === "aktif" ? (
         <TabelDokumen baris={baris} halaman={halaman} />
       ) : tab === "berakhir" ? (
-        <TabelDokumen baris={baris} halaman={halaman} pembaruan={{ gerbang, io, minta, ambangHari }} />
+        <TabelDokumen baris={baris} halaman={halaman} pembaruan={{ gerbang, io, minta, ambangHari, opsiJabatan }} />
       ) : (
         <div
           className="overflow-x-auto rounded-xl border bg-white"
