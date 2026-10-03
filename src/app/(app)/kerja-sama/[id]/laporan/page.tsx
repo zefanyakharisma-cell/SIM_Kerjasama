@@ -177,18 +177,12 @@ export default async function LaporanDokumen({
           .select("no_dokumen_kerjasama", { count: "exact", head: true })
           .eq("no_dokumen_kerjasama", dok.no)
       : Promise.resolve({ count: 0 }),
-    // Implementation Arrangements, one activity per row, each with its
-    // Implementation Report file. Read-only here — the Realization Form
-    // project is what writes these rows.
+    // The verified Kegiatan SIM Realisasi recorded against this document's
+    // renewal chain, newest first. Read through implementasi_kegiatan because
+    // realisasi's own RLS only knows SIM Realisasi roles; the function applies
+    // this document's read rule instead.
     dok?.no
-      ? supabase
-          .from("implementasi_dokumen")
-          .select(
-            `no, judul, tanggal, periode, jenis_kegiatan, jumlah_peserta, berkas, berkas_laporan,
-             unit_pelaksana:id_unit_pelaksana ( nama )`,
-          )
-          .eq("no_dokumen_kerjasama", dok.no)
-          .order("tanggal", { ascending: false })
+      ? supabase.rpc("implementasi_kegiatan", { p_no: dok.no })
       : Promise.resolve({ data: [] as any[] }),
     idKontak.length
       ? supabase
@@ -265,12 +259,7 @@ export default async function LaporanDokumen({
     .map((d: any) => d.no);
 
   // Signed links for each disposition's attached document.
-  // One signing round trip for both kinds of attachment: the disposition
-  // files and the implementation documents share the bucket and the map.
-  const pathLampiran = [
-    ...(disposisi ?? []).map((d: any) => d.lampiran),
-    ...(implementasi ?? []).flatMap((i: any) => [i.berkas, i.berkas_laporan]),
-  ].filter(Boolean);
+  const pathLampiran = (disposisi ?? []).map((d: any) => d.lampiran).filter(Boolean);
 
   const [{ data: target }, { data: lampiranSigned }] = await Promise.all([
     supabase
@@ -819,48 +808,57 @@ export default async function LaporanDokumen({
       ) : null}
 
       {tab === "implementasi" && dok?.no ? (
-        <Kartu judul="Implementation Arrangement">
+        <Kartu judul="Kegiatan Implementasi">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
-                  {["No.", "Periode", "Nama Kegiatan", "Jenis Kegiatan", "Unit Pelaksana", "Jumlah Peserta"].map(
-                    (l) => (
-                      <th
-                        key={l}
-                        className={`px-2 py-2 font-medium ${l === "Jumlah Peserta" ? "text-right" : ""}`}
-                      >
-                        {l}
-                      </th>
-                    ),
-                  )}
+                  {[
+                    "No.",
+                    "Periode",
+                    "Nama Kegiatan",
+                    "Jenis Kegiatan",
+                    "Unit Pelaksana",
+                    "Mode",
+                    "Tanggal",
+                    "Jumlah Peserta",
+                  ].map((l) => (
+                    <th
+                      key={l}
+                      className={`px-2 py-2 font-medium ${l === "Jumlah Peserta" ? "text-right" : ""}`}
+                    >
+                      {l}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {(implementasi ?? []).map((i: any, n: number) => {
-                  // The IA's own file and its Implementation Report, when uploaded.
+                  // The activity's IA and its Implementation Report, streamed
+                  // from SIM Realisasi by the download route.
                   const unduhan = [
-                    [i.berkas, "Unduh IA"],
-                    [i.berkas_laporan, "Unduh Laporan (IR)"],
-                  ].filter(([b]) => b && urlLampiran.get(b)) as [string, string][];
+                    [i.id_berkas_ia, "Unduh IA"],
+                    [i.id_berkas_ir, "Unduh Laporan (IR)"],
+                  ].filter(([b]) => b) as [number, string][];
                   return (
-                    <tr key={i.no} className="border-t align-top" style={gaya}>
+                    <tr key={i.id} className="border-t align-top" style={gaya}>
                       <td className="px-2 py-2" style={{ color: "var(--text-secondary)" }}>
                         {n + 1}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2">{i.periode ?? "—"}</td>
                       <td className="px-2 py-2">
-                        <span className="font-medium">{i.judul}</span>
+                        <span className="font-medium">{i.nama}</span>
+                        <span className="block text-xs" style={{ color: "var(--text-muted)" }}>
+                          {i.kode}
+                          {/* Recorded under an earlier document of the renewal chain. */}
+                          {i.no_dokumen_asal !== dok.no
+                            ? ` · dicatat pada ${i.nomor_dokumen_asal ?? `dokumen #${i.no_dokumen_asal}`}`
+                            : ""}
+                        </span>
                         {unduhan.length ? (
                           <span className="mt-0.5 flex flex-wrap gap-3 text-xs">
                             {unduhan.map(([b, label]) => (
-                              <a
-                                key={label}
-                                href={urlLampiran.get(b) as string}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline"
-                              >
+                              <a key={label} href={`/api/implementasi/berkas/${b}`} className="underline">
                                 {label}
                               </a>
                             ))}
@@ -868,15 +866,25 @@ export default async function LaporanDokumen({
                         ) : null}
                       </td>
                       <td className="px-2 py-2">{i.jenis_kegiatan ?? "—"}</td>
-                      <td className="px-2 py-2">{i.unit_pelaksana?.nama ?? "—"}</td>
+                      <td className="px-2 py-2">{i.unit_pelaksana ?? "—"}</td>
+                      <td className="px-2 py-2 capitalize">{i.mode ?? "—"}</td>
+                      <td className="whitespace-nowrap px-2 py-2">
+                        <Tanggal nilai={i.tanggal_mulai} />
+                        {i.tanggal_selesai && i.tanggal_selesai !== i.tanggal_mulai ? (
+                          <>
+                            {" – "}
+                            <Tanggal nilai={i.tanggal_selesai} />
+                          </>
+                        ) : null}
+                      </td>
                       <td className="px-2 py-2 text-right">{i.jumlah_peserta ?? "—"}</td>
                     </tr>
                   );
                 })}
                 {!implementasi?.length ? (
                   <tr>
-                    <td colSpan={6} className="px-2 py-8 text-center" style={{ color: "var(--text-muted)" }}>
-                      Belum ada kegiatan implementasi.
+                    <td colSpan={8} className="px-2 py-8 text-center" style={{ color: "var(--text-muted)" }}>
+                      Belum ada kegiatan terverifikasi dari SIM Realisasi.
                     </td>
                   </tr>
                 ) : null}
