@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+             id="DEF_P1" targetNamespace="https://simks.petra.ac.id/bpmn"
+             exporter="SIM-KS docs/proses-bisnis/generate.py" exporterVersion="1.0">
+  <collaboration id="COL_P1">
+    <participant id="POOL_P1" name="PCU · KUI — Pengajuan &amp; Persetujuan Kerja Sama" processRef="PROC_P1"/>
+  </collaboration>
+  <process id="PROC_P1" name="Pengajuan &amp; Persetujuan Kerja Sama" isExecutable="false">
+    <laneSet id="LS_P1">
+      <lane id="L_P1_U" name="Unit Pengusul">
+        <flowNodeRef>s_mulai</flowNodeRef>
+        <flowNodeRef>t_isi</flowNodeRef>
+        <flowNodeRef>t_ajukan</flowNodeRef>
+      </lane>
+      <lane id="L_P1_A" name="Admin KUI">
+        <flowNodeRef>s_langsung</flowNodeRef>
+        <flowNodeRef>t_catat</flowNodeRef>
+        <flowNodeRef>t_disposisi</flowNodeRef>
+        <flowNodeRef>t_reaktivasi</flowNodeRef>
+        <flowNodeRef>t_revisi</flowNodeRef>
+        <flowNodeRef>t_ttd</flowNodeRef>
+        <flowNodeRef>t_sign</flowNodeRef>
+        <flowNodeRef>t_aktivasi</flowNodeRef>
+        <flowNodeRef>e_aktif</flowNodeRef>
+      </lane>
+      <lane id="L_P1_J" name="Pejabat Disposisi (Tier 1–3)">
+        <flowNodeRef>t_tinjau</flowNodeRef>
+        <flowNodeRef>b_sla</flowNodeRef>
+        <flowNodeRef>g_kep</flowNodeRef>
+        <flowNodeRef>e_tolak</flowNodeRef>
+        <flowNodeRef>g_tier</flowNodeRef>
+      </lane>
+      <lane id="L_P1_S" name="Sistem SIM-KS">
+        <flowNodeRef>t_tier</flowNodeRef>
+        <flowNodeRef>t_sla</flowNodeRef>
+        <flowNodeRef>e_sla</flowNodeRef>
+        <flowNodeRef>t_beku</flowNodeRef>
+      </lane>
+    </laneSet>
+    <startEvent id="s_mulai" name="Kebutuhan kerja sama">
+      <outgoing>F_s_mulai_t_isi</outgoing>
+    </startEvent>
+    <userTask id="t_isi" name="Isi formulir proposal (Bagian I–IV)">
+      <documentation>Draft</documentation>
+      <incoming>F_s_mulai_t_isi</incoming>
+      <outgoing>F_t_isi_t_ajukan</outgoing>
+    </userTask>
+    <userTask id="t_ajukan" name="Ajukan proposal">
+      <documentation>Diajukan</documentation>
+      <incoming>F_t_isi_t_ajukan</incoming>
+      <outgoing>F_t_ajukan_t_disposisi</outgoing>
+    </userTask>
+    <startEvent id="s_langsung" name="Dokumen sudah ditandatangani">
+      <outgoing>F_s_langsung_t_catat</outgoing>
+    </startEvent>
+    <userTask id="t_catat" name="Catat dokumen langsung">
+      <documentation>Pencatatan Langsung</documentation>
+      <incoming>F_s_langsung_t_catat</incoming>
+      <outgoing>F_t_catat_e_aktif</outgoing>
+    </userTask>
+    <userTask id="t_disposisi" name="Pilih pejabat &amp; kirim disposisi">
+      <documentation>Diproses</documentation>
+      <incoming>F_t_ajukan_t_disposisi</incoming>
+      <outgoing>F_t_disposisi_t_tier</outgoing>
+    </userTask>
+    <userTask id="t_reaktivasi" name="Aktifkan kembali dokumen">
+      <documentation>ronde baru, Tier 1</documentation>
+      <incoming>F_t_beku_t_reaktivasi</incoming>
+      <outgoing>F_t_reaktivasi_t_tier</outgoing>
+    </userTask>
+    <userTask id="t_revisi" name="Unggah revisi draft">
+      <documentation>SLA tetap berjalan</documentation>
+      <incoming>F_g_kep_t_revisi</incoming>
+      <outgoing>F_t_revisi_t_tinjau</outgoing>
+    </userTask>
+    <userTask id="t_ttd" name="Cetak &amp; tandai Siap TTD">
+      <documentation>Disetujui → Siap TTD</documentation>
+      <incoming>F_g_tier_t_ttd</incoming>
+      <outgoing>F_t_ttd_t_sign</outgoing>
+    </userTask>
+    <manualTask id="t_sign" name="Penandatanganan dokumen (offline)">
+      <incoming>F_t_ttd_t_sign</incoming>
+      <outgoing>F_t_sign_t_aktivasi</outgoing>
+    </manualTask>
+    <userTask id="t_aktivasi" name="Aktivasi dokumen &amp; unggah berkas TTD">
+      <incoming>F_t_sign_t_aktivasi</incoming>
+      <outgoing>F_t_aktivasi_e_aktif</outgoing>
+    </userTask>
+    <endEvent id="e_aktif" name="Kerja sama Aktif">
+      <documentation>Aktif</documentation>
+      <incoming>F_t_catat_e_aktif</incoming>
+      <incoming>F_t_aktivasi_e_aktif</incoming>
+    </endEvent>
+    <userTask id="t_tinjau" name="Tinjau proposal">
+      <documentation>Disposisi – Tier n</documentation>
+      <incoming>F_t_tier_t_tinjau</incoming>
+      <incoming>F_t_revisi_t_tinjau</incoming>
+      <outgoing>F_t_tinjau_g_kep</outgoing>
+    </userTask>
+    <boundaryEvent id="b_sla" name="SLA 2 / 4 hari kerja" attachedToRef="t_tinjau" cancelActivity="false">
+      <outgoing>F_b_sla_t_sla</outgoing>
+      <timerEventDefinition id="TD_b_sla"/>
+    </boundaryEvent>
+    <exclusiveGateway id="g_kep" name="Keputusan?">
+      <incoming>F_t_tinjau_g_kep</incoming>
+      <outgoing>F_g_kep_t_revisi</outgoing>
+      <outgoing>F_g_kep_g_tier</outgoing>
+      <outgoing>F_g_kep_e_tolak</outgoing>
+      <outgoing>F_g_kep_t_beku</outgoing>
+    </exclusiveGateway>
+    <endEvent id="e_tolak" name="Ditolak &amp; diarsipkan">
+      <incoming>F_g_kep_e_tolak</incoming>
+    </endEvent>
+    <exclusiveGateway id="g_tier" name="Masih ada tier di atas?">
+      <incoming>F_g_kep_g_tier</incoming>
+      <outgoing>F_g_tier_t_tier</outgoing>
+      <outgoing>F_g_tier_t_ttd</outgoing>
+    </exclusiveGateway>
+    <serviceTask id="t_tier" name="Buka tier terendah yang belum setuju &amp; kirim notifikasi">
+      <incoming>F_t_disposisi_t_tier</incoming>
+      <incoming>F_g_tier_t_tier</incoming>
+      <incoming>F_t_reaktivasi_t_tier</incoming>
+      <outgoing>F_t_tier_t_tinjau</outgoing>
+    </serviceTask>
+    <serviceTask id="t_sla" name="Tandai SLA kuning/merah &amp; kirim pengingat">
+      <incoming>F_b_sla_t_sla</incoming>
+      <outgoing>F_t_sla_e_sla</outgoing>
+    </serviceTask>
+    <endEvent id="e_sla" name="">
+      <incoming>F_t_sla_e_sla</incoming>
+    </endEvent>
+    <serviceTask id="t_beku" name="Bekukan dokumen &amp; hentikan jam SLA">
+      <documentation>Pending</documentation>
+      <incoming>F_g_kep_t_beku</incoming>
+      <outgoing>F_t_beku_t_reaktivasi</outgoing>
+    </serviceTask>
+    <sequenceFlow id="F_s_mulai_t_isi" sourceRef="s_mulai" targetRef="t_isi"/>
+    <sequenceFlow id="F_t_isi_t_ajukan" sourceRef="t_isi" targetRef="t_ajukan"/>
+    <sequenceFlow id="F_t_ajukan_t_disposisi" sourceRef="t_ajukan" targetRef="t_disposisi"/>
+    <sequenceFlow id="F_s_langsung_t_catat" sourceRef="s_langsung" targetRef="t_catat"/>
+    <sequenceFlow id="F_t_catat_e_aktif" sourceRef="t_catat" targetRef="e_aktif"/>
+    <sequenceFlow id="F_t_disposisi_t_tier" sourceRef="t_disposisi" targetRef="t_tier"/>
+    <sequenceFlow id="F_t_tier_t_tinjau" sourceRef="t_tier" targetRef="t_tinjau"/>
+    <sequenceFlow id="F_t_tinjau_g_kep" sourceRef="t_tinjau" targetRef="g_kep"/>
+    <sequenceFlow id="F_g_kep_t_revisi" name="Revisi" sourceRef="g_kep" targetRef="t_revisi"/>
+    <sequenceFlow id="F_t_revisi_t_tinjau" sourceRef="t_revisi" targetRef="t_tinjau"/>
+    <sequenceFlow id="F_g_kep_g_tier" name="Setuju" sourceRef="g_kep" targetRef="g_tier"/>
+    <sequenceFlow id="F_g_kep_e_tolak" name="Tolak" sourceRef="g_kep" targetRef="e_tolak"/>
+    <sequenceFlow id="F_g_kep_t_beku" name="Pending" sourceRef="g_kep" targetRef="t_beku"/>
+    <sequenceFlow id="F_g_tier_t_tier" name="Ya" sourceRef="g_tier" targetRef="t_tier"/>
+    <sequenceFlow id="F_g_tier_t_ttd" name="Tidak" sourceRef="g_tier" targetRef="t_ttd"/>
+    <sequenceFlow id="F_t_beku_t_reaktivasi" name="IO mengaktifkan kembali" sourceRef="t_beku" targetRef="t_reaktivasi"/>
+    <sequenceFlow id="F_t_reaktivasi_t_tier" sourceRef="t_reaktivasi" targetRef="t_tier"/>
+    <sequenceFlow id="F_b_sla_t_sla" sourceRef="b_sla" targetRef="t_sla"/>
+    <sequenceFlow id="F_t_sla_e_sla" sourceRef="t_sla" targetRef="e_sla"/>
+    <sequenceFlow id="F_t_ttd_t_sign" sourceRef="t_ttd" targetRef="t_sign"/>
+    <sequenceFlow id="F_t_sign_t_aktivasi" sourceRef="t_sign" targetRef="t_aktivasi"/>
+    <sequenceFlow id="F_t_aktivasi_e_aktif" sourceRef="t_aktivasi" targetRef="e_aktif"/>
+  </process>
+  <bpmndi:BPMNDiagram id="DIA_P1" name="Pengajuan &amp; Persetujuan Kerja Sama">
+    <bpmndi:BPMNPlane id="PL_P1" bpmnElement="COL_P1">
+      <bpmndi:BPMNShape id="DI_POOL_P1" bpmnElement="POOL_P1" isHorizontal="true"><dc:Bounds x="10" y="10" width="2056.8" height="760"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_L_P1_U" bpmnElement="L_P1_U" isHorizontal="true"><dc:Bounds x="44" y="10" width="2022.8000000000002" height="150"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_L_P1_A" bpmnElement="L_P1_A" isHorizontal="true"><dc:Bounds x="44" y="160" width="2022.8000000000002" height="230"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_L_P1_J" bpmnElement="L_P1_J" isHorizontal="true"><dc:Bounds x="44" y="390" width="2022.8000000000002" height="190"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_L_P1_S" bpmnElement="L_P1_S" isHorizontal="true"><dc:Bounds x="44" y="580" width="2022.8000000000002" height="190"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_s_mulai" bpmnElement="s_mulai"><dc:Bounds x="148" y="67" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_isi" bpmnElement="t_isi"><dc:Bounds x="276" y="54" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_ajukan" bpmnElement="t_ajukan"><dc:Bounds x="444" y="54" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_s_langsung" bpmnElement="s_langsung"><dc:Bounds x="148" y="200" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_catat" bpmnElement="t_catat"><dc:Bounds x="276" y="187" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_disposisi" bpmnElement="t_disposisi"><dc:Bounds x="612" y="287" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_reaktivasi" bpmnElement="t_reaktivasi"><dc:Bounds x="780" y="287" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_revisi" bpmnElement="t_revisi"><dc:Bounds x="1116" y="287" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_ttd" bpmnElement="t_ttd"><dc:Bounds x="1452" y="287" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_sign" bpmnElement="t_sign"><dc:Bounds x="1620" y="287" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_aktivasi" bpmnElement="t_aktivasi"><dc:Bounds x="1788" y="287" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_e_aktif" bpmnElement="e_aktif"><dc:Bounds x="1996" y="300" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_tinjau" bpmnElement="t_tinjau"><dc:Bounds x="948" y="439" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_b_sla" bpmnElement="b_sla"><dc:Bounds x="1034" y="483" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_g_kep" bpmnElement="g_kep"><dc:Bounds x="1148" y="444" width="52" height="52"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_e_tolak" bpmnElement="e_tolak"><dc:Bounds x="1257" y="524" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_g_tier" bpmnElement="g_tier"><dc:Bounds x="1383" y="444" width="52" height="52"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_tier" bpmnElement="t_tier"><dc:Bounds x="780" y="619" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_sla" bpmnElement="t_sla"><dc:Bounds x="948" y="619" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_e_sla" bpmnElement="e_sla"><dc:Bounds x="1092" y="632" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_beku" bpmnElement="t_beku"><dc:Bounds x="1217" y="619" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="DI_F_s_mulai_t_isi" bpmnElement="F_s_mulai_t_isi"><di:waypoint x="184" y="85"/><di:waypoint x="276" y="85"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_isi_t_ajukan" bpmnElement="F_t_isi_t_ajukan"><di:waypoint x="392" y="85"/><di:waypoint x="444" y="85"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_ajukan_t_disposisi" bpmnElement="F_t_ajukan_t_disposisi"><di:waypoint x="560" y="85"/><di:waypoint x="670" y="85"/><di:waypoint x="670" y="287"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_s_langsung_t_catat" bpmnElement="F_s_langsung_t_catat"><di:waypoint x="184" y="218"/><di:waypoint x="276" y="218"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_catat_e_aktif" bpmnElement="F_t_catat_e_aktif"><di:waypoint x="392" y="218"/><di:waypoint x="2014" y="218"/><di:waypoint x="2014" y="300"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_disposisi_t_tier" bpmnElement="F_t_disposisi_t_tier"><di:waypoint x="640" y="349"/><di:waypoint x="640" y="650"/><di:waypoint x="780" y="650"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_tier_t_tinjau" bpmnElement="F_t_tier_t_tinjau"><di:waypoint x="896" y="650"/><di:waypoint x="922" y="650"/><di:waypoint x="922" y="470"/><di:waypoint x="948" y="470"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_tinjau_g_kep" bpmnElement="F_t_tinjau_g_kep"><di:waypoint x="1064" y="470"/><di:waypoint x="1148" y="470"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_kep_t_revisi" bpmnElement="F_g_kep_t_revisi"><di:waypoint x="1174" y="444"/><di:waypoint x="1174" y="349"/><bpmndi:BPMNLabel><dc:Bounds x="1180" y="418" width="48" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_revisi_t_tinjau" bpmnElement="F_t_revisi_t_tinjau"><di:waypoint x="1116" y="318"/><di:waypoint x="1006" y="318"/><di:waypoint x="1006" y="439"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_kep_g_tier" bpmnElement="F_g_kep_g_tier"><di:waypoint x="1200" y="470"/><di:waypoint x="1383" y="470"/><bpmndi:BPMNLabel><dc:Bounds x="1206" y="454" width="48" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_kep_e_tolak" bpmnElement="F_g_kep_e_tolak"><di:waypoint x="1187" y="483"/><di:waypoint x="1187" y="542"/><di:waypoint x="1257" y="542"/><bpmndi:BPMNLabel><dc:Bounds x="1192" y="514" width="41" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_kep_t_beku" bpmnElement="F_g_kep_t_beku"><di:waypoint x="1174" y="496"/><di:waypoint x="1174" y="650"/><di:waypoint x="1217" y="650"/><bpmndi:BPMNLabel><dc:Bounds x="1122" y="558" width="55" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_tier_t_tier" bpmnElement="F_g_tier_t_tier"><di:waypoint x="1409" y="496"/><di:waypoint x="1409" y="730"/><di:waypoint x="838" y="730"/><di:waypoint x="838" y="681"/><bpmndi:BPMNLabel><dc:Bounds x="1415" y="512" width="20" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_tier_t_ttd" bpmnElement="F_g_tier_t_ttd"><di:waypoint x="1435" y="470"/><di:waypoint x="1540" y="470"/><di:waypoint x="1540" y="349"/><bpmndi:BPMNLabel><dc:Bounds x="1439" y="454" width="41" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_beku_t_reaktivasi" bpmnElement="F_t_beku_t_reaktivasi"><di:waypoint x="1309" y="681"/><di:waypoint x="1309" y="752"/><di:waypoint x="754" y="752"/><di:waypoint x="754" y="318"/><di:waypoint x="780" y="318"/><bpmndi:BPMNLabel><dc:Bounds x="939" y="734" width="167" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_reaktivasi_t_tier" bpmnElement="F_t_reaktivasi_t_tier"><di:waypoint x="884" y="349"/><di:waypoint x="884" y="619"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_b_sla_t_sla" bpmnElement="F_b_sla_t_sla"><di:waypoint x="1052" y="519"/><di:waypoint x="1052" y="600"/><di:waypoint x="1006" y="600"/><di:waypoint x="1006" y="619"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_sla_e_sla" bpmnElement="F_t_sla_e_sla"><di:waypoint x="1064" y="650"/><di:waypoint x="1092" y="650"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_ttd_t_sign" bpmnElement="F_t_ttd_t_sign"><di:waypoint x="1568" y="318"/><di:waypoint x="1620" y="318"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_sign_t_aktivasi" bpmnElement="F_t_sign_t_aktivasi"><di:waypoint x="1736" y="318"/><di:waypoint x="1788" y="318"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_aktivasi_e_aktif" bpmnElement="F_t_aktivasi_e_aktif"><di:waypoint x="1904" y="318"/><di:waypoint x="1996" y="318"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

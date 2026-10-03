@@ -1,0 +1,561 @@
+<title>SIM-KS Business Process</title>
+<meta name="description" content="Bizagi-style BPMN 2.0 business process diagrams for SIM Kerja Sama (KUI, Petra Christian University).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column for prose; each diagram breaks out to a full-width
+   modeller "sheet" that scrolls sideways on its own. */
+:root {
+  --bg: #f3f5f9;
+  --surface: #ffffff;
+  --fg: #172033;
+  --muted: #56617a;
+  --line: #d6dce8;
+  --accent: #1d3f7a;        /* PCU navy */
+  --accent-soft: #e3eaf7;
+  --mark: #f2b632;          /* PCU gold, used sparingly */
+
+  /* The diagram sheet stays paper-light in both themes, like the modeller canvas. */
+  --sheet: #ffffff;
+  --sheet-grid: #eef1f6;
+  --pool-hdr: #dfe6f1;
+  --lane: #ffffff;
+  --lane-alt: #f7f9fc;
+  --lane-hdr: #eaeff7;
+  --lane-line: #8193b2;
+  --ink: #1f2a3d;
+  --task-a: #ffffff;
+  --task-b: #dbe8f8;
+  --task-line: #2f6aa6;
+  --icon: #3b5f8c;
+  --start: #e3f5dc;
+  --start-line: #3f9a35;
+  --end: #fbe1df;
+  --end-line: #c4342b;
+  --int: #fff3d6;
+  --int-line: #c98a13;
+  --gw: #fff6c7;
+  --gw-line: #c9a227;
+  --gw-mark: #6b5510;
+  --flow: #39465c;
+  --note: #6a7487;
+
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --f-diagram: "Segoe UI", "Public Sans", Tahoma, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1522; --surface: #172033; --fg: #e5eaf3; --muted: #9aa6bd;
+    --line: #2b3750; --accent: #9dbcf0; --accent-soft: #1e2d4a; --mark: #f2c14e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1522; --surface: #172033; --fg: #e5eaf3; --muted: #9aa6bd;
+  --line: #2b3750; --accent: #9dbcf0; --accent-soft: #1e2d4a; --mark: #f2c14e;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 400 15px/1.6 var(--f-body);
+  padding-inline: 16px; padding-block: 0 64px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+.prose { max-width: 70ch; }
+
+header.top { padding-block: 40px 20px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.eyebrow { font: 500 12px/1 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 800 clamp(28px, 4.2vw, 42px)/1.1 var(--f-display); margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+h1 span { box-shadow: inset 0 -.28em 0 color-mix(in srgb, var(--mark) 55%, transparent); }
+h2 { font: 700 24px/1.2 var(--f-display); margin: 0; text-wrap: balance; }
+h3 { font: 700 15px/1.3 var(--f-display); margin: 0; letter-spacing: .01em; }
+p { margin: 0; }
+.lede { color: var(--muted); font-size: 16px; }
+code, .mono { font-family: var(--f-mono); font-size: .86em; }
+code { background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 18px; }
+nav.toc a {
+  font: 500 13px/1 var(--f-body); color: var(--accent); text-decoration: none;
+  border: 1px solid var(--line); background: var(--surface); padding: 8px 12px; border-radius: 999px;
+}
+nav.toc a:hover { border-color: var(--accent); }
+nav.toc a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+section.proc { padding-block: 36px 8px; display: grid; gap: 16px; }
+.proc-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
+.proc-head > div { display: grid; gap: 6px; min-width: 0; }
+.num { font: 500 12px/1 var(--f-mono); color: var(--accent); letter-spacing: .06em; }
+
+.tools { display: flex; gap: 6px; }
+button.tg {
+  font: 500 13px/1 var(--f-body); color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); padding: 8px 12px; border-radius: 6px; cursor: pointer;
+}
+button.tg[aria-pressed="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+.sheet {
+  background: var(--sheet);
+  background-image: linear-gradient(var(--sheet-grid) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--sheet-grid) 1px, transparent 1px);
+  background-size: 20px 20px;
+  border: 1px solid var(--line); border-radius: 8px;
+  overflow-x: auto; overscroll-behavior-x: contain; padding: 12px;
+  cursor: grab;
+}
+.sheet.dragging { cursor: grabbing; user-select: none; }
+.sheet svg { display: block; max-width: none; }
+.sheet.fit svg { width: 100%; height: auto; }
+.hint { font-size: 13px; color: var(--muted); }
+
+/* diagram styling — Bizagi Modeler look */
+svg.bpmn { font-family: var(--f-diagram); }
+.pool { fill: none; stroke: var(--lane-line); stroke-width: 1.4; }
+.pool-hdr { fill: var(--pool-hdr); stroke: var(--lane-line); stroke-width: 1.2; }
+.pool-t { font-size: 13px; font-weight: 700; fill: var(--ink); }
+.lane { fill: var(--lane); stroke: var(--lane-line); stroke-width: 1; }
+.lane-alt { fill: var(--lane-alt); }
+.lane-hdr { fill: var(--lane-hdr); stroke: var(--lane-line); stroke-width: 1; }
+.lane-t { font-size: 12px; font-weight: 600; fill: var(--ink); }
+.g-task-a { stop-color: var(--task-a); }
+.g-task-b { stop-color: var(--task-b); }
+.task { stroke: var(--task-line); stroke-width: 1.4; filter: drop-shadow(1.5px 2px 0 rgba(31, 42, 61, .14)); }
+.task-t { font-size: 11.5px; fill: var(--ink); }
+.ic { fill: var(--icon); }
+.ic-hole { fill: var(--task-a); }
+.sub-m { fill: var(--task-a); stroke: var(--task-line); stroke-width: 1.1; }
+.sub-p { stroke: var(--task-line); stroke-width: 1.5; fill: none; }
+.ev-start { fill: var(--start); stroke: var(--start-line); stroke-width: 1.8; }
+.ev-end { fill: var(--end); stroke: var(--end-line); stroke-width: 4; }
+.ev-int { fill: var(--int); stroke: var(--int-line); stroke-width: 1.4; }
+.ev-int-in { fill: none; stroke: var(--int-line); stroke-width: 1.2; }
+.clock circle { fill: var(--sheet); stroke: var(--ink); stroke-width: 1.1; }
+.clock line, .clock path { stroke: var(--ink); stroke-width: 1.1; fill: none; }
+.ev-t { font-size: 11px; fill: var(--ink); }
+.gw { fill: var(--gw); stroke: var(--gw-line); stroke-width: 1.6; filter: drop-shadow(1.5px 2px 0 rgba(31, 42, 61, .12)); }
+.gw-m { stroke: var(--gw-mark); stroke-width: 3; stroke-linecap: round; fill: none; }
+.flow { fill: none; stroke: var(--flow); stroke-width: 1.3; stroke-linejoin: round; }
+.arrow { fill: var(--flow); }
+.flow-l { font-size: 11px; font-weight: 600; fill: var(--flow); paint-order: stroke; stroke: var(--sheet); stroke-width: 4px; }
+.note { font: 10px var(--f-mono); fill: var(--note); }
+
+/* rules under each diagram */
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.rule { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.rule p { color: var(--muted); font-size: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px/1.3 var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+td.t { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+
+.status { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { font: 500 12px/1 var(--f-mono); padding: 6px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.chip.end { background: color-mix(in srgb, var(--end-line) 16%, transparent); color: var(--fg); }
+.status .sep { color: var(--muted); font-size: 12px; }
+
+section.legend { padding-block: 36px 0; display: grid; gap: 14px; }
+.leg { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.leg div { display: flex; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; min-width: 0; }
+.leg svg { flex: none; }
+.files { display: grid; gap: 8px; }
+.files li { margin-left: 18px; }
+footer { padding-block: 36px 0; color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: no-preference) { .sheet { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">KUI · Petra Christian University · BPMN 2.0</div>
+    <h1>SIM Kerja Sama <span>business process</span></h1>
+    <p class="lede prose">How a partnership document (MoU/MoA) moves through SIM-KS, from proposal to signing to renewal. Drawn in Bizagi Modeler style, with one pool per process and a lane for each actor. The steps and rules come from the database functions the app calls, so the diagrams describe what the system enforces.</p>
+  </header>
+
+  <nav class="toc" aria-label="Processes">
+    <a href="#proses-1">1 · Pengajuan &amp; Persetujuan</a>
+    <a href="#proses-2">2 · Pembaruan &amp; Evaluasi</a>
+    <a href="#notasi">BPMN notation</a>
+  </nav>
+
+  <section class="proc" id="proses-1">
+    <div class="proc-head">
+      <div>
+        <span class="num">PROSES 1</span>
+        <h2>Pengajuan &amp; Persetujuan Kerja Sama</h2>
+        <p class="prose" style="color:var(--muted)">A unit proposes, KUI routes it, approvers decide tier by tier, then the signed document is activated. KUI can also record a document that was signed outside the system.</p>
+      </div>
+      <div class="tools" role="group" aria-label="Zoom for process 1">
+        <button class="tg" type="button" id="z1-full" data-sheet="s1" data-mode="full" aria-pressed="true">Actual size</button>
+        <button class="tg" type="button" id="z1-fit" data-sheet="s1" data-mode="fit" aria-pressed="false">Fit width</button>
+      </div>
+    </div>
+    <div class="sheet" id="s1">
+<!-- SVG:P1 -->
+<svg class="bpmn" viewBox="0 0 2076.8 790" width="2076.8" height="790" role="img" aria-label="Diagram BPMN: Pengajuan &amp; Persetujuan Kerja Sama" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="gTP1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="g-task-a"/><stop offset="1" class="g-task-b"/></linearGradient><marker id="arP1" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path class="arrow" d="M0 1 L10 5 L0 9 Z"/></marker></defs>
+<rect class="pool" x="10" y="10" width="2056.8" height="760"/>
+<rect class="pool-hdr" x="10" y="10" width="34" height="760"/>
+<text class="pool-t" transform="translate(28.0,390.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">PCU · KUI — Pengajuan &amp; Persetujuan Kerja Sama</text>
+<rect class="lane " x="44" y="10" width="2022.8000000000002" height="150"/>
+<rect class="lane-hdr" x="44" y="10" width="34" height="150"/>
+<text class="lane-t" transform="translate(62.0,85.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">Unit Pengusul</text>
+<rect class="lane lane-alt" x="44" y="160" width="2022.8000000000002" height="230"/>
+<rect class="lane-hdr" x="44" y="160" width="34" height="230"/>
+<text class="lane-t" transform="translate(62.0,275.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">Admin KUI</text>
+<rect class="lane " x="44" y="390" width="2022.8000000000002" height="190"/>
+<rect class="lane-hdr" x="44" y="390" width="34" height="190"/>
+<text class="lane-t" transform="translate(62.0,485.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">Pejabat Disposisi (Tier 1–3)</text>
+<rect class="lane lane-alt" x="44" y="580" width="2022.8000000000002" height="190"/>
+<rect class="lane-hdr" x="44" y="580" width="34" height="190"/>
+<text class="lane-t" transform="translate(62.0,675.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">Sistem SIM-KS</text>
+<path class="flow" d="M184.0 85.0 L276.0 85.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M392.0 85.0 L444.0 85.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M560.0 85.0 L670.0 85.0 L670.0 287.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M184.0 218.0 L276.0 218.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M392.0 218.0 L2014.0 218.0 L2014.0 300.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M640.0 349.0 L640.0 650.0 L780.0 650.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M896.0 650.0 L922.0 650.0 L922.0 470.0 L948.0 470.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M1064.0 470.0 L1148.0 470.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M1174.0 444.0 L1174.0 349.0" marker-end="url(#arP1)"/>
+<text class="flow-l" x="1180.0" y="426.0" dominant-baseline="central">Revisi</text>
+<path class="flow" d="M1116.0 318.0 L1006.0 318.0 L1006.0 439.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M1200.0 470.0 L1383.2 470.0" marker-end="url(#arP1)"/>
+<text class="flow-l" x="1206.0" y="462.0" dominant-baseline="central">Setuju</text>
+<path class="flow" d="M1187.0 483.0 L1187.0 542.0 L1256.8 542.0" marker-end="url(#arP1)"/>
+<text class="flow-l" x="1192.0" y="522.0" dominant-baseline="central">Tolak</text>
+<path class="flow" d="M1174.0 496.0 L1174.0 650.0 L1216.8 650.0" marker-end="url(#arP1)"/>
+<text class="flow-l" x="1122.0" y="566.0" dominant-baseline="central">Pending</text>
+<path class="flow" d="M1409.2 496.0 L1409.2 730.0 L838.0 730.0 L838.0 681.0" marker-end="url(#arP1)"/>
+<text class="flow-l" x="1415.2" y="520.0" dominant-baseline="central">Ya</text>
+<path class="flow" d="M1435.2 470.0 L1540.0 470.0 L1540.0 349.0" marker-end="url(#arP1)"/>
+<text class="flow-l" x="1439.2" y="462.0" dominant-baseline="central">Tidak</text>
+<path class="flow" d="M1308.8 681.0 L1308.8 752.0 L754.0 752.0 L754.0 318.0 L780.0 318.0" marker-end="url(#arP1)"/>
+<text class="flow-l" x="938.8" y="742.0" dominant-baseline="central">IO mengaktifkan kembali</text>
+<path class="flow" d="M884.0 349.0 L884.0 619.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M1052.4 519.0 L1052.4 600.0 L1006.0 600.0 L1006.0 619.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M1064.0 650.0 L1092.2 650.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M1568.0 318.0 L1620.0 318.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M1736.0 318.0 L1788.0 318.0" marker-end="url(#arP1)"/>
+<path class="flow" d="M1904.0 318.0 L1996.0 318.0" marker-end="url(#arP1)"/>
+<circle class="ev-start" cx="166.0" cy="85.0" r="18"/>
+<text class="ev-t" text-anchor="middle" dominant-baseline="central"><tspan x="166.0" y="111.0">Kebutuhan kerja</tspan><tspan x="166.0" y="124.0">sama</tspan></text>
+<rect class="task" x="276.0" y="54.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(282.0,59.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="338.0" y="77.0">Isi formulir</tspan><tspan x="338.0" y="90.0">proposal (Bagian</tspan><tspan x="338.0" y="103.0">I–IV)</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="334.0" y="127.0">Draft</tspan></text>
+<rect class="task" x="444.0" y="54.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(450.0,59.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="506.0" y="90.0">Ajukan proposal</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="502.0" y="127.0">Diajukan</tspan></text>
+<circle class="ev-start" cx="166.0" cy="218.0" r="18"/>
+<text class="ev-t" text-anchor="middle" dominant-baseline="central"><tspan x="166.0" y="244.0">Dokumen sudah</tspan><tspan x="166.0" y="257.0">ditandatangani</tspan></text>
+<rect class="task" x="276.0" y="187.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(282.0,192.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="338.0" y="216.5">Catat dokumen</tspan><tspan x="338.0" y="229.5">langsung</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="334.0" y="260.0">Pencatatan Langsung</tspan></text>
+<rect class="task" x="612.0" y="287.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(618.0,292.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="674.0" y="316.5">Pilih pejabat &amp;</tspan><tspan x="674.0" y="329.5">kirim disposisi</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="696.0" y="360.0">Diproses</tspan></text>
+<rect class="task" x="780.0" y="287.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(786.0,292.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="842.0" y="316.5">Aktifkan kembali</tspan><tspan x="842.0" y="329.5">dokumen</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="822.0" y="360.0">ronde baru, Tier 1</tspan></text>
+<rect class="task" x="1116.0" y="287.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(1122.0,292.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1178.0" y="316.5">Unggah revisi</tspan><tspan x="1178.0" y="329.5">draft</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="1232.0" y="360.0">SLA tetap berjalan</tspan></text>
+<rect class="task" x="1452.0" y="287.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(1458.0,292.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1514.0" y="316.5">Cetak &amp; tandai</tspan><tspan x="1514.0" y="329.5">Siap TTD</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="1468.0" y="360.0">Disetujui → Siap TTD</tspan></text>
+<rect class="task" x="1620.0" y="287.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(1626.0,292.0)"><path d="M1 9 L1 15 L12 15 C13.5 15 13.5 12.8 12 12.8 L13 12.8 C14.5 12.8 14.5 10.6 13 10.6 L12.6 10.6 C14 10.6 14 8.4 12.6 8.4 L7 8.4 L9.5 5.6 C10.5 4.4 9 3.2 8 4.2 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1682.0" y="316.5">Penandatanganan</tspan><tspan x="1682.0" y="329.5">dokumen (offline)</tspan></text>
+<rect class="task" x="1788.0" y="287.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(1794.0,292.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1850.0" y="316.5">Aktivasi dokumen &amp;</tspan><tspan x="1850.0" y="329.5">unggah berkas TTD</tspan></text>
+<circle class="ev-end" cx="2014.0" cy="318.0" r="16.5"/>
+<text class="ev-t" text-anchor="middle" dominant-baseline="central"><tspan x="2014.0" y="344.0">Kerja sama Aktif</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="2014.0" y="361.0">Aktif</tspan></text>
+<rect class="task" x="948.0" y="439.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(954.0,444.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1010.0" y="475.0">Tinjau proposal</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="972.0" y="512.0">Disposisi – Tier n</tspan></text>
+<circle class="ev-int" cx="1052.4" cy="501.0" r="15" stroke-dasharray="4 3"/>
+<circle class="ev-int-in" cx="1052.4" cy="501.0" r="12" stroke-dasharray="4 3"/>
+<g class="clock"><circle cx="1052.4" cy="501.0" r="8.5"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(0 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(30 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(60 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(90 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(120 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(150 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(180 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(210 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(240 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(270 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(300 1052.4 501.0)"/><line x1="1052.4" y1="494.0" x2="1052.4" y2="496.0" transform="rotate(330 1052.4 501.0)"/><path d="M1052.4 495.9 L1052.4 501.0 L1056.2 502.3"/></g>
+<text class="ev-t" text-anchor="start" dominant-baseline="central"><tspan x="1074.4" y="511.0">SLA 2 / 4</tspan><tspan x="1074.4" y="524.0">hari kerja</tspan></text>
+<path class="gw" d="M1174.0 444.0 L1200.0 470.0 L1174.0 496.0 L1148.0 470.0 Z"/>
+<path class="gw-m" d="M1166.0 462.0 L1182.0 478.0 M1182.0 462.0 L1166.0 478.0"/>
+<text class="ev-t" text-anchor="end" dominant-baseline="central"><tspan x="1144.0" y="434.0">Keputusan?</tspan></text>
+<circle class="ev-end" cx="1274.8" cy="542.0" r="16.5"/>
+<text class="ev-t" text-anchor="middle" dominant-baseline="central"><tspan x="1274.8" y="568.0">Ditolak &amp;</tspan><tspan x="1274.8" y="581.0">diarsipkan</tspan></text>
+<path class="gw" d="M1409.2 444.0 L1435.2 470.0 L1409.2 496.0 L1383.2 470.0 Z"/>
+<path class="gw-m" d="M1401.2 462.0 L1417.2 478.0 M1417.2 462.0 L1401.2 478.0"/>
+<text class="ev-t" text-anchor="end" dominant-baseline="central"><tspan x="1379.2" y="427.5">Masih ada tier</tspan><tspan x="1379.2" y="440.5">di atas?</tspan></text>
+<rect class="task" x="780.0" y="619.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(786.0,624.0)"><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(0 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(45 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(90 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(135 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(180 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(225 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(270 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(315 7 7)"/><circle cx="7" cy="7" r="4.8"/><circle class="ic-hole" cx="7" cy="7" r="1.8"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="842.0" y="642.0">Buka tier terendah</tspan><tspan x="842.0" y="655.0">yang belum setuju</tspan><tspan x="842.0" y="668.0">&amp; kirim notifikasi</tspan></text>
+<rect class="task" x="948.0" y="619.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(954.0,624.0)"><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(0 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(45 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(90 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(135 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(180 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(225 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(270 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(315 7 7)"/><circle cx="7" cy="7" r="4.8"/><circle class="ic-hole" cx="7" cy="7" r="1.8"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1010.0" y="642.0">Tandai SLA</tspan><tspan x="1010.0" y="655.0">kuning/merah &amp;</tspan><tspan x="1010.0" y="668.0">kirim pengingat</tspan></text>
+<circle class="ev-end" cx="1110.2" cy="650.0" r="16.5"/>
+<rect class="task" x="1216.8" y="619.0" width="116" height="62" rx="9" fill="url(#gTP1)"/>
+<g class="ic" transform="translate(1222.8,624.0)"><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(0 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(45 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(90 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(135 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(180 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(225 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(270 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(315 7 7)"/><circle cx="7" cy="7" r="4.8"/><circle class="ic-hole" cx="7" cy="7" r="1.8"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1278.8" y="648.5">Bekukan dokumen &amp;</tspan><tspan x="1278.8" y="661.5">hentikan jam SLA</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="1256.8" y="692.0">Pending</tspan></text>
+</svg>
+<!-- /SVG:P1 -->
+    </div>
+    <p class="hint">Drag or scroll sideways to follow the flow. Grey mono text under a step is the document status it sets.</p>
+
+    <div class="status" aria-label="Status sequence">
+      <span class="chip">Draft</span><span class="sep">→</span>
+      <span class="chip">Diajukan</span><span class="sep">→</span>
+      <span class="chip">Diproses</span><span class="sep">→</span>
+      <span class="chip">Disposisi – Tier 1·2·3</span><span class="sep">→</span>
+      <span class="chip">Disetujui</span><span class="sep">→</span>
+      <span class="chip">Siap TTD</span><span class="sep">→</span>
+      <span class="chip">Aktif</span>
+      <span class="sep">· side states</span>
+      <span class="chip">Pending</span><span class="chip end">Ditolak</span>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <h3>Approval tiers</h3>
+        <table>
+          <thead><tr><th>Tier</th><th>Positions</th></tr></thead>
+          <tbody>
+            <tr><td class="t">1</td><td>Head of KUI, Kepala Bagian Sekretariat Rektorat</td></tr>
+            <tr><td class="t">2</td><td>Dekan, Ka. Prodi, Ka. Program, Ka. UP</td></tr>
+            <tr><td class="t">3</td><td>Wakil Rektor, Rektor (in parallel)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rule">
+        <h3>Tier gating</h3>
+        <p>A tier opens once no lower tier in the current round is still unapproved. An empty tier is skipped. <code>recompute_tiers</code> is the only writer of this state.</p>
+      </div>
+      <div class="rule">
+        <h3>Four decisions</h3>
+        <p><b>Setuju</b> opens the next tier. <b>Revisi</b> asks KUI to upload a new draft in place; the SLA keeps running. <b>Pending</b> freezes the document and stops the SLA; reactivating starts a new round from Tier 1. <b>Tolak</b> is final and archives the document as <code>rejected</code>.</p>
+      </div>
+      <div class="rule">
+        <h3>SLA per approver</h3>
+        <p>Counted in business days from when the approver's tier opens, excluding weekends, holidays and time in Pending. Yellow at 2 days, red at 4. The daily sweep runs at 05:00 WIB.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="proc" id="proses-2">
+    <div class="proc-head">
+      <div>
+        <span class="num">PROSES 2</span>
+        <h2>Pembaruan &amp; Evaluasi Kerja Sama</h2>
+        <p class="prose" style="color:var(--muted)">As an active document nears its end date, the owning unit and the partner each evaluate it. KUI opens renewal only when both agree, or after an override with a recorded reason.</p>
+      </div>
+      <div class="tools" role="group" aria-label="Zoom for process 2">
+        <button class="tg" type="button" id="z2-full" data-sheet="s2" data-mode="full" aria-pressed="true">Actual size</button>
+        <button class="tg" type="button" id="z2-fit" data-sheet="s2" data-mode="fit" aria-pressed="false">Fit width</button>
+      </div>
+    </div>
+    <div class="sheet" id="s2">
+<!-- SVG:P2 -->
+<svg class="bpmn" viewBox="0 0 2412.7999999999997 760" width="2412.7999999999997" height="760" role="img" aria-label="Diagram BPMN: Pembaruan &amp; Evaluasi Kerja Sama" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="gTP2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="g-task-a"/><stop offset="1" class="g-task-b"/></linearGradient><marker id="arP2" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path class="arrow" d="M0 1 L10 5 L0 9 Z"/></marker></defs>
+<rect class="pool" x="10" y="10" width="2392.7999999999997" height="730"/>
+<rect class="pool-hdr" x="10" y="10" width="34" height="730"/>
+<text class="pool-t" transform="translate(28.0,375.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">PCU · KUI — Pembaruan &amp; Evaluasi Kerja Sama</text>
+<rect class="lane " x="44" y="10" width="2358.7999999999997" height="160"/>
+<rect class="lane-hdr" x="44" y="10" width="34" height="160"/>
+<text class="lane-t" transform="translate(62.0,90.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">Sistem SIM-KS</text>
+<rect class="lane lane-alt" x="44" y="170" width="2358.7999999999997" height="230"/>
+<rect class="lane-hdr" x="44" y="170" width="34" height="230"/>
+<text class="lane-t" transform="translate(62.0,285.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">Admin KUI</text>
+<rect class="lane " x="44" y="400" width="2358.7999999999997" height="200"/>
+<rect class="lane-hdr" x="44" y="400" width="34" height="200"/>
+<text class="lane-t" transform="translate(62.0,500.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">Unit Pemilik (Fakultas / Unit)</text>
+<rect class="lane lane-alt" x="44" y="600" width="2358.7999999999997" height="140"/>
+<rect class="lane-hdr" x="44" y="600" width="34" height="140"/>
+<text class="lane-t" transform="translate(62.0,670.0) rotate(-90)" text-anchor="middle" dominant-baseline="central">Mitra Eksternal</text>
+<path class="flow" d="M184.0 90.0 L276.0 90.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M392.0 90.0 L502.0 90.0 L502.0 299.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M560.0 330.0 L644.0 330.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M696.0 330.0 L780.0 330.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M670.0 356.0 L670.0 490.0 L948.0 490.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M838.0 361.0 L838.0 639.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M1006.0 459.0 L1006.0 330.0 L1148.0 330.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M896.0 670.0 L1174.0 670.0 L1174.0 356.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M1200.0 330.0 L1316.0 330.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M1368.0 330.0 L1494.0 330.0" marker-end="url(#arP2)"/>
+<text class="flow-l" x="1372.0" y="322.0" dominant-baseline="central">Keduanya lanjut</text>
+<path class="flow" d="M1342.0 304.0 L1342.0 263.0" marker-end="url(#arP2)"/>
+<text class="flow-l" x="1348.0" y="290.0" dominant-baseline="central">Berbeda</text>
+<path class="flow" d="M1342.0 356.0 L1342.0 382.0 L1258.0 382.0 L1258.0 90.0 L1534.0 90.0" marker-end="url(#arP2)"/>
+<text class="flow-l" x="1266.0" y="372.0" dominant-baseline="central">Keduanya tidak</text>
+<path class="flow" d="M1400.0 232.0 L1526.0 232.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M1552.0 258.0 L1552.0 299.0" marker-end="url(#arP2)"/>
+<text class="flow-l" x="1558.0" y="278.0" dominant-baseline="central">Ya</text>
+<path class="flow" d="M1552.0 206.0 L1552.0 108.0" marker-end="url(#arP2)"/>
+<text class="flow-l" x="1558.0" y="192.0" dominant-baseline="central">Tidak</text>
+<path class="flow" d="M1570.0 90.0 L1620.0 90.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M1736.0 90.0 L1828.0 90.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M1610.0 330.0 L1678.0 330.0 L1678.0 459.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M1736.0 490.0 L1846.0 490.0 L1846.0 361.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M1904.0 330.0 L1956.0 330.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M2072.0 330.0 L2226.0 330.0 L2226.0 121.0" marker-end="url(#arP2)"/>
+<path class="flow" d="M2240.0 90.0 L2332.0 90.0" marker-end="url(#arP2)"/>
+<circle class="ev-start" cx="166.0" cy="90.0" r="18"/>
+<g class="clock"><circle cx="166.0" cy="90.0" r="11"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(0 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(30 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(60 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(90 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(120 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(150 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(180 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(210 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(240 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(270 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(300 166.0 90.0)"/><line x1="166.0" y1="80.5" x2="166.0" y2="82.5" transform="rotate(330 166.0 90.0)"/><path d="M166.0 83.4 L166.0 90.0 L170.9 91.7"/></g>
+<text class="ev-t" text-anchor="middle" dominant-baseline="central"><tspan x="166.0" y="116.0">Sapu harian</tspan><tspan x="166.0" y="129.0">05:00 WIB</tspan></text>
+<rect class="task" x="276.0" y="59.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(282.0,64.0)"><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(0 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(45 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(90 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(135 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(180 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(225 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(270 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(315 7 7)"/><circle cx="7" cy="7" r="4.8"/><circle class="ic-hole" cx="7" cy="7" r="1.8"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="338.0" y="82.0">Tandai Akan</tspan><tspan x="338.0" y="95.0">Berakhir &amp; kirim</tspan><tspan x="338.0" y="108.0">pengingat</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="334.0" y="132.0">bulanan 6 bln, mingguan 2</tspan><tspan x="334.0" y="145.0">bln</tspan></text>
+<rect class="task" x="444.0" y="299.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(450.0,304.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="506.0" y="322.0">Kirim disposisi</tspan><tspan x="506.0" y="335.0">evaluasi (otomatis</tspan><tspan x="506.0" y="348.0">/ pilih manual)</tspan></text>
+<path class="gw" d="M670.0 304.0 L696.0 330.0 L670.0 356.0 L644.0 330.0 Z"/>
+<path class="gw-m" d="M670.0 319.0 V341.0 M659.0 330.0 H681.0"/>
+<rect class="task" x="780.0" y="299.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(786.0,304.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="842.0" y="328.5">Aktifkan tautan</tspan><tspan x="842.0" y="341.5">evaluasi mitra</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="796.0" y="372.0">token 256-bit</tspan></text>
+<path class="gw" d="M1174.0 304.0 L1200.0 330.0 L1174.0 356.0 L1148.0 330.0 Z"/>
+<path class="gw-m" d="M1174.0 319.0 V341.0 M1163.0 330.0 H1185.0"/>
+<path class="gw" d="M1342.0 304.0 L1368.0 330.0 L1342.0 356.0 L1316.0 330.0 Z"/>
+<path class="gw-m" d="M1334.0 322.0 L1350.0 338.0 M1350.0 322.0 L1334.0 338.0"/>
+<text class="ev-t" text-anchor="start" dominant-baseline="central"><tspan x="1374.0" y="360.0">Rekomendasi</tspan><tspan x="1374.0" y="373.0">kedua evaluasi?</tspan></text>
+<rect class="task" x="1284.0" y="201.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(1290.0,206.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1346.0" y="230.5">Putuskan override</tspan><tspan x="1346.0" y="243.5">&amp; catat alasan</tspan></text>
+<path class="gw" d="M1552.0 206.0 L1578.0 232.0 L1552.0 258.0 L1526.0 232.0 Z"/>
+<path class="gw-m" d="M1544.0 224.0 L1560.0 240.0 M1560.0 224.0 L1544.0 240.0"/>
+<text class="ev-t" text-anchor="end" dominant-baseline="central"><tspan x="1522.0" y="196.0">Lanjutkan?</tspan></text>
+<rect class="task" x="1494.0" y="299.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(1500.0,304.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1556.0" y="328.5">Mulai Proses</tspan><tspan x="1556.0" y="341.5">Pembaruan</tspan></text>
+<rect class="task" x="1788.0" y="299.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1846.0" y="320.5">Proses Persetujuan</tspan><tspan x="1846.0" y="333.5">(Proses 1)</tspan></text>
+<rect class="sub-m" x="1839.0" y="346.0" width="14" height="14"/><path class="sub-p" d="M1846.0 349.0 V357.0 M1842.0 353.0 H1850.0"/>
+<rect class="task" x="1956.0" y="299.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(1962.0,304.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="2018.0" y="328.5">Aktivasi dokumen</tspan><tspan x="2018.0" y="341.5">baru</tspan></text>
+<rect class="task" x="948.0" y="459.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(954.0,464.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1010.0" y="488.5">Isi evaluasi</tspan><tspan x="1010.0" y="501.5">fakultas</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="1006.0" y="532.0">rekomendasi lanjut / tidak</tspan></text>
+<rect class="task" x="1620.0" y="459.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(1626.0,464.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1682.0" y="482.0">Unggah draft &amp;</tspan><tspan x="1682.0" y="495.0">buat proposal</tspan><tspan x="1682.0" y="508.0">perpanjangan</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="1678.0" y="532.0">gerbang dicek database</tspan></text>
+<rect class="task" x="780.0" y="639.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(786.0,644.0)"><circle cx="7" cy="5" r="3.6"/><path d="M0.5 16 C0.5 10 13.5 10 13.5 16 Z"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="842.0" y="668.5">Isi evaluasi mitra</tspan><tspan x="842.0" y="681.5">tanpa login</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="838.0" y="712.0">/evaluasi/[token]</tspan></text>
+<circle class="ev-int" cx="1552.0" cy="90.0" r="18"/>
+<circle class="ev-int-in" cx="1552.0" cy="90.0" r="14.5"/>
+<g class="clock"><circle cx="1552.0" cy="90.0" r="10"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(0 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(30 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(60 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(90 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(120 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(150 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(180 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(210 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(240 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(270 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(300 1552.0 90.0)"/><line x1="1552.0" y1="81.5" x2="1552.0" y2="83.5" transform="rotate(330 1552.0 90.0)"/><path d="M1552.0 84.0 L1552.0 90.0 L1556.5 91.5"/></g>
+<text class="ev-t" text-anchor="middle" dominant-baseline="central"><tspan x="1552.0" y="51.0">Tanggal berakhir</tspan><tspan x="1552.0" y="64.0">tiba</tspan></text>
+<rect class="task" x="1620.0" y="59.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(1626.0,64.0)"><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(0 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(45 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(90 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(135 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(180 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(225 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(270 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(315 7 7)"/><circle cx="7" cy="7" r="4.8"/><circle class="ic-hole" cx="7" cy="7" r="1.8"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="1682.0" y="95.0">Arsipkan dokumen</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="1678.0" y="132.0">expired_without_renewal</tspan></text>
+<circle class="ev-end" cx="1846.0" cy="90.0" r="16.5"/>
+<text class="ev-t" text-anchor="middle" dominant-baseline="central"><tspan x="1846.0" y="116.0">Tidak</tspan><tspan x="1846.0" y="129.0">diperpanjang</tspan></text>
+<rect class="task" x="2124.0" y="59.0" width="116" height="62" rx="9" fill="url(#gTP2)"/>
+<g class="ic" transform="translate(2130.0,64.0)"><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(0 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(45 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(90 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(135 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(180 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(225 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(270 7 7)"/><rect x="5.6" y="-0.4" width="2.8" height="4" rx="0.6" transform="rotate(315 7 7)"/><circle cx="7" cy="7" r="4.8"/><circle class="ic-hole" cx="7" cy="7" r="1.8"/></g>
+<text class="task-t" text-anchor="middle" dominant-baseline="central"><tspan x="2186.0" y="88.5">Tautkan ke dokumen</tspan><tspan x="2186.0" y="101.5">lama &amp; arsipkan</tspan></text>
+<text class="note" text-anchor="middle" dominant-baseline="central"><tspan x="2154.0" y="132.0">superseded_by_renewal</tspan></text>
+<circle class="ev-end" cx="2350.0" cy="90.0" r="16.5"/>
+<text class="ev-t" text-anchor="middle" dominant-baseline="central"><tspan x="2350.0" y="116.0">Kerja sama</tspan><tspan x="2350.0" y="129.0">diperpanjang</tspan></text>
+</svg>
+<!-- /SVG:P2 -->
+    </div>
+
+    <div class="status" aria-label="Document status sequence">
+      <span class="chip">Aktif</span><span class="sep">→</span>
+      <span class="chip">Akan Berakhir</span><span class="sep">→</span>
+      <span class="chip end">Diarsipkan</span>
+      <span class="sep">· reasons</span>
+      <span class="chip">superseded_by_renewal</span>
+      <span class="chip">expired_without_renewal</span>
+      <span class="chip">terminated_early</span>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <h3>Reminders</h3>
+        <p>Monthly from 6 months before the end date, then weekly for the last 2 months. Auto Renewed documents have no end date and are skipped.</p>
+      </div>
+      <div class="rule">
+        <h3>Two evaluations</h3>
+        <p>The unit fills the faculty evaluation in the app. The lead partner fills theirs at <code>/evaluasi/[token]</code> without logging in. Reopening an evaluation issues a new token and keeps the old answer as history.</p>
+      </div>
+      <div class="rule">
+        <h3>Renewal gate</h3>
+        <p>Agreement only marks the document ready. Renewal starts when KUI clicks <b>Mulai Proses Pembaruan</b>; that is when the unit is notified and allowed to upload. <code>buat_proposal_perpanjangan</code> refuses anything else.</p>
+      </div>
+      <div class="rule">
+        <h3>Hand-over</h3>
+        <p>The renewal proposal runs through Proses 1. Activating it links the new document to the old one and archives the old one in a single transaction.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="legend" id="notasi">
+    <h2>BPMN notation</h2>
+    <div class="leg">
+      <div><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="15" fill="var(--start)" stroke="var(--start-line)" stroke-width="1.8"/></svg>Start event</div>
+      <div><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14" fill="var(--end)" stroke="var(--end-line)" stroke-width="4"/></svg>End event</div>
+      <div><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="16" fill="var(--int)" stroke="var(--int-line)" stroke-width="1.4"/><circle cx="20" cy="20" r="12.5" fill="none" stroke="var(--int-line)" stroke-width="1.2"/><circle cx="20" cy="20" r="9" fill="var(--sheet)" stroke="var(--ink)" stroke-width="1.1"/><path d="M20 14 V20 L24 21.5" fill="none" stroke="var(--ink)" stroke-width="1.1"/></svg>Timer event (dashed ring: non-interrupting)</div>
+      <div><svg width="52" height="36" viewBox="0 0 52 36" aria-hidden="true"><rect x="2" y="3" width="48" height="30" rx="6" fill="var(--task-b)" stroke="var(--task-line)" stroke-width="1.4"/><circle cx="10" cy="10" r="2.6" fill="var(--icon)"/><path d="M5.5 18 C5.5 13 14.5 13 14.5 18 Z" fill="var(--icon)"/></svg>User task (person icon)</div>
+      <div><svg width="52" height="36" viewBox="0 0 52 36" aria-hidden="true"><rect x="2" y="3" width="48" height="30" rx="6" fill="var(--task-b)" stroke="var(--task-line)" stroke-width="1.4"/><circle cx="11" cy="12" r="4.5" fill="var(--icon)"/><circle cx="11" cy="12" r="1.6" fill="var(--task-a)"/></svg>Service task, done by SIM-KS</div>
+      <div><svg width="52" height="36" viewBox="0 0 52 36" aria-hidden="true"><rect x="2" y="3" width="48" height="30" rx="6" fill="var(--task-b)" stroke="var(--task-line)" stroke-width="1.4"/><rect x="19" y="20" width="14" height="12" fill="var(--task-a)" stroke="var(--task-line)"/><path d="M26 22 V30 M22 26 H30" stroke="var(--task-line)" stroke-width="1.5"/></svg>Sub-process (collapsed)</div>
+      <div><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 L37 20 L20 37 L3 20 Z" fill="var(--gw)" stroke="var(--gw-line)" stroke-width="1.6"/><path d="M14 14 L26 26 M26 14 L14 26" stroke="var(--gw-mark)" stroke-width="3" stroke-linecap="round"/></svg>Exclusive gateway: one path</div>
+      <div><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 L37 20 L20 37 L3 20 Z" fill="var(--gw)" stroke="var(--gw-line)" stroke-width="1.6"/><path d="M20 11 V29 M11 20 H29" stroke="var(--gw-mark)" stroke-width="3" stroke-linecap="round"/></svg>Parallel gateway: all paths</div>
+    </div>
+
+    <div class="rule prose">
+      <h3>Open in Bizagi Modeler</h3>
+      <p>Each process is also a BPMN 2.0 file with layout, in the repository under <code>docs/proses-bisnis/</code>. In Bizagi Modeler use <span class="mono">File › Import › BPMN 2.0</span>.</p>
+      <ul class="files">
+        <li><code>01-pengajuan-persetujuan.bpmn</code></li>
+        <li><code>02-pembaruan-evaluasi.bpmn</code></li>
+        <li><code>generate.py</code> rebuilds both files and this page's diagrams from one model.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>Source: <code>supabase/migrations</code> and <code>src/lib/actions</code> in SIM_Kerjasama.</footer>
+</div>
+
+<script>
+(function () {
+  document.querySelectorAll("button.tg").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var sheet = document.getElementById(b.dataset.sheet);
+      sheet.classList.toggle("fit", b.dataset.mode === "fit");
+      document.querySelectorAll('button.tg[data-sheet="' + b.dataset.sheet + '"]').forEach(function (o) {
+        o.setAttribute("aria-pressed", String(o === b));
+      });
+    });
+  });
+  // Drag to pan, like a modeller canvas.
+  document.querySelectorAll(".sheet").forEach(function (s) {
+    var x0 = 0, l0 = 0, down = false;
+    s.addEventListener("pointerdown", function (e) {
+      if (e.pointerType !== "mouse") return;
+      down = true; x0 = e.clientX; l0 = s.scrollLeft; s.classList.add("dragging");
+    });
+    window.addEventListener("pointermove", function (e) { if (down) s.scrollLeft = l0 - (e.clientX - x0); });
+    window.addEventListener("pointerup", function () { down = false; s.classList.remove("dragging"); });
+  });
+})();
+</script>

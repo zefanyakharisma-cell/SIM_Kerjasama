@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+             id="DEF_P2" targetNamespace="https://simks.petra.ac.id/bpmn"
+             exporter="SIM-KS docs/proses-bisnis/generate.py" exporterVersion="1.0">
+  <collaboration id="COL_P2">
+    <participant id="POOL_P2" name="PCU · KUI — Pembaruan &amp; Evaluasi Kerja Sama" processRef="PROC_P2"/>
+  </collaboration>
+  <process id="PROC_P2" name="Pembaruan &amp; Evaluasi Kerja Sama" isExecutable="false">
+    <laneSet id="LS_P2">
+      <lane id="L_P2_S" name="Sistem SIM-KS">
+        <flowNodeRef>s_sapu</flowNodeRef>
+        <flowNodeRef>t_tandai</flowNodeRef>
+        <flowNodeRef>i_berakhir</flowNodeRef>
+        <flowNodeRef>t_arsip</flowNodeRef>
+        <flowNodeRef>e_tidak</flowNodeRef>
+        <flowNodeRef>t_tautkan</flowNodeRef>
+        <flowNodeRef>e_baru</flowNodeRef>
+      </lane>
+      <lane id="L_P2_A" name="Admin KUI">
+        <flowNodeRef>t_disp</flowNodeRef>
+        <flowNodeRef>g_split</flowNodeRef>
+        <flowNodeRef>t_tautan</flowNodeRef>
+        <flowNodeRef>g_join</flowNodeRef>
+        <flowNodeRef>g_rek</flowNodeRef>
+        <flowNodeRef>t_override</flowNodeRef>
+        <flowNodeRef>g_ovr</flowNodeRef>
+        <flowNodeRef>t_mulai</flowNodeRef>
+        <flowNodeRef>t_setuju</flowNodeRef>
+        <flowNodeRef>t_aktif</flowNodeRef>
+      </lane>
+      <lane id="L_P2_U" name="Unit Pemilik (Fakultas / Unit)">
+        <flowNodeRef>t_evf</flowNodeRef>
+        <flowNodeRef>t_unggah</flowNodeRef>
+      </lane>
+      <lane id="L_P2_M" name="Mitra Eksternal">
+        <flowNodeRef>t_evm</flowNodeRef>
+      </lane>
+    </laneSet>
+    <startEvent id="s_sapu" name="Sapu harian 05:00 WIB">
+      <outgoing>F_s_sapu_t_tandai</outgoing>
+      <timerEventDefinition id="TD_s_sapu"/>
+    </startEvent>
+    <serviceTask id="t_tandai" name="Tandai Akan Berakhir &amp; kirim pengingat">
+      <documentation>bulanan 6 bln, mingguan 2 bln</documentation>
+      <incoming>F_s_sapu_t_tandai</incoming>
+      <outgoing>F_t_tandai_t_disp</outgoing>
+    </serviceTask>
+    <userTask id="t_disp" name="Kirim disposisi evaluasi (otomatis / pilih manual)">
+      <incoming>F_t_tandai_t_disp</incoming>
+      <outgoing>F_t_disp_g_split</outgoing>
+    </userTask>
+    <parallelGateway id="g_split" name="">
+      <incoming>F_t_disp_g_split</incoming>
+      <outgoing>F_g_split_t_tautan</outgoing>
+      <outgoing>F_g_split_t_evf</outgoing>
+    </parallelGateway>
+    <userTask id="t_tautan" name="Aktifkan tautan evaluasi mitra">
+      <documentation>token 256-bit</documentation>
+      <incoming>F_g_split_t_tautan</incoming>
+      <outgoing>F_t_tautan_t_evm</outgoing>
+    </userTask>
+    <parallelGateway id="g_join" name="">
+      <incoming>F_t_evf_g_join</incoming>
+      <incoming>F_t_evm_g_join</incoming>
+      <outgoing>F_g_join_g_rek</outgoing>
+    </parallelGateway>
+    <exclusiveGateway id="g_rek" name="Rekomendasi kedua evaluasi?">
+      <incoming>F_g_join_g_rek</incoming>
+      <outgoing>F_g_rek_t_mulai</outgoing>
+      <outgoing>F_g_rek_t_override</outgoing>
+      <outgoing>F_g_rek_i_berakhir</outgoing>
+    </exclusiveGateway>
+    <userTask id="t_override" name="Putuskan override &amp; catat alasan">
+      <incoming>F_g_rek_t_override</incoming>
+      <outgoing>F_t_override_g_ovr</outgoing>
+    </userTask>
+    <exclusiveGateway id="g_ovr" name="Lanjutkan?">
+      <incoming>F_t_override_g_ovr</incoming>
+      <outgoing>F_g_ovr_t_mulai</outgoing>
+      <outgoing>F_g_ovr_i_berakhir</outgoing>
+    </exclusiveGateway>
+    <userTask id="t_mulai" name="Mulai Proses Pembaruan">
+      <incoming>F_g_rek_t_mulai</incoming>
+      <incoming>F_g_ovr_t_mulai</incoming>
+      <outgoing>F_t_mulai_t_unggah</outgoing>
+    </userTask>
+    <callActivity id="t_setuju" name="Proses Persetujuan (Proses 1)">
+      <incoming>F_t_unggah_t_setuju</incoming>
+      <outgoing>F_t_setuju_t_aktif</outgoing>
+    </callActivity>
+    <userTask id="t_aktif" name="Aktivasi dokumen baru">
+      <incoming>F_t_setuju_t_aktif</incoming>
+      <outgoing>F_t_aktif_t_tautkan</outgoing>
+    </userTask>
+    <userTask id="t_evf" name="Isi evaluasi fakultas">
+      <documentation>rekomendasi lanjut / tidak</documentation>
+      <incoming>F_g_split_t_evf</incoming>
+      <outgoing>F_t_evf_g_join</outgoing>
+    </userTask>
+    <userTask id="t_unggah" name="Unggah draft &amp; buat proposal perpanjangan">
+      <documentation>gerbang dicek database</documentation>
+      <incoming>F_t_mulai_t_unggah</incoming>
+      <outgoing>F_t_unggah_t_setuju</outgoing>
+    </userTask>
+    <userTask id="t_evm" name="Isi evaluasi mitra tanpa login">
+      <documentation>/evaluasi/[token]</documentation>
+      <incoming>F_t_tautan_t_evm</incoming>
+      <outgoing>F_t_evm_g_join</outgoing>
+    </userTask>
+    <intermediateCatchEvent id="i_berakhir" name="Tanggal berakhir tiba">
+      <incoming>F_g_rek_i_berakhir</incoming>
+      <incoming>F_g_ovr_i_berakhir</incoming>
+      <outgoing>F_i_berakhir_t_arsip</outgoing>
+      <timerEventDefinition id="TD_i_berakhir"/>
+    </intermediateCatchEvent>
+    <serviceTask id="t_arsip" name="Arsipkan dokumen">
+      <documentation>expired_without_renewal</documentation>
+      <incoming>F_i_berakhir_t_arsip</incoming>
+      <outgoing>F_t_arsip_e_tidak</outgoing>
+    </serviceTask>
+    <endEvent id="e_tidak" name="Tidak diperpanjang">
+      <incoming>F_t_arsip_e_tidak</incoming>
+    </endEvent>
+    <serviceTask id="t_tautkan" name="Tautkan ke dokumen lama &amp; arsipkan">
+      <documentation>superseded_by_renewal</documentation>
+      <incoming>F_t_aktif_t_tautkan</incoming>
+      <outgoing>F_t_tautkan_e_baru</outgoing>
+    </serviceTask>
+    <endEvent id="e_baru" name="Kerja sama diperpanjang">
+      <incoming>F_t_tautkan_e_baru</incoming>
+    </endEvent>
+    <sequenceFlow id="F_s_sapu_t_tandai" sourceRef="s_sapu" targetRef="t_tandai"/>
+    <sequenceFlow id="F_t_tandai_t_disp" sourceRef="t_tandai" targetRef="t_disp"/>
+    <sequenceFlow id="F_t_disp_g_split" sourceRef="t_disp" targetRef="g_split"/>
+    <sequenceFlow id="F_g_split_t_tautan" sourceRef="g_split" targetRef="t_tautan"/>
+    <sequenceFlow id="F_g_split_t_evf" sourceRef="g_split" targetRef="t_evf"/>
+    <sequenceFlow id="F_t_tautan_t_evm" sourceRef="t_tautan" targetRef="t_evm"/>
+    <sequenceFlow id="F_t_evf_g_join" sourceRef="t_evf" targetRef="g_join"/>
+    <sequenceFlow id="F_t_evm_g_join" sourceRef="t_evm" targetRef="g_join"/>
+    <sequenceFlow id="F_g_join_g_rek" sourceRef="g_join" targetRef="g_rek"/>
+    <sequenceFlow id="F_g_rek_t_mulai" name="Keduanya lanjut" sourceRef="g_rek" targetRef="t_mulai"/>
+    <sequenceFlow id="F_g_rek_t_override" name="Berbeda" sourceRef="g_rek" targetRef="t_override"/>
+    <sequenceFlow id="F_g_rek_i_berakhir" name="Keduanya tidak" sourceRef="g_rek" targetRef="i_berakhir"/>
+    <sequenceFlow id="F_t_override_g_ovr" sourceRef="t_override" targetRef="g_ovr"/>
+    <sequenceFlow id="F_g_ovr_t_mulai" name="Ya" sourceRef="g_ovr" targetRef="t_mulai"/>
+    <sequenceFlow id="F_g_ovr_i_berakhir" name="Tidak" sourceRef="g_ovr" targetRef="i_berakhir"/>
+    <sequenceFlow id="F_i_berakhir_t_arsip" sourceRef="i_berakhir" targetRef="t_arsip"/>
+    <sequenceFlow id="F_t_arsip_e_tidak" sourceRef="t_arsip" targetRef="e_tidak"/>
+    <sequenceFlow id="F_t_mulai_t_unggah" sourceRef="t_mulai" targetRef="t_unggah"/>
+    <sequenceFlow id="F_t_unggah_t_setuju" sourceRef="t_unggah" targetRef="t_setuju"/>
+    <sequenceFlow id="F_t_setuju_t_aktif" sourceRef="t_setuju" targetRef="t_aktif"/>
+    <sequenceFlow id="F_t_aktif_t_tautkan" sourceRef="t_aktif" targetRef="t_tautkan"/>
+    <sequenceFlow id="F_t_tautkan_e_baru" sourceRef="t_tautkan" targetRef="e_baru"/>
+  </process>
+  <bpmndi:BPMNDiagram id="DIA_P2" name="Pembaruan &amp; Evaluasi Kerja Sama">
+    <bpmndi:BPMNPlane id="PL_P2" bpmnElement="COL_P2">
+      <bpmndi:BPMNShape id="DI_POOL_P2" bpmnElement="POOL_P2" isHorizontal="true"><dc:Bounds x="10" y="10" width="2392.7999999999997" height="730"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_L_P2_S" bpmnElement="L_P2_S" isHorizontal="true"><dc:Bounds x="44" y="10" width="2358.7999999999997" height="160"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_L_P2_A" bpmnElement="L_P2_A" isHorizontal="true"><dc:Bounds x="44" y="170" width="2358.7999999999997" height="230"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_L_P2_U" bpmnElement="L_P2_U" isHorizontal="true"><dc:Bounds x="44" y="400" width="2358.7999999999997" height="200"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_L_P2_M" bpmnElement="L_P2_M" isHorizontal="true"><dc:Bounds x="44" y="600" width="2358.7999999999997" height="140"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_s_sapu" bpmnElement="s_sapu"><dc:Bounds x="148" y="72" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_tandai" bpmnElement="t_tandai"><dc:Bounds x="276" y="59" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_disp" bpmnElement="t_disp"><dc:Bounds x="444" y="299" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_g_split" bpmnElement="g_split"><dc:Bounds x="644" y="304" width="52" height="52"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_tautan" bpmnElement="t_tautan"><dc:Bounds x="780" y="299" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_g_join" bpmnElement="g_join"><dc:Bounds x="1148" y="304" width="52" height="52"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_g_rek" bpmnElement="g_rek"><dc:Bounds x="1316" y="304" width="52" height="52"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_override" bpmnElement="t_override"><dc:Bounds x="1284" y="201" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_g_ovr" bpmnElement="g_ovr"><dc:Bounds x="1526" y="206" width="52" height="52"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_mulai" bpmnElement="t_mulai"><dc:Bounds x="1494" y="299" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_setuju" bpmnElement="t_setuju" isExpanded="false"><dc:Bounds x="1788" y="299" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_aktif" bpmnElement="t_aktif"><dc:Bounds x="1956" y="299" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_evf" bpmnElement="t_evf"><dc:Bounds x="948" y="459" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_unggah" bpmnElement="t_unggah"><dc:Bounds x="1620" y="459" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_evm" bpmnElement="t_evm"><dc:Bounds x="780" y="639" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_i_berakhir" bpmnElement="i_berakhir"><dc:Bounds x="1534" y="72" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_arsip" bpmnElement="t_arsip"><dc:Bounds x="1620" y="59" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_e_tidak" bpmnElement="e_tidak"><dc:Bounds x="1828" y="72" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_t_tautkan" bpmnElement="t_tautkan"><dc:Bounds x="2124" y="59" width="116" height="62"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_e_baru" bpmnElement="e_baru"><dc:Bounds x="2332" y="72" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="DI_F_s_sapu_t_tandai" bpmnElement="F_s_sapu_t_tandai"><di:waypoint x="184" y="90"/><di:waypoint x="276" y="90"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_tandai_t_disp" bpmnElement="F_t_tandai_t_disp"><di:waypoint x="392" y="90"/><di:waypoint x="502" y="90"/><di:waypoint x="502" y="299"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_disp_g_split" bpmnElement="F_t_disp_g_split"><di:waypoint x="560" y="330"/><di:waypoint x="644" y="330"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_split_t_tautan" bpmnElement="F_g_split_t_tautan"><di:waypoint x="696" y="330"/><di:waypoint x="780" y="330"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_split_t_evf" bpmnElement="F_g_split_t_evf"><di:waypoint x="670" y="356"/><di:waypoint x="670" y="490"/><di:waypoint x="948" y="490"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_tautan_t_evm" bpmnElement="F_t_tautan_t_evm"><di:waypoint x="838" y="361"/><di:waypoint x="838" y="639"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_evf_g_join" bpmnElement="F_t_evf_g_join"><di:waypoint x="1006" y="459"/><di:waypoint x="1006" y="330"/><di:waypoint x="1148" y="330"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_evm_g_join" bpmnElement="F_t_evm_g_join"><di:waypoint x="896" y="670"/><di:waypoint x="1174" y="670"/><di:waypoint x="1174" y="356"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_join_g_rek" bpmnElement="F_g_join_g_rek"><di:waypoint x="1200" y="330"/><di:waypoint x="1316" y="330"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_rek_t_mulai" bpmnElement="F_g_rek_t_mulai"><di:waypoint x="1368" y="330"/><di:waypoint x="1494" y="330"/><bpmndi:BPMNLabel><dc:Bounds x="1372" y="314" width="111" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_rek_t_override" bpmnElement="F_g_rek_t_override"><di:waypoint x="1342" y="304"/><di:waypoint x="1342" y="263"/><bpmndi:BPMNLabel><dc:Bounds x="1348" y="282" width="55" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_rek_i_berakhir" bpmnElement="F_g_rek_i_berakhir"><di:waypoint x="1342" y="356"/><di:waypoint x="1342" y="382"/><di:waypoint x="1258" y="382"/><di:waypoint x="1258" y="90"/><di:waypoint x="1534" y="90"/><bpmndi:BPMNLabel><dc:Bounds x="1266" y="364" width="104" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_override_g_ovr" bpmnElement="F_t_override_g_ovr"><di:waypoint x="1400" y="232"/><di:waypoint x="1526" y="232"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_ovr_t_mulai" bpmnElement="F_g_ovr_t_mulai"><di:waypoint x="1552" y="258"/><di:waypoint x="1552" y="299"/><bpmndi:BPMNLabel><dc:Bounds x="1558" y="270" width="20" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_g_ovr_i_berakhir" bpmnElement="F_g_ovr_i_berakhir"><di:waypoint x="1552" y="206"/><di:waypoint x="1552" y="108"/><bpmndi:BPMNLabel><dc:Bounds x="1558" y="184" width="41" height="16"/></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_i_berakhir_t_arsip" bpmnElement="F_i_berakhir_t_arsip"><di:waypoint x="1570" y="90"/><di:waypoint x="1620" y="90"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_arsip_e_tidak" bpmnElement="F_t_arsip_e_tidak"><di:waypoint x="1736" y="90"/><di:waypoint x="1828" y="90"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_mulai_t_unggah" bpmnElement="F_t_mulai_t_unggah"><di:waypoint x="1610" y="330"/><di:waypoint x="1678" y="330"/><di:waypoint x="1678" y="459"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_unggah_t_setuju" bpmnElement="F_t_unggah_t_setuju"><di:waypoint x="1736" y="490"/><di:waypoint x="1846" y="490"/><di:waypoint x="1846" y="361"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_setuju_t_aktif" bpmnElement="F_t_setuju_t_aktif"><di:waypoint x="1904" y="330"/><di:waypoint x="1956" y="330"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_aktif_t_tautkan" bpmnElement="F_t_aktif_t_tautkan"><di:waypoint x="2072" y="330"/><di:waypoint x="2226" y="330"/><di:waypoint x="2226" y="121"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DI_F_t_tautkan_e_baru" bpmnElement="F_t_tautkan_e_baru"><di:waypoint x="2240" y="90"/><di:waypoint x="2332" y="90"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
