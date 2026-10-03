@@ -479,3 +479,39 @@ separate fix:
   agenda rows already inserted by `20260919000400`.
 - The V7 test block predates Siap TTD and the Mulai Proses Pembaruan step.
 - `bersihkan_proposal_uji` predates `proposal_status_history`.
+
+## 11 — Implementasi tab reads SIM Realisasi
+
+The Realization Form project shipped as SIM Realisasi, in its own `realisasi`
+schema on this database. It records each Kegiatan in `realisasi.activities`,
+linked to documents through `realisasi.activity_documents`, and never wrote
+`implementasi_dokumen`. That table was empty, so it is dropped, and the
+Implementasi tab now lists the activities:
+
+- **No. · Periode · Nama Kegiatan · Jenis Kegiatan · Unit Pelaksana · Mode ·
+  Tanggal · Jumlah Peserta**, with the activity code and IA / IR downloads.
+- **The whole renewal chain:** `chain_id = realisasi.chain_root(no)`. A row
+  recorded under a predecessor says which document it was recorded on.
+- **Verified activities only.** Drafts and items still in review stay in SIM
+  Realisasi.
+
+Reads go through two `SECURITY DEFINER` functions, `implementasi_kegiatan(no)`
+and `implementasi_berkas(id)`. This is because realisasi's own RLS keys on
+`realisasi.my_role()`, which an SIMKS account without a Realisasi role does not
+have. The functions apply `boleh_baca_proposal` instead and stay at activity
+level:
+- Jumlah Peserta is a count from the approved participant set, with no names.
+- A `mobility_bundle` file is never returned.
+
+Files live as bytea in `realisasi.file_blobs`, so `/api/implementasi/berkas/[id]`
+streams them on the caller's session.
+
+Both functions are plpgsql and return nothing when the `realisasi` schema is
+absent, so a local reset, which has no such schema, still applies.
+
+Verified against the live database inside a block that raised at the end, so
+nothing was kept:
+- Document 11 lists its 16 verified activities out of 17.
+- An IA file returns as a PDF.
+- A mobility bundle is refused.
+- A non-admin account sees activities only where it can read the document.

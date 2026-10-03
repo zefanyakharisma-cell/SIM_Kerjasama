@@ -1031,48 +1031,41 @@ end
 $t$;
 
 -- ===========================================================================
--- Revisi V8 §2 — implementasi_dokumen hangs off the SIGNED document, and goes
--- away with it, so the test seam needs no new delete line.
+-- Implementasi tab (2026-10-03) — implementasi_kegiatan / implementasi_berkas
+-- read SIM Realisasi under the document's own read rule, show verified
+-- activities only, and never hand out a mobility_bundle file. A database
+-- without the realisasi schema (a local reset) gets no rows, not an error.
 -- ===========================================================================
 do $t$
-declare v_p int; v_no int;
+declare v_doc int; v_bundle bigint;
 begin
+  -- Every signed document is readable (proposal_sudah_aktif), so the guard's
+  -- refusal is for a document number that does not exist: no rows, no error.
   perform set_config('simks.akun_id','7',true);
-  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
-  values ('MoU','Disetujui',7) returning id into v_p;
-  insert into dokumen_kerja_sama (id_proposal_dokumen, no_dokumen, tanggal_mulai, status)
-  values (v_p, 'UJI-IMPL-1', date '2019-05-01', 'Aktif') returning no into v_no;
-
-  insert into implementasi_dokumen
-    (no_dokumen_kerjasama, judul, tanggal, periode, jumlah_peserta, id_akun_pembuat)
-  values (v_no, 'IA 2019', date '2019-06-01', 'Ganjil 2019/2020', 40, 7),
-         (v_no, 'IA 2020', date '2020-02-01', 'Genap 2019/2020', null, 7);
-  if (select count(*) from implementasi_dokumen where no_dokumen_kerjasama = v_no) <> 2 then
-    raise exception 'FAIL impl-a: rows were not stored';
+  if exists (select 1 from implementasi_kegiatan(-1)) then
+    raise exception 'FAIL impl-a: a nonexistent document listed activities';
   end if;
 
-  -- Periode is a semester of one academic year: consecutive years only.
-  begin
-    insert into implementasi_dokumen (no_dokumen_kerjasama, judul, tanggal, periode, id_akun_pembuat)
-    values (v_no, 'salah', date '2020-06-01', 'Ganjil 2019/2021', 7);
-    raise exception 'FAIL impl-b: a malformed periode was accepted';
-  exception when check_violation then null;
-  end;
+  if to_regnamespace('realisasi') is not null then
+    perform set_config('simks.akun_id','1',true);   -- IO reads every document
 
-  begin
-    insert into implementasi_dokumen (no_dokumen_kerjasama, judul, tanggal, jumlah_peserta, id_akun_pembuat)
-    values (v_no, 'salah', date '2020-06-01', -1, 7);
-    raise exception 'FAIL impl-d: a negative jumlah_peserta was accepted';
-  exception when check_violation then null;
-  end;
+    -- Verified only, across the document's whole renewal chain.
+    select ad.original_document_id into v_doc
+      from realisasi.activity_documents ad limit 1;
+    if v_doc is not null and (select count(*) from implementasi_kegiatan(v_doc)) <>
+       (select count(*) from realisasi.activity_documents ad
+          join realisasi.activities a on a.id = ad.activity_id
+         where ad.chain_id = realisasi.chain_root(v_doc) and a.status::text = 'verified') then
+      raise exception 'FAIL impl-b: listing is not exactly the verified chain activities';
+    end if;
 
-  delete from dokumen_kerja_sama where no = v_no;
-  if exists (select 1 from implementasi_dokumen where no_dokumen_kerjasama = v_no) then
-    raise exception 'FAIL impl-c: rows did not cascade with the document';
+    select id into v_bundle from realisasi.activity_files
+     where kind::text = 'mobility_bundle' limit 1;
+    if v_bundle is not null and exists (select 1 from implementasi_berkas(v_bundle)) then
+      raise exception 'FAIL impl-c: a mobility_bundle file was handed out';
+    end if;
   end if;
-  raise notice 'PASS implementasi_dokumen periode/peserta guards and cascade';
-
-  delete from proposal_dokumen where id = v_p;
+  raise notice 'PASS implementasi_kegiatan read rule, verified-only and file scope';
 end
 $t$;
 

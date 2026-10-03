@@ -256,27 +256,6 @@ CREATE TABLE `holidays` (
   UNIQUE KEY `holidays_tanggal_key` (`tanggal`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `implementasi_dokumen` (
-  `no` INT NOT NULL AUTO_INCREMENT,
-  `no_dokumen_kerjasama` INT NOT NULL,
-  `judul` VARCHAR(200) NOT NULL,
-  `deskripsi` TEXT NULL,
-  `tanggal` DATE NOT NULL,
-  `berkas` VARCHAR(500) NULL,
-  `status` VARCHAR(20) NOT NULL DEFAULT 'draft',
-  `id_akun_pembuat` INT NOT NULL,
-  `waktu_dibuat` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `periode` VARCHAR(20) NULL,
-  `jenis_kegiatan` VARCHAR(100) NULL,
-  `id_unit_pelaksana` INT NULL,
-  `jumlah_peserta` INT NULL,
-  `berkas_laporan` VARCHAR(500) NULL,
-  PRIMARY KEY (`no`),
-  CONSTRAINT `implementasi_dokumen_status_check` CHECK (((status) IN ('draft', 'submitted', 'verified'))),
-  CONSTRAINT `implementasi_dokumen_periode_check` CHECK (REGEXP_LIKE(periode, '^(Ganjil|Genap) [0-9]{4}/[0-9]{4}$') AND CAST(SUBSTRING(periode, -4) AS UNSIGNED) = CAST(SUBSTRING(periode, -9, 4) AS UNSIGNED) + 1),
-  CONSTRAINT `implementasi_dokumen_jumlah_peserta_check` CHECK ((jumlah_peserta >= 0))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Implementation Arrangements (one planned activity per row) for a signed cooperation document; berkas_laporan is its Implementation Report file. Read-only in the app for now: the Implementasi tab lists it, the Realization Form project writes it.';
-
 CREATE TABLE `jabatan` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `nama` VARCHAR(150) NOT NULL,
@@ -639,12 +618,6 @@ ALTER TABLE `evaluasi` ADD CONSTRAINT `evaluasi_id_partner_contact_fkey`
   FOREIGN KEY (`id_partner_contact`) REFERENCES `partner_contact` (`id`);
 ALTER TABLE `evaluasi` ADD CONSTRAINT `evaluasi_id_supersedes_fkey`
   FOREIGN KEY (`id_supersedes`) REFERENCES `evaluasi` (`no`);
-ALTER TABLE `implementasi_dokumen` ADD CONSTRAINT `implementasi_dokumen_id_akun_pembuat_fkey`
-  FOREIGN KEY (`id_akun_pembuat`) REFERENCES `akun` (`id`);
-ALTER TABLE `implementasi_dokumen` ADD CONSTRAINT `implementasi_dokumen_no_dokumen_kerjasama_fkey`
-  FOREIGN KEY (`no_dokumen_kerjasama`) REFERENCES `dokumen_kerja_sama` (`no`) ON DELETE CASCADE;
-ALTER TABLE `implementasi_dokumen` ADD CONSTRAINT `implementasi_dokumen_id_unit_pelaksana_fkey`
-  FOREIGN KEY (`id_unit_pelaksana`) REFERENCES `unit` (`id`);
 ALTER TABLE `jabatan` ADD CONSTRAINT `jabatan_id_pegawai_fkey`
   FOREIGN KEY (`id_pegawai`) REFERENCES `pegawai` (`id`);
 ALTER TABLE `jabatan` ADD CONSTRAINT `jabatan_id_unit_fkey`
@@ -760,8 +733,6 @@ CREATE INDEX `disposisi_target_jabatan_idx` ON `disposisi_target` (`id_jabatan`,
 CREATE INDEX `disposisi_target_pending_idx` ON `disposisi_target` (`status`);
 CREATE INDEX `dokumen_status_berakhir_idx` ON `dokumen_kerja_sama` (`status`, `tanggal_berakhir`);
 CREATE INDEX `evaluasi_dokumen_idx` ON `evaluasi` (`id_dokumen_kerjasama`, `respondent_type`, `status`);
-CREATE INDEX `implementasi_dokumen_idx` ON `implementasi_dokumen` (`no_dokumen_kerjasama`, `tanggal` DESC);
-CREATE INDEX `implementasi_unit_idx` ON `implementasi_dokumen` (`id_unit_pelaksana`);
 CREATE INDEX `jabatan_tier_idx` ON `jabatan` (`tier_disposisi`);
 CREATE INDEX `jabatan_unit_idx` ON `jabatan` (`id_unit`);
 CREATE INDEX `keputusan_pembaruan_dokumen_idx` ON `keputusan_pembaruan` (`id_dokumen_kerjasama`);
