@@ -1031,32 +1031,44 @@ end
 $t$;
 
 -- ===========================================================================
--- Implementasi tab (2026-10-03) — implementasi_kegiatan / implementasi_berkas
--- read SIM Realisasi under the document's own read rule, show verified
--- activities only, and never hand out a mobility_bundle file. A database
+-- Implementasi tab (2026-10-03, 2026-10-04) — implementasi_kegiatan_diajukan / implementasi_berkas
+-- read SIM Realisasi under the document's own read rule, show every submitted
+-- (non-draft) activity, and never hand out a mobility_bundle file. A database
 -- without the realisasi schema (a local reset) gets no rows, not an error.
 -- ===========================================================================
 do $t$
-declare v_doc int; v_bundle bigint;
+declare v_doc int; v_bundle bigint; v_draft bigint;
 begin
   -- Every signed document is readable (proposal_sudah_aktif), so the guard's
   -- refusal is for a document number that does not exist: no rows, no error.
   perform set_config('simks.akun_id','7',true);
-  if exists (select 1 from implementasi_kegiatan(-1)) then
+  if exists (select 1 from implementasi_kegiatan_diajukan(-1)) then
     raise exception 'FAIL impl-a: a nonexistent document listed activities';
   end if;
 
   if to_regnamespace('realisasi') is not null then
     perform set_config('simks.akun_id','1',true);   -- IO reads every document
 
-    -- Verified only, across the document's whole renewal chain.
+    -- Every submitted activity (2026-10-04: not just verified), across the
+    -- document's whole renewal chain.
     select ad.original_document_id into v_doc
       from realisasi.activity_documents ad limit 1;
-    if v_doc is not null and (select count(*) from implementasi_kegiatan(v_doc)) <>
+    if v_doc is not null and (select count(*) from implementasi_kegiatan_diajukan(v_doc)) <>
        (select count(*) from realisasi.activity_documents ad
           join realisasi.activities a on a.id = ad.activity_id
-         where ad.chain_id = realisasi.chain_root(v_doc) and a.status::text = 'verified') then
-      raise exception 'FAIL impl-b: listing is not exactly the verified chain activities';
+         where ad.chain_id = realisasi.chain_root(v_doc) and a.status::text <> 'draft') then
+      raise exception 'FAIL impl-b: listing is not exactly the submitted chain activities';
+    end if;
+    if exists (select 1 from implementasi_kegiatan_diajukan(v_doc) where status = 'draft') then
+      raise exception 'FAIL impl-d: a draft activity was listed';
+    end if;
+
+    -- A draft's IA stays in SIM Realisasi.
+    select f.id into v_draft from realisasi.activity_files f
+      join realisasi.activities a on a.id = f.activity_id
+     where a.status::text = 'draft' and f.kind::text = 'ia' limit 1;
+    if v_draft is not null and exists (select 1 from implementasi_berkas(v_draft)) then
+      raise exception 'FAIL impl-e: a draft activity''s IA was handed out';
     end if;
 
     select id into v_bundle from realisasi.activity_files
@@ -1065,7 +1077,7 @@ begin
       raise exception 'FAIL impl-c: a mobility_bundle file was handed out';
     end if;
   end if;
-  raise notice 'PASS implementasi_kegiatan read rule, verified-only and file scope';
+  raise notice 'PASS implementasi_kegiatan_diajukan read rule, submitted-only and file scope';
 end
 $t$;
 
@@ -1509,7 +1521,7 @@ begin
      or (select langkah from resolusi_penerus(v_no1)) <> 0 then
     raise exception 'FAIL tolak-d: resolusi_penerus moved onto the rejected document';
   end if;
-  if exists (select 1 from implementasi_kegiatan(v_no_tolak)) then
+  if exists (select 1 from implementasi_kegiatan_diajukan(v_no_tolak)) then
     raise exception 'FAIL tolak-e: the rejected document listed activities';
   end if;
 

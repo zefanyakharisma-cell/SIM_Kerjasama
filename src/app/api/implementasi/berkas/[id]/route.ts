@@ -42,6 +42,9 @@ export async function GET(
       "Content-Length": String(isi.length),
       "Content-Disposition": `attachment; filename="${nama.replace(/["\\\r\n]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(nama)}`,
       "Cache-Control": "private, no-store",
+      // The type is whatever the uploader's browser claimed; never let it be
+      // sniffed into something that runs on this origin.
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

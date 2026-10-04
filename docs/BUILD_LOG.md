@@ -577,3 +577,56 @@ Open, not changed here: `kerjasama.documents` (the SIM Realisasi adapter view)
 still gives a rejected renewal a `predecessor_id`. As a result,
 `realisasi.chain_current` and `v_chains.current_document_id` would name the
 rejected document in SIM Realisasi.
+
+## 13 — Every submitted IA on its document
+
+Client revision 2026-10-04: an IA submitted in SIM Realisasi must be visible on
+its document straight away, not only once verified.
+
+`implementasi_kegiatan` returned `verified` activities only. On the live data
+that hid 11 of the 128 submitted activities: 7 `in_verification` and 4
+`revision_requested`. `20261004000200_implementasi_diajukan.sql` adds
+`implementasi_kegiatan_diajukan(no)`, which lists every activity that has left
+the draft state and returns its `status`. The extra column changes the return
+type, so it is a new function and the tab calls it. The old
+`implementasi_kegiatan` stays, with no caller in the app. A `DROP FUNCTION`
+through the Supabase tool hung waiting for a confirmation, so removing the old
+function is left as a separate step.
+
+- The Implementasi tab gains a **Status** column: Terverifikasi, Dalam
+  Verifikasi, Perlu Revisi. A note above the table counts the activities still
+  under verification.
+- `implementasi_berkas` follows the same rule, so a submitted IA downloads. A
+  draft's IA still does not, nor does a mobility bundle.
+- **Jumlah Peserta** for an activity under verification: its only participant
+  set is `pending`, so the count was "—". It now takes the approved set, else
+  the newest one under review. Still a count, never names.
+- **Periode** was NULL for an activity with an academic year but no semester
+  (`||` with NULL). `concat_ws` keeps the year.
+- Activities without a start date sort last instead of first.
+
+Other fixes from the bug pass:
+
+- **`20261004000100` was never applied to the live database.** Entry 12 was
+  merged to `main`, but its migration was not run, so a rejected Perpanjangan
+  still blocked renewal there. It is now applied, followed by `20261004000200`.
+- The "Dicatat langsung oleh KUI" badge and the "Ubah Pencatatan" link sat
+  outside the header's flex row, so they rendered on their own line under the
+  title. They are back in the row.
+- `/api/implementasi/berkas/[id]` serves the uploader's claimed MIME type; it
+  now sends `X-Content-Type-Options: nosniff`.
+
+Verified on the live database after applying both migrations, in a
+transaction that raised at the end:
+
+- All 128 submitted activities list exactly once (117 verified, 7 in
+  verification, 4 in revision).
+- All 11 newly visible activities have a participant count and a
+  downloadable IA.
+- No draft IA and no mobility bundle is handed out.
+- A unit account sees activities on its 18 readable documents and on none
+  it cannot read. `anon` cannot execute the function.
+
+Still open, owned by SIM Realisasi rather than this repo: `kerjasama.documents`
+gives a rejected renewal a `predecessor_id`, so `realisasi.chain_current`
+can name a rejected document (entry 12).
