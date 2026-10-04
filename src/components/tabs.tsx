@@ -9,13 +9,16 @@ export function Tabs<K extends string>({
   basePath,
   tabs,
   aktif,
+  tur,
 }: {
   basePath: string;
   tabs: Partial<Record<K, string>>;
   aktif: K;
+  /** Target name for the guided tour (lib/tur.ts). */
+  tur?: string;
 }) {
   return (
-    <nav className="mb-5 flex flex-wrap gap-1 border-b" style={{ borderColor: "var(--border)" }}>
+    <nav className="mb-5 flex flex-wrap gap-1 border-b" style={{ borderColor: "var(--border)" }} data-tour={tur}>
       {(Object.keys(tabs) as K[]).map((k) => (
         <Link
           key={k}

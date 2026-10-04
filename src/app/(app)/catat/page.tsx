@@ -181,6 +181,7 @@ export default async function CatatDokumen({
 
         <Bagian
           judul="I. Data Mitra"
+          tur="catat-mitra"
           keterangan="Pilih mitra dari master data, atau tambahkan mitra baru. Negara mitra menentukan status dalam negeri atau luar negeri."
         >
           <MitraPicker
@@ -344,6 +345,7 @@ export default async function CatatDokumen({
 
         <Bagian
           judul="V. Dokumen yang Sudah Ditandatangani"
+          tur="catat-dokumen"
           keterangan="Data dari dokumen fisik yang sudah berlaku. Tanggal tanda tangan menjadi tanggal pengajuan dan persetujuan dokumen ini, karena tidak melalui proses approval."
         >
           <div className="grid gap-4 sm:grid-cols-2">
@@ -467,13 +469,15 @@ export default async function CatatDokumen({
           </div>
         </Bagian>
 
-        <SubmitButton
-          labelMenunggu="Menyimpan…"
-          className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-          style={{ background: "var(--midnight)" }}
-        >
-          {idEdit ? "Simpan Perubahan" : "Simpan Dokumen"}
-        </SubmitButton>
+        <div data-tour="catat-aksi" className="inline-block">
+          <SubmitButton
+            labelMenunggu="Menyimpan…"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+            style={{ background: "var(--midnight)" }}
+          >
+            {idEdit ? "Simpan Perubahan" : "Simpan Dokumen"}
+          </SubmitButton>
+        </div>
       </form>
     </div>
   );

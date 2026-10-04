@@ -118,7 +118,7 @@ export default async function Dashboard({
     : Object.fromEntries(Object.entries(TAB).filter(([k]) => k !== "proses"));
   const aktif: TabKey = Object.hasOwn(tabs, tab ?? "") ? (tab as TabKey) : "dashboard";
 
-  const nav = <Tabs basePath="/dashboard" tabs={tabs} aktif={aktif} />;
+  const nav = <Tabs basePath="/dashboard" tabs={tabs} aktif={aktif} tur="dashboard-tab" />;
 
   const judul = (
     <header className="mb-5">
@@ -194,7 +194,7 @@ export default async function Dashboard({
             Tidak ada dokumen yang sedang dalam proses.
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-6" data-tour="dashboard-proses">
             {grup.map((g) => (
               <section key={g.status}>
                 <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -746,7 +746,7 @@ export default async function Dashboard({
       {judul}
       {nav}
 
-      <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4" data-tour="dashboard-statistik">
         <Kartu
           label="Jumlah Kerja Sama Aktif"
           nilai={aktifDok}
@@ -793,11 +793,11 @@ export default async function Dashboard({
         />
       </section>
 
-      <section className="mb-6">
+      <section className="mb-6" data-tour="dashboard-peta">
         <PetaMitra pin={(pin ?? []) as Pin[]} />
       </section>
 
-      <div className="mb-6">
+      <div className="mb-6" data-tour="dashboard-grafik">
         <StudioGrafik
           grafik={grafik}
           onPindah={pindahGrafik}
@@ -814,6 +814,7 @@ export default async function Dashboard({
 
       {ringkasGap.length > 0 && admin ? (
         <section
+          data-tour="dashboard-evaluasi"
           className="rounded-xl border bg-white p-4"
           style={{ borderColor: "var(--border)" }}
         >

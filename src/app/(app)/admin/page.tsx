@@ -172,8 +172,8 @@ export default async function Admin({
           Data.
         </p>
       </header>
-      <Tabs basePath="/admin" tabs={TAB} aktif={aktif} />
-      {isi}
+      <Tabs basePath="/admin" tabs={TAB} aktif={aktif} tur="admin-tab" />
+      <div data-tour="admin-isi">{isi}</div>
     </div>
   );
 }

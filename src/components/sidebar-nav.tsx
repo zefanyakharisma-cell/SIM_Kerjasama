@@ -7,6 +7,7 @@ import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { keluar } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/submit-button";
+import { SakelarTur } from "@/components/tur-demo";
 
 export type MenuItem = { href: string; label: string };
 
@@ -126,6 +127,7 @@ export function SidebarNav({
             type="button"
             onClick={ubahLipat}
             aria-label={lipat ? "Tampilkan menu" : "Sembunyikan menu"}
+            data-tour="lipat"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm hover:bg-white/10"
           >
             {lipat ? "»" : "«"}
@@ -143,7 +145,7 @@ export function SidebarNav({
         )}
       </div>
 
-      <div className="relative mb-6" data-akun>
+      <div className="relative mb-6" data-akun data-tour="akun">
         <button
           type="button"
           onClick={() => setAkunTerbuka((v) => !v)}
@@ -201,7 +203,7 @@ export function SidebarNav({
         ) : null}
       </div>
 
-      <nav className="flex flex-col gap-1" aria-label="Menu utama">
+      <nav className="flex flex-col gap-1" aria-label="Menu utama" data-tour="menu">
         {menu.map((m) => {
           // /catat is the second way into Buat Kerja Sama, not its own menu.
           const jalur = pathname.startsWith("/catat") ? "/buat" : pathname;
@@ -213,6 +215,7 @@ export function SidebarNav({
               title={lipat ? m.label : undefined}
               aria-current={aktif ? "page" : undefined}
               onClick={() => setMenuTerbuka(false)}
+              data-tour={`menu-${m.href}`}
               className={`flex items-center gap-3 rounded-lg py-2 text-sm hover:bg-white/10 ${
                 lipat ? "justify-center px-2" : "px-3"
               }`}
@@ -225,7 +228,11 @@ export function SidebarNav({
         })}
       </nav>
 
-      {!lipat ? <div className="mt-auto pt-6 text-xs opacity-80">{peran}</div> : null}
+      <div className="mt-auto pt-6">
+        {/* Closing the drawer first: the tour points at the page behind it. */}
+        <SakelarTur lipat={lipat} onUbah={() => setMenuTerbuka(false)} />
+        {!lipat ? <div className="mt-3 text-xs opacity-80">{peran}</div> : null}
+      </div>
     </>
   );
 
@@ -245,6 +252,7 @@ export function SidebarNav({
           aria-expanded={menuTerbuka}
           aria-controls="menu-seluler"
           aria-label="Buka menu"
+          data-tour="menu-seluler"
           className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-white/10"
         >
           <Ikon d="M3 5h14M3 10h14M3 15h14" />

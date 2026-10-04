@@ -162,7 +162,7 @@ export default async function MasterData({
           langsung berlaku di formulir.
         </p>
       </header>
-      <Tabs basePath="/master-data" tabs={TAB} aktif={aktif} />
+      <Tabs basePath="/master-data" tabs={TAB} aktif={aktif} tur="md-tab" />
       {galat || info ? (
         <p
           role="status"
@@ -175,7 +175,7 @@ export default async function MasterData({
           {galat ?? info}
         </p>
       ) : null}
-      {isi}
+      <div data-tour="md-isi">{isi}</div>
     </div>
   );
   const tautanTab = `/master-data?tab=${aktif}` as Route;

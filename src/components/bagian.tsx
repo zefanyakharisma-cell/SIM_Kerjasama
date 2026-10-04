@@ -7,14 +7,18 @@
 export function Bagian({
   judul,
   keterangan,
+  tur,
   children,
 }: {
   judul: string;
   keterangan?: string;
+  /** Target name for the guided tour (lib/tur.ts). */
+  tur?: string;
   children: React.ReactNode;
 }) {
   return (
     <section
+      data-tour={tur}
       className="mb-5 rounded-xl border bg-white p-5"
       style={{ borderColor: "var(--border)" }}
     >

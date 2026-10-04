@@ -221,6 +221,7 @@ export function NotificationBell({ belumDibaca }: { belumDibaca: number }) {
         onClick={klik}
         aria-label={belum > 0 ? `Notifikasi, ${belum} belum dibaca` : "Notifikasi"}
         aria-expanded={buka}
+        data-tour="lonceng"
         className={`fixed z-50 flex touch-none select-none items-center justify-center rounded-full text-white shadow-lg backdrop-blur transition-[opacity,transform] ${
           seret ? "scale-110 cursor-grabbing" : "cursor-grab hover:scale-105"
         }`}
