@@ -21,6 +21,10 @@ const WARNA: Record<string, string> = {
   "Disposisi Evaluasi": "var(--status-progress)",
   Kedaluarsa: "var(--status-archived)",
   Diarsipkan: "var(--status-archived)",
+  // SIM Realisasi activity statuses, on the Implementasi tab.
+  Terverifikasi: "var(--status-active)",
+  "Dalam Verifikasi": "var(--status-progress)",
+  "Perlu Revisi": "var(--status-pending)",
 };
 
 /**

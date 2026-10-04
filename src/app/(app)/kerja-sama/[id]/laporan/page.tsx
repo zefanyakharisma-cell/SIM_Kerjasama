@@ -74,6 +74,13 @@ const AKSI_LABEL: Record<string, string> = {
   evaluation_reopened: "membuka ulang evaluasi",
 };
 
+/** SIM Realisasi's activity status, as the Implementasi tab names it. */
+const STATUS_KEGIATAN: Record<string, string> = {
+  verified: "Terverifikasi",
+  in_verification: "Dalam Verifikasi",
+  revision_requested: "Perlu Revisi",
+};
+
 function Tanggal({ nilai }: { nilai: string | null | undefined }) {
   if (!nilai) return <>—</>;
   return <>{new Date(nilai).toLocaleDateString("id-ID", { dateStyle: "medium" })}</>;
@@ -182,12 +189,13 @@ export default async function LaporanDokumen({
           .select("no_dokumen_kerjasama", { count: "exact", head: true })
           .eq("no_dokumen_kerjasama", dok.no)
       : Promise.resolve({ count: 0 }),
-    // The verified Kegiatan SIM Realisasi recorded against this document's
-    // renewal chain, newest first. Read through implementasi_kegiatan because
+    // Every Kegiatan submitted in SIM Realisasi against this document's
+    // renewal chain (verified, in verification or sent back for revision),
+    // newest first. Read through implementasi_kegiatan_diajukan because
     // realisasi's own RLS only knows SIM Realisasi roles; the function applies
     // this document's read rule instead.
     ditandatangani
-      ? supabase.rpc("implementasi_kegiatan", { p_no: dok.no })
+      ? supabase.rpc("implementasi_kegiatan_diajukan", { p_no: dok.no })
       : Promise.resolve({ data: [] as any[], error: null }),
     idKontak.length
       ? supabase
@@ -419,7 +427,6 @@ export default async function LaporanDokumen({
           <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
             {proposal.jenis_kerjasama}
           </span>
-        </div>
           {langsung ? (
             <span
               className="rounded px-2 py-0.5 text-xs"
@@ -433,6 +440,7 @@ export default async function LaporanDokumen({
               Ubah Pencatatan
             </Link>
           ) : null}
+        </div>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
           {daftarMitra.map((p: any) => p.nama).filter(Boolean).join(", ") || "Mitra belum dipilih"}
         </p>
@@ -819,6 +827,14 @@ export default async function LaporanDokumen({
 
       {tab === "implementasi" && ditandatangani ? (
         <Kartu judul="Kegiatan Implementasi">
+          {/* Submitted but not yet verified: listed, and said so. */}
+          {(implementasi ?? []).some((i: any) => i.status !== "verified") ? (
+            <p className="mb-3 text-xs" style={{ color: "var(--text-secondary)" }}>
+              {(implementasi ?? []).filter((i: any) => i.status !== "verified").length} dari{" "}
+              {implementasi?.length} kegiatan masih diverifikasi di SIM Realisasi; datanya dapat
+              berubah.
+            </p>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -832,6 +848,7 @@ export default async function LaporanDokumen({
                     "Mode",
                     "Tanggal",
                     "Jumlah Peserta",
+                    "Status",
                   ].map((l) => (
                     <th
                       key={l}
@@ -888,20 +905,23 @@ export default async function LaporanDokumen({
                         ) : null}
                       </td>
                       <td className="px-2 py-2 text-right">{i.jumlah_peserta ?? "—"}</td>
+                      <td className="whitespace-nowrap px-2 py-2">
+                        <StatusPill status={STATUS_KEGIATAN[i.status] ?? i.status} />
+                      </td>
                     </tr>
                   );
                 })}
                 {!implementasi?.length ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-2 py-8 text-center"
                       style={{ color: galatImplementasi ? "var(--action-danger)" : "var(--text-muted)" }}
                     >
                       {/* A failed read must not pass for "nothing realized". */}
                       {galatImplementasi
                         ? "Data kegiatan SIM Realisasi gagal dimuat. Muat ulang halaman ini."
-                        : "Belum ada kegiatan terverifikasi dari SIM Realisasi."}
+                        : "Belum ada kegiatan yang diajukan di SIM Realisasi."}
                     </td>
                   </tr>
                 ) : null}
