@@ -179,7 +179,7 @@ function BarFilter({ tab, filter }: { tab: TabKey; filter: Filter }) {
   };
 
   return (
-    <form method="get" action="/kerja-sama" className="mb-3 rounded-xl border bg-white p-3" style={gaya}>
+    <form method="get" action="/kerja-sama" className="mb-3 rounded-xl border bg-white p-3" style={gaya} data-tour="ks-filter">
       <input type="hidden" name="tab" value={tab} />
       <div className="flex flex-wrap items-end gap-2">
         <label className="block min-w-[14rem] flex-1 text-xs">
@@ -294,7 +294,7 @@ function TabelProposal({
   editDraf: boolean;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border bg-white" style={{ borderColor: "var(--border)" }}>
+    <div className="overflow-x-auto rounded-xl border bg-white" style={{ borderColor: "var(--border)" }} data-tour="ks-tabel">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
@@ -411,7 +411,7 @@ function TabelDokumen({
     "Action",
   ];
   return (
-    <div className="overflow-x-auto rounded-xl border bg-white" style={{ borderColor: "var(--border)" }}>
+    <div className="overflow-x-auto rounded-xl border bg-white" style={{ borderColor: "var(--border)" }} data-tour="ks-tabel">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left" style={{ color: "var(--text-secondary)" }}>
@@ -632,7 +632,7 @@ export default async function CariKerjaSama({
         </p>
       ) : null}
 
-      <Tabs basePath="/kerja-sama" tabs={TAB} aktif={tab} />
+      <Tabs basePath="/kerja-sama" tabs={TAB} aktif={tab} tur="ks-tab" />
 
       {/* The export buttons sit with the filters, so it is visible that they
           export what is on screen (Design §4.5). */}
@@ -641,7 +641,7 @@ export default async function CariKerjaSama({
           {total} dokumen{adaFilter ? " sesuai filter" : ""} · halaman {halaman} dari{" "}
           {halamanTerakhir}
         </span>
-        <span className="flex flex-wrap gap-2">
+        <span className="flex flex-wrap gap-2" data-tour="ks-unduh">
           {UNDUHAN.map(([jenis, label]) => (
             <a
               key={jenis}
@@ -682,6 +682,7 @@ export default async function CariKerjaSama({
         <TabelDokumen baris={baris} halaman={halaman} pembaruan={{ gerbang, io, minta, ambangHari, opsiJabatan }} />
       ) : (
         <div
+          data-tour="ks-tabel"
           className="overflow-x-auto rounded-xl border bg-white"
           style={{ borderColor: "var(--border)" }}
         >

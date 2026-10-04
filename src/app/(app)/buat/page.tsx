@@ -200,6 +200,7 @@ export default async function BuatKerjaSama({
         {idEdit ? <input type="hidden" name="id" value={idEdit} /> : null}
         <Bagian
           judul="I. Data Calon Mitra"
+          tur="buat-mitra"
           keterangan="Pilih mitra dari master data, atau tambahkan mitra baru. Negara mitra menentukan status dalam negeri atau luar negeri."
         >
           <MitraPicker
@@ -213,6 +214,7 @@ export default async function BuatKerjaSama({
 
         <Bagian
           judul="II. Unit Pengusul"
+          tur="buat-pengusul"
           keterangan="Jabatan pengusul menentukan unit pemilik hubungan ini. Permintaan pembaruan kelak dikirim ke jabatan tersebut."
         >
           <label className="block">
@@ -226,7 +228,7 @@ export default async function BuatKerjaSama({
           </label>
         </Bagian>
 
-        <Bagian judul="III. Kerja Sama yang Diusulkan">
+        <Bagian judul="III. Kerja Sama yang Diusulkan" tur="buat-kerjasama">
           <div className="grid gap-4 sm:grid-cols-2">
             <fieldset className="block sm:col-span-2">
               <legend className="mb-1 block text-sm font-medium">Periode Kerja Sama (*)</legend>
@@ -372,18 +374,19 @@ export default async function BuatKerjaSama({
           </label>
         </Bagian>
 
-        <Bagian judul="Upload Dokumen" keterangan="Opsional. Unggah draf dokumen kerja sama dalam format PDF atau Word.">
+        <Bagian judul="Upload Dokumen" tur="buat-unggah" keterangan="Opsional. Unggah draf dokumen kerja sama dalam format PDF atau Word.">
           <input type="file" name="upload_dokumen" accept={TERIMA_PDF_WORD} aria-label="Upload dokumen (PDF atau Word)" className="text-sm" />
         </Bagian>
 
         <Bagian
           judul="IV. Lingkup Kerja Sama (*)"
+          tur="buat-lingkup"
           keterangan="Mencentang fakultas otomatis mencentang seluruh prodi dan program di bawahnya. Mencabut satu anak membuat induknya berstatus sebagian."
         >
           <PohonLingkup units={unit ?? []} awal={unitTerpilih} />
         </Bagian>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" data-tour="buat-aksi">
           <SubmitButton
             name="aksi"
             value="draft"

@@ -104,7 +104,7 @@ export default async function Antrean() {
             </p>
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-2" data-tour="antrean-daftar">
             {urut.map((t) => (
               <li key={`${t.jenis}-${t.id_proposal}-${t.keterangan}`}>
                 <Link
@@ -134,7 +134,9 @@ export default async function Antrean() {
                     ) : null}
                   </span>
                   {t.jenis === "approval" ? (
-                    <SlaFlag hari={t.durasi_hari_kerja} bendera={t.status_sla} />
+                    <span data-tour="antrean-sla">
+                      <SlaFlag hari={t.durasi_hari_kerja} bendera={t.status_sla} />
+                    </span>
                   ) : null}
                 </Link>
               </li>
@@ -143,7 +145,9 @@ export default async function Antrean() {
         )}
       </div>
 
-      <RingkasanAntrean data={ringkasan} />
+      <div data-tour="antrean-ringkasan">
+        <RingkasanAntrean data={ringkasan} />
+      </div>
     </div>
   );
 }

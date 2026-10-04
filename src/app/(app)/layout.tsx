@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { akunSaatIni, supabaseServer } from "@/lib/supabase/server";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { NotificationBell } from "@/components/notification-bell";
+import { TurProvider } from "@/components/tur-demo";
 
 /**
  * The app shell (Design §3): one flat sidebar shared by every role. Role
@@ -66,6 +67,7 @@ export default async function AppLayout({
   ]);
 
   return (
+    <TurProvider peran={akun.role}>
     <div className="flex min-h-screen flex-col md:flex-row">
       <SidebarNav
         menu={MENU.filter(
@@ -83,5 +85,6 @@ export default async function AppLayout({
 
       <main className="min-w-0 flex-1 p-6 md:p-8">{children}</main>
     </div>
+    </TurProvider>
   );
 }

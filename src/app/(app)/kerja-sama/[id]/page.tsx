@@ -274,7 +274,7 @@ export default async function DetailDokumen({
         </p>
       ) : null}
 
-      <header className="mb-6">
+      <header className="mb-6" data-tour="detail-header">
         <div className="mb-1 flex flex-wrap items-center gap-3">
           <h1 className="no-dokumen text-lg font-semibold" style={{ color: "var(--midnight)" }}>
             {dok?.no_dokumen ?? `Draf #${proposal.id}`}
@@ -315,7 +315,7 @@ export default async function DetailDokumen({
         </div>
       ) : null}
 
-      <section className="mb-6 grid gap-4 md:grid-cols-2">
+      <section className="mb-6 grid gap-4 md:grid-cols-2" data-tour="detail-info">
         <div className="rounded-xl border bg-white p-4" style={{ borderColor: "var(--border)" }}>
           <h2 className="mb-3 text-sm font-semibold">Detail</h2>
           <dl className="space-y-2 text-sm">
@@ -380,6 +380,7 @@ export default async function DetailDokumen({
       */}
       {!langsung ? (
       <section
+            data-tour="detail-approval"
             className="mb-6 rounded-xl border bg-white p-4"
             style={{ borderColor: "var(--border)" }}
           >
@@ -453,6 +454,7 @@ export default async function DetailDokumen({
 
           {belumDidisposisi ? (
             <section
+              data-tour="detail-disposisi"
               className="mb-6 rounded-xl border bg-white p-4"
               style={{ borderColor: "var(--border)" }}
             >
@@ -497,6 +499,7 @@ export default async function DetailDokumen({
 
           {io && proposal.status_proposal === "Disetujui" && !dok ? (
             <section
+              data-tour="detail-siap-ttd"
               className="mb-6 rounded-xl border-2 bg-white p-4"
               style={{ borderColor: "var(--status-approved)" }}
             >
@@ -519,6 +522,7 @@ export default async function DetailDokumen({
 
           {io && proposal.status_proposal === "Siap TTD" && !dok ? (
             <section
+              data-tour="detail-aktivasi"
               className="mb-6 rounded-xl border-2 bg-white p-4"
               style={{ borderColor: "var(--status-approved)" }}
             >
@@ -632,6 +636,7 @@ export default async function DetailDokumen({
 
           {io && dok?.status && ["Aktif", "Akan Berakhir"].includes(dok.status) ? (
             <section
+              data-tour="detail-akhiri"
               className="mb-6 rounded-xl border bg-white p-4"
               style={{ borderColor: "var(--border)" }}
             >
@@ -657,6 +662,7 @@ export default async function DetailDokumen({
       {/* The renewal chain, navigable from either end. */}
       {pendahulu || penerus ? (
         <section
+          data-tour="detail-rantai"
           className="mb-6 rounded-xl border bg-white p-4"
           style={{ borderColor: "var(--renewal-request)" }}
         >
@@ -682,7 +688,7 @@ export default async function DetailDokumen({
         </section>
       ) : null}
 
-      <section className="rounded-xl border bg-white p-4" style={{ borderColor: "var(--border)" }}>
+      <section data-tour="detail-riwayat" className="rounded-xl border bg-white p-4" style={{ borderColor: "var(--border)" }}>
         <h2 className="mb-3 text-sm font-semibold">Riwayat</h2>
         <ul className="space-y-2 text-sm">
           {(riwayat ?? []).map((r: any) => (

@@ -21,7 +21,7 @@ const PILIHAN = [
 
 export function PilihanBuat({ aktif }: { aktif: "/buat" | "/catat" }) {
   return (
-    <nav aria-label="Jenis pembuatan" className="mb-5 grid gap-2 sm:grid-cols-2">
+    <nav aria-label="Jenis pembuatan" data-tour="buat-pilihan" className="mb-5 grid gap-2 sm:grid-cols-2">
       {PILIHAN.map((p) => {
         const dipilih = p.href === aktif;
         return (
