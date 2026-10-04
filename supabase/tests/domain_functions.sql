@@ -1031,48 +1031,41 @@ end
 $t$;
 
 -- ===========================================================================
--- Revisi V8 §2 — implementasi_dokumen hangs off the SIGNED document, and goes
--- away with it, so the test seam needs no new delete line.
+-- Implementasi tab (2026-10-03) — implementasi_kegiatan / implementasi_berkas
+-- read SIM Realisasi under the document's own read rule, show verified
+-- activities only, and never hand out a mobility_bundle file. A database
+-- without the realisasi schema (a local reset) gets no rows, not an error.
 -- ===========================================================================
 do $t$
-declare v_p int; v_no int;
+declare v_doc int; v_bundle bigint;
 begin
+  -- Every signed document is readable (proposal_sudah_aktif), so the guard's
+  -- refusal is for a document number that does not exist: no rows, no error.
   perform set_config('simks.akun_id','7',true);
-  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
-  values ('MoU','Disetujui',7) returning id into v_p;
-  insert into dokumen_kerja_sama (id_proposal_dokumen, no_dokumen, tanggal_mulai, status)
-  values (v_p, 'UJI-IMPL-1', date '2019-05-01', 'Aktif') returning no into v_no;
-
-  insert into implementasi_dokumen
-    (no_dokumen_kerjasama, judul, tanggal, periode, jumlah_peserta, id_akun_pembuat)
-  values (v_no, 'IA 2019', date '2019-06-01', 'Ganjil 2019/2020', 40, 7),
-         (v_no, 'IA 2020', date '2020-02-01', 'Genap 2019/2020', null, 7);
-  if (select count(*) from implementasi_dokumen where no_dokumen_kerjasama = v_no) <> 2 then
-    raise exception 'FAIL impl-a: rows were not stored';
+  if exists (select 1 from implementasi_kegiatan(-1)) then
+    raise exception 'FAIL impl-a: a nonexistent document listed activities';
   end if;
 
-  -- Periode is a semester of one academic year: consecutive years only.
-  begin
-    insert into implementasi_dokumen (no_dokumen_kerjasama, judul, tanggal, periode, id_akun_pembuat)
-    values (v_no, 'salah', date '2020-06-01', 'Ganjil 2019/2021', 7);
-    raise exception 'FAIL impl-b: a malformed periode was accepted';
-  exception when check_violation then null;
-  end;
+  if to_regnamespace('realisasi') is not null then
+    perform set_config('simks.akun_id','1',true);   -- IO reads every document
 
-  begin
-    insert into implementasi_dokumen (no_dokumen_kerjasama, judul, tanggal, jumlah_peserta, id_akun_pembuat)
-    values (v_no, 'salah', date '2020-06-01', -1, 7);
-    raise exception 'FAIL impl-d: a negative jumlah_peserta was accepted';
-  exception when check_violation then null;
-  end;
+    -- Verified only, across the document's whole renewal chain.
+    select ad.original_document_id into v_doc
+      from realisasi.activity_documents ad limit 1;
+    if v_doc is not null and (select count(*) from implementasi_kegiatan(v_doc)) <>
+       (select count(*) from realisasi.activity_documents ad
+          join realisasi.activities a on a.id = ad.activity_id
+         where ad.chain_id = realisasi.chain_root(v_doc) and a.status::text = 'verified') then
+      raise exception 'FAIL impl-b: listing is not exactly the verified chain activities';
+    end if;
 
-  delete from dokumen_kerja_sama where no = v_no;
-  if exists (select 1 from implementasi_dokumen where no_dokumen_kerjasama = v_no) then
-    raise exception 'FAIL impl-c: rows did not cascade with the document';
+    select id into v_bundle from realisasi.activity_files
+     where kind::text = 'mobility_bundle' limit 1;
+    if v_bundle is not null and exists (select 1 from implementasi_berkas(v_bundle)) then
+      raise exception 'FAIL impl-c: a mobility_bundle file was handed out';
+    end if;
   end if;
-  raise notice 'PASS implementasi_dokumen periode/peserta guards and cascade';
-
-  delete from proposal_dokumen where id = v_p;
+  raise notice 'PASS implementasi_kegiatan read rule, verified-only and file scope';
 end
 $t$;
 
@@ -1445,6 +1438,92 @@ begin
   delete from proposal_status_history where id_proposal_dokumen = v_p;
   delete from proposal_dokumen_unit where id_proposal_dokumen = v_p;
   perform bersihkan_proposal_uji(v_p);
+  delete from partner where id = v_pt;
+end
+$t$;
+
+-- ===========================================================================
+-- Perbaikan Pembaruan (2026-10-04) — a rejected Perpanjangan is not a
+-- successor. Rejecting one gives it a dokumen_kerja_sama row archived as
+-- 'rejected'; v_pembaruan, resolusi_penerus and implementasi_kegiatan must
+-- all look past it, the unit must be able to upload a fresh draft, and only
+-- one live successor may exist at a time.
+-- ===========================================================================
+do $t$
+declare
+  v_pt int; v_p1 int; v_p2 int; v_p3 int; v_no1 int; v_no_tolak int; v_t int;
+  v_fak int; v_tok text; v_ok boolean;
+  v_jwb jsonb := jsonb_build_object(
+    'exp_quality',4,'exp_relevance',4,'exp_productivity',4,'exp_sustainability',4,'exp_communication',4,
+    'sat_quality',4,'sat_relevance',4,'sat_productivity',4,'sat_sustainability',4,'sat_communication',4,
+    'rekomendasi','continue','respondent_nama','P','respondent_email','p@uji.test',
+    'respondent_jabatan','Dir','respondent_hp','0811');
+begin
+  perform set_config('simks.akun_id','7',true);
+  insert into partner (nama, is_international, id_negara) values ('Uji Tolak Perpanjangan', false, 1)
+    returning id into v_pt;
+  insert into proposal_dokumen (jenis_kerjasama, status_proposal, id_akun_pembuat)
+  values ('MoU','Disetujui',7) returning id into v_p1;
+  insert into partner_pengusul (id_partner, id_proposal_dokumen, is_lead) values (v_pt, v_p1, true);
+  insert into pengusul (id_jabatan, id_proposal_dokumen) values (3, v_p1);
+  insert into dokumen_kerja_sama (id_proposal_dokumen, no_dokumen, tanggal_mulai, tanggal_berakhir, status)
+  values (v_p1, 'UJI/TOLAK/1', current_date - 300, current_date + 20, 'Aktif')
+  returning no into v_no1;
+
+  -- Renewal requested, both sides continue, Admin starts it, unit uploads.
+  perform kirim_permintaan_pembaruan(v_no1, 'perbarui', array[3]);
+  select no into v_fak from evaluasi where id_dokumen_kerjasama = v_no1 and respondent_type = 'faculty';
+  v_tok := buat_tautan_evaluasi_mitra(v_no1);
+  perform set_config('simks.akun_id','3',true);
+  perform kirim_evaluasi_fakultas(v_fak, v_jwb);
+  perform kirim_evaluasi_partner(v_tok, v_jwb);
+  perform set_config('simks.akun_id','7',true);
+  perform mulai_proses_pembaruan(v_no1);
+  select buat_proposal_perpanjangan(v_no1, 'draf-1.pdf') into v_p2;
+
+  -- A second draft while the first is in flight is refused.
+  v_ok := false;
+  begin perform buat_proposal_perpanjangan(v_no1, 'draf-ganda.pdf');
+  exception when others then v_ok := true; end;
+  if not v_ok then
+    raise exception 'FAIL tolak-a: a second live Perpanjangan was created';
+  end if;
+
+  -- The Perpanjangan is rejected in disposition.
+  perform kirim_disposisi(v_p2, array[1], 'perpanjangan');
+  select dt.no into v_t from disposisi_target dt join disposisi d on d.no = dt.no_disposisi
+   where d.id_proposal_dokumen = v_p2 and dt.status = 'pending_action';
+  perform set_config('simks.akun_id','1',true);
+  perform aksi_approval(v_t, 'reject', 'ditolak');
+  perform set_config('simks.akun_id','7',true);
+  select no into v_no_tolak from dokumen_kerja_sama
+   where id_proposal_dokumen = v_p2 and alasan_arsip = 'rejected';
+  if v_no_tolak is null then
+    raise exception 'FAIL tolak-b: setup — the rejection left no archived row';
+  end if;
+
+  if (select id_proposal_penerus from v_pembaruan where no_dokumen_kerjasama = v_no1) is not null then
+    raise exception 'FAIL tolak-c: v_pembaruan still names the rejected Perpanjangan';
+  end if;
+  if (select no_dokumen_kerjasama from resolusi_penerus(v_no1)) <> v_no1
+     or (select langkah from resolusi_penerus(v_no1)) <> 0 then
+    raise exception 'FAIL tolak-d: resolusi_penerus moved onto the rejected document';
+  end if;
+  if exists (select 1 from implementasi_kegiatan(v_no_tolak)) then
+    raise exception 'FAIL tolak-e: the rejected document listed activities';
+  end if;
+
+  -- The unit can try again, and the view stays one row per document.
+  select buat_proposal_perpanjangan(v_no1, 'draf-2.pdf') into v_p3;
+  if (select count(*) from v_pembaruan where no_dokumen_kerjasama = v_no1) <> 1
+     or (select id_proposal_penerus from v_pembaruan where no_dokumen_kerjasama = v_no1) <> v_p3 then
+    raise exception 'FAIL tolak-f: after a retry v_pembaruan is not one row naming the new draft';
+  end if;
+  raise notice 'PASS a rejected Perpanjangan is not a successor; retry and double-submit guard';
+
+  perform bersihkan_proposal_uji(v_p3);
+  perform bersihkan_proposal_uji(v_p2);
+  perform bersihkan_proposal_uji(v_p1);
   delete from partner where id = v_pt;
 end
 $t$;

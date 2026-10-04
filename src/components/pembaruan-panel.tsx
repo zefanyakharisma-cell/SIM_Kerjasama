@@ -189,11 +189,26 @@ export async function PembaruanPanel({
 }) {
   const supabase = await supabaseServer();
 
-  const { data: r } = await supabase
+  const { data: r, error: galatBaca } = await supabase
     .from("v_pembaruan")
     .select("*")
     .eq("no_dokumen_kerjasama", noDokumen)
     .maybeSingle();
+
+  // A failed read used to fall through to "Belum ada permintaan pembaruan"
+  // and offer a send form the database then refuses, because a request
+  // already exists.
+  if (galatBaca) {
+    console.error("[simks] v_pembaruan gagal dibaca:", galatBaca.message);
+    return (
+      <section className={kartu} style={{ borderColor: "var(--action-danger)" }}>
+        <h2 className="mb-1 text-sm font-semibold">Pembaruan</h2>
+        <p role="alert" className="text-sm" style={{ color: "var(--action-danger)" }}>
+          Data pembaruan dokumen ini gagal dimuat. Muat ulang halaman ini.
+        </p>
+      </section>
+    );
+  }
 
   // Not yet requested: IO can send it from here too, not only from the list.
   if (!r) {

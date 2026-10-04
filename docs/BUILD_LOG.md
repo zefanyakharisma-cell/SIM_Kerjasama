@@ -479,3 +479,101 @@ separate fix:
   agenda rows already inserted by `20260919000400`.
 - The V7 test block predates Siap TTD and the Mulai Proses Pembaruan step.
 - `bersihkan_proposal_uji` predates `proposal_status_history`.
+
+## 11 — Implementasi tab reads SIM Realisasi
+
+The Realization Form project shipped as SIM Realisasi, in its own `realisasi`
+schema on this database. It records each Kegiatan in `realisasi.activities`,
+linked to documents through `realisasi.activity_documents`, and never wrote
+`implementasi_dokumen`. That table was empty, so it is dropped, and the
+Implementasi tab now lists the activities:
+
+- **No. · Periode · Nama Kegiatan · Jenis Kegiatan · Unit Pelaksana · Mode ·
+  Tanggal · Jumlah Peserta**, with the activity code and IA / IR downloads.
+- **The whole renewal chain:** `chain_id = realisasi.chain_root(no)`. A row
+  recorded under a predecessor says which document it was recorded on.
+- **Verified activities only.** Drafts and items still in review stay in SIM
+  Realisasi.
+
+Reads go through two `SECURITY DEFINER` functions, `implementasi_kegiatan(no)`
+and `implementasi_berkas(id)`. This is because realisasi's own RLS keys on
+`realisasi.my_role()`, which an SIMKS account without a Realisasi role does not
+have. The functions apply `boleh_baca_proposal` instead and stay at activity
+level:
+- Jumlah Peserta is a count from the approved participant set, with no names.
+- A `mobility_bundle` file is never returned.
+
+Files live as bytea in `realisasi.file_blobs`, so `/api/implementasi/berkas/[id]`
+streams them on the caller's session.
+
+Both functions are plpgsql and return nothing when the `realisasi` schema is
+absent, so a local reset, which has no such schema, still applies.
+
+Verified against the live database inside a block that raised at the end, so
+nothing was kept:
+- Document 11 lists its 16 verified activities out of 17.
+- An IA file returns as a PDF.
+- A mobility bundle is refused.
+- A non-admin account sees activities only where it can read the document.
+
+## 12 — A rejected Perpanjangan is not a successor
+
+Two problems surfaced once SIM Realisasi data was live.
+
+**`main` read a table the database no longer has.** Entry 11's migration was
+applied to the live database, but its app change never reached `main`. So
+`main` kept querying the dropped `implementasi_dokumen` and the Implementasi tab
+showed nothing. Entry 11 is now on this branch.
+
+**Renewal treated a rejected renewal proposal as the successor.** Rejecting a
+proposal gives it a `dokumen_kerja_sama` row: archived, `rejected`, with no
+number and no dates. For a Perpanjangan proposal, that row hangs off the
+predecessor. Reproduced on the live data (doc 52 with its Perpanjangan 151)
+inside a rolled-back transaction, the rejected row broke four things:
+
+- **Pembaruan tab:** it said "Proposal perpanjangan sudah dibuat" and hid the
+  upload, so the unit could never try again. A second draft gave `v_pembaruan`
+  two rows for the document. `maybeSingle()` then failed, and the tab showed
+  "Belum ada permintaan pembaruan".
+- **Double submit:** `buat_proposal_perpanjangan` had no guard, so a double
+  submit created two live Perpanjangan proposals.
+- **Realization API:** `resolusi_penerus` pointed it at the rejected document.
+- **Implementasi tab:** it opened on the rejected proposal and listed the
+  original agreement's activities.
+
+`20261004000100_perbaikan_pembaruan.sql` applies one rule: a successor is a
+renewal proposal that is not Ditolak, and a document in the chain is one whose
+`alasan_arsip` is not `rejected`.
+
+- `v_pembaruan` takes the newest such successor, so it returns at most one row
+  per document.
+- `buat_proposal_perpanjangan` locks the predecessor and refuses a second live
+  successor. A retry after a rejection is still allowed.
+- `resolusi_penerus`, `implementasi_kegiatan` and `implementasi_berkas` skip
+  rejected documents.
+
+App changes:
+
+- The Implementasi tab opens only for a signed document.
+- A failed read now shows an error instead of an empty table.
+- Both successor links use the newest non-Ditolak successor.
+- The Pembaruan panel reports a failed read instead of offering a send form.
+
+Verified on the live database in a rolled-back transaction, with the migration
+applied first:
+
+- A double submit is refused.
+- After the rejection, no successor is named, `resolusi_penerus(52)` stays at
+  52 (langkah 0), and the rejected document lists no activities.
+- A retry produces exactly one row.
+- The renewed chain 28 → 33 still resolves, with 13 activities.
+- `v_pembaruan` has 12 rows for 12 documents.
+
+The new block in `domain_functions.sql` drives the same case through the full
+workflow. It exceeded the 60 s limit of the live SQL tool and was not run end
+to end.
+
+Open, not changed here: `kerjasama.documents` (the SIM Realisasi adapter view)
+still gives a rejected renewal a `predecessor_id`. As a result,
+`realisasi.chain_current` and `v_chains.current_document_id` would name the
+rejected document in SIM Realisasi.
