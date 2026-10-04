@@ -129,6 +129,11 @@ export default async function DetailDokumen({
       .from("v_daftar_dokumen")
       .select("id_proposal, no_dokumen")
       .eq("id_dokumen_sebelumnya", idProposal)
+      // A rejected renewal is not the successor; after one, a second draft
+      // can follow, and maybeSingle() would fail on the two rows.
+      .neq("status_proposal", "Ditolak")
+      .order("id_proposal", { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
 

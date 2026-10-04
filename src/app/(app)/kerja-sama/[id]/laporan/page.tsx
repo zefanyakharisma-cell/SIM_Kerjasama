@@ -157,9 +157,14 @@ export default async function LaporanDokumen({
   // review — that IS "Download Draft" (revision V3 §2.a.1.3).
   const pathBerkas = dok?.upload_dokumen || proposal.file_draft || null;
 
+  // A rejected proposal also has a dokumen_kerja_sama row (archived as
+  // 'rejected', no number, no dates), so `dok?.no` alone does not mean signed.
+  // Only a signed document has activities realized under it.
+  const ditandatangani = Boolean(dok?.no) && dok.alasan_arsip !== "rejected";
+
   const [
     { count: jumlahPembaruan },
-    { data: implementasi },
+    { data: implementasi, error: galatImplementasi },
     { data: kontakMitra },
     { data: signed },
     { data: riwayat },
@@ -181,9 +186,9 @@ export default async function LaporanDokumen({
     // renewal chain, newest first. Read through implementasi_kegiatan because
     // realisasi's own RLS only knows SIM Realisasi roles; the function applies
     // this document's read rule instead.
-    dok?.no
+    ditandatangani
       ? supabase.rpc("implementasi_kegiatan", { p_no: dok.no })
-      : Promise.resolve({ data: [] as any[] }),
+      : Promise.resolve({ data: [] as any[], error: null }),
     idKontak.length
       ? supabase
           .from("partner_contact")
@@ -214,6 +219,11 @@ export default async function LaporanDokumen({
       .from("v_daftar_dokumen")
       .select("id_proposal, no_dokumen")
       .eq("id_dokumen_sebelumnya", idProposal)
+      // A rejected renewal is not the successor; after one, a second draft
+      // can follow, and maybeSingle() would fail on the two rows.
+      .neq("status_proposal", "Ditolak")
+      .order("id_proposal", { ascending: false })
+      .limit(1)
       .maybeSingle(),
     // Approval progress — same shape the workflow page reads (revision V3 §2.a.2).
     supabase
@@ -437,7 +447,7 @@ export default async function LaporanDokumen({
               (k !== "disposisi" || bolehDisposisi) &&
               (k !== "pembaruan" || adaPembaruan) &&
               // Nothing can be implemented before the document is signed.
-              (k !== "implementasi" || Boolean(dok?.no)),
+              (k !== "implementasi" || ditandatangani),
           ),
         )}
         aktif={tab}
@@ -807,7 +817,7 @@ export default async function LaporanDokumen({
         </section>
       ) : null}
 
-      {tab === "implementasi" && dok?.no ? (
+      {tab === "implementasi" && ditandatangani ? (
         <Kartu judul="Kegiatan Implementasi">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -883,8 +893,15 @@ export default async function LaporanDokumen({
                 })}
                 {!implementasi?.length ? (
                   <tr>
-                    <td colSpan={8} className="px-2 py-8 text-center" style={{ color: "var(--text-muted)" }}>
-                      Belum ada kegiatan terverifikasi dari SIM Realisasi.
+                    <td
+                      colSpan={8}
+                      className="px-2 py-8 text-center"
+                      style={{ color: galatImplementasi ? "var(--action-danger)" : "var(--text-muted)" }}
+                    >
+                      {/* A failed read must not pass for "nothing realized". */}
+                      {galatImplementasi
+                        ? "Data kegiatan SIM Realisasi gagal dimuat. Muat ulang halaman ini."
+                        : "Belum ada kegiatan terverifikasi dari SIM Realisasi."}
                     </td>
                   </tr>
                 ) : null}
