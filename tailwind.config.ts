@@ -9,6 +9,7 @@ export default {
       colors: {
         midnight: "var(--midnight)",
         smoke: "var(--surface-sunk)",
+        amber: "var(--amber)",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],

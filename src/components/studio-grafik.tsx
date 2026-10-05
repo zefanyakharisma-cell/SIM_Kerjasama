@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { SubmitButton } from "@/components/submit-button";
+import { PALET } from "@/lib/palet";
 
 /**
  * Studio Grafik Mitra — the rendering half (PRD §8.1).
@@ -27,7 +28,6 @@ type AksiGrafik = (formData: FormData) => void | Promise<void>;
 
 // The Formal register: Midnight first, secondary brand colours only where a
 // series genuinely needs separating (PRD §16.1).
-const PALET = ["#19304b", "#3880d0", "#45b8bc", "#6aaa43", "#be93e4", "#f37121", "#ffbc00"];
 
 function opsiUntuk(g: Grafik) {
   const label = g.deret.map((d) => d.label);

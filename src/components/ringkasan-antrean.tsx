@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { ECharts } from "echarts";
+import { PALET } from "@/lib/palet";
 
 /**
  * Antrean Saya's personal summary (Revisi V8 §5) — what this account still
@@ -16,7 +17,6 @@ export type RingkasanData = {
   approvalTotal: number;
 };
 
-const PALET = ["#19304b", "#3880d0", "#45b8bc", "#6aaa43", "#be93e4", "#f37121", "#ffbc00"];
 
 function Donut({ data }: { data: { label: string; nilai: number }[] }) {
   const el = useRef<HTMLDivElement>(null);

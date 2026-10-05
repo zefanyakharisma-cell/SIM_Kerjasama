@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { WARNA_MITRA } from "@/lib/palet";
 
 /**
  * Peta Mitra Global (PRD §8.1).
@@ -92,7 +93,7 @@ export function PetaMitra({ pin }: { pin: Pin[] }) {
           // 4x the bubble rather than 16x.
           radius: Math.min(5 + 3 * Math.sqrt(p.jumlah_mitra), 30),
           // Colour carries one meaning here, and the popup names it in words.
-          color: p.is_domestic ? "#6aaa43" : "#3880d0",
+          color: p.is_domestic ? WARNA_MITRA.domestik : WARNA_MITRA.internasional,
           fillOpacity: 0.65,
           weight: 1,
         })

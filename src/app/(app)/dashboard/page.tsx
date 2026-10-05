@@ -846,7 +846,7 @@ export default async function Dashboard({
                       <td className="px-2 py-2 text-center">{k.toFixed(2)}</td>
                       <td
                         className="px-2 py-2 text-center font-medium"
-                        style={{ color: selisih < 0 ? "#ec008c" : "var(--status-approved)" }}
+                        style={{ color: selisih < 0 ? "var(--eval-gap-negative)" : "var(--eval-gap-positive)" }}
                       >
                         {selisih > 0 ? "+" : ""}
                         {selisih.toFixed(2)}

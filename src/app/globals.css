@@ -42,6 +42,20 @@
   --status-pending-text: #b34700;
   --status-progress-strong: #2a64a8; /* white text on it: 6:1 */
   --focus-ring: #2a64a8;
+
+  /* Brand accents (PCU Design System). Text on light grounds: midnight, black, emerald, red only. */
+  --amber: #ffbc00;      /* on midnight: text-safe; on white: decoration only */
+  --emerald: #135d50;    /* the text-safe green: 7.8:1 on white */
+  --gradient-midnight: linear-gradient(135deg, #245484, #133256);
+
+  /* Action squares in the list (Revisi V8 §1: view reads blue, edit reads green). White glyph on both >= 6:1. */
+  --action-view: var(--status-progress-strong);
+  --action-edit: var(--emerald);
+
+  /* Expectation-vs-satisfaction gap (Design §2.1 eval-gap): diverging blue / orange, colour-blind safe and
+     text-safe; the sign (+/−) carries the meaning too. */
+  --eval-gap-positive: var(--status-progress-strong);
+  --eval-gap-negative: var(--status-pending-text);
 }
 
 /* One visible focus ring for every control, keyboard only. */
@@ -55,6 +69,8 @@ body {
   background: var(--surface-sunk);
   color: var(--text-primary);
   font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Inter: cv11 (single-storey a) and ss01 (open digits), per the design system. */
+  font-feature-settings: "cv11" 1, "ss01" 1;
   -webkit-font-smoothing: antialiased;
 }
 

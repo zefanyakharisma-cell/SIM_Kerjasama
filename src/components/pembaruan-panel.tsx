@@ -136,8 +136,8 @@ function RingkasEvaluasi({ e }: { e: any }) {
                         gap === null
                           ? "var(--text-muted)"
                           : gap < 0
-                            ? "#ec008c"
-                            : "var(--status-approved)",
+                            ? "var(--eval-gap-negative)"
+                            : "var(--eval-gap-positive)",
                     }}
                   >
                     {gap === null ? "—" : gap > 0 ? `+${gap}` : gap}

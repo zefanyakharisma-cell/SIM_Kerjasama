@@ -74,7 +74,7 @@ function IkonCari({ polos = false }: { polos?: boolean }) {
   return (
     <span
       className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white"
-      style={{ background: "var(--action-view, #2563eb)" }}
+      style={{ background: "var(--action-view)" }}
     >
       <GlifCari />
     </span>
@@ -85,7 +85,7 @@ function IkonEdit() {
   return (
     <span
       className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white"
-      style={{ background: "var(--action-edit, #16a34a)" }}
+      style={{ background: "var(--action-edit)" }}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

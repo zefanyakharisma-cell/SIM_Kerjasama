@@ -108,13 +108,17 @@ export function SidebarNav({
     <>
       <div className={`mb-6 flex items-center gap-2 ${lipat ? "justify-center" : "justify-between"}`}>
         <div className={`flex items-center gap-2 ${lipat ? "hidden" : ""}`}>
-          <Image
-            src="/logo-petra.png"
-            alt="Universitas Kristen Petra"
-            width={32}
-            height={32}
-            className="rounded bg-white/90 p-0.5"
-          />
+          {/* The seal, cropped from the approved logomaster (842×296) rather than squashed into a square:
+              the file is never redrawn or distorted (PCU Design System, SidebarNav). */}
+          <span className="block h-8 w-8 shrink-0 overflow-hidden rounded bg-white/90">
+            <Image
+              src="/logo-petra.png"
+              alt="Universitas Kristen Petra"
+              width={91}
+              height={32}
+              className="h-8 w-auto max-w-none"
+            />
+          </span>
           <div>
             <div className="text-sm font-semibold leading-tight tracking-wide">
               SIM KERJA SAMA
@@ -174,7 +178,7 @@ export function SidebarNav({
           <div
             id={`panel-akun-${varian}`}
             className="absolute left-0 top-full z-10 mt-1 w-64 rounded-lg border bg-white p-3 text-xs shadow-lg"
-            style={{ borderColor: "var(--border)", color: "var(--text-primary, #19304b)" }}
+            style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
           >
             <div className="mb-1 font-semibold" style={{ color: "var(--midnight)" }}>
               Informasi Akun

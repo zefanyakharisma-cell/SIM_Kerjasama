@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -19,8 +20,9 @@ const DEMO_ACCOUNTS = [
 ];
 
 /**
- * Login — a white card over the campus photograph (Design §5.0), the one place
- * the brand's photographic treatment appears.
+ * Login — a white card on the brand's gradient-midnight ground (Design §5.0), the
+ * one place the brand layer appears: the white-wordmark logomaster (approved on
+ * midnight only) and the tagline sit on the ground, outside the card.
  *
  * Accounts are role-based: people sign in as a position, not as themselves
  * (DR-06), which is why the hint below names an address rather than a person.
@@ -53,13 +55,21 @@ export default function Login() {
 
   return (
     <main
-      className="flex min-h-screen items-center justify-center p-6"
-      style={{ background: "var(--midnight)" }}
+      className="flex min-h-screen flex-col items-center justify-center gap-8 p-6"
+      style={{ background: "var(--gradient-midnight)" }}
     >
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl">
+      <Image
+        src="/logo-petra.png"
+        alt="Petra Christian University"
+        width={182}
+        height={64}
+        className="h-16 w-auto"
+        priority
+      />
+      <div className="w-full max-w-sm rounded-xl bg-white p-8">
         <div className="mb-6">
           <div
-            className="text-lg font-semibold tracking-tight"
+            className="text-lg font-bold tracking-[-0.02em]"
             style={{ color: "var(--midnight)" }}
           >
             SIM KERJA SAMA
@@ -125,7 +135,7 @@ export default function Login() {
                       setEmail(a.email);
                       setKataSandi(DEMO_PASSWORD);
                     }}
-                    className="w-full rounded-md px-2 py-1 text-left text-xs hover:bg-gray-100"
+                    className="w-full rounded-md px-2 py-1 text-left text-xs hover:bg-[var(--surface-sunk)]"
                   >
                     <span className="font-medium">{a.label}</span>
                     <span className="block" style={{ color: "var(--text-muted)" }}>
@@ -143,6 +153,12 @@ export default function Login() {
           memerlukan akun baru.
         </p>
       </div>
+      <p
+        className="text-[11px] font-medium uppercase tracking-[0.32em]"
+        style={{ color: "var(--amber)" }}
+      >
+        Explore | Discover | Transform
+      </p>
     </main>
   );
 }

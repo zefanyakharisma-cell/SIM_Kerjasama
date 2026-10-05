@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import type { ECharts } from "echarts";
+import { PALET } from "@/lib/palet";
 
-const PALET = ["#19304b", "#3880d0", "#45b8bc", "#6aaa43", "#be93e4", "#f37121", "#ffbc00"];
 const dasar = {
   color: PALET,
   textStyle: { fontFamily: "Inter, system-ui, sans-serif", fontSize: 11 },
